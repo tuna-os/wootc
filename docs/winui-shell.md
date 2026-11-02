@@ -92,7 +92,7 @@ redirection needs `UseShellExecute=false`.
 See [Microsoft's process contract](https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.useshellexecute)
 and [shell launch verbs](https://learn.microsoft.com/en-us/windows/win32/shell/launch).
 
-The implemented native transport follows this contract:
+The native transport follows this contract:
 
 1. Start the shell without elevation. Show local brand assets and read-only assessment.
 2. Request UAC only for an operation that needs it. Launch the engine from its trusted absolute path with `runas`.
@@ -118,9 +118,9 @@ These checks need native Windows tests before the transport becomes a release pa
 
 ## Preserve the original person's identity
 
-The native transport captures and revalidates the original user's token;
-profile collection must use that authority rather than a path or username
-supplied by a caller. The legacy installer now refuses when interactive
+The native transport captures and revalidates the original user's token.
+Profile collection must use that authority, not a caller's path or username.
+The legacy installer now refuses when interactive
 identity is unavailable or differs after elevation. `USERPROFILE` or
 `WOOTC_*` hints are not an alternate-admin fallback.
 
@@ -194,9 +194,9 @@ Target 1366×768 and low-memory machines as explicit test cohorts.
 
 Phase D's **source workflow** makes native shell setup the primary artifact:
 each eligible brand builds `<Product>-Installer-Setup.exe` through the Inno
-wrapper; the generic name is `wootc-Installer-Setup.exe`. It retains one
-`wootc-legacy.exe` Wails download for the first native release. These names
-describe packaging on main, not assets present in `v0.1.0-alpha.1`.
+wrapper; the generic name is `wootc-Installer-Setup.exe`. The first native
+release also retains `wootc-legacy.exe` as a Wails download. These names
+describe packages on main, not assets present in `v0.1.0-alpha.1`.
 
 Keep the Go engine beside the shell and retain the standalone headless asset.
 The native package embeds the public key for release verification. The package
@@ -231,28 +231,29 @@ The checked-in winget manifest targets Inno setup; package review/publication
 is a separate prerequisite, not proof that `winget install` works today.
 A native UI does not remove SmartScreen or code-signature requirements.
 
-The production native engine's Secure Boot provenance derives from the exact
-released shim bytes, signing key and matching source commit through
-`shell/packaging/release-metadata.py`, not an empty/handwritten authority list.
+In production, the native engine will use the exact shim bytes from the release for Secure Boot provenance.
+It also uses the key that signed them and the matching source commit.
+It uses `shell/packaging/release-metadata.py`, not an empty/handwritten authority list.
 The package Publisher uses `packaging/brand.py`'s effective identity (including
 unapproved-brand distributor identity); installed-package checks retain
 `publisher-observations.json`. Component fixtures and package assertions still
-do not prove firmware trust or a fresh machine's Apps rendering.
+do not prove firmware trust or how Apps appears on a fresh machine.
 
 The native plan displays the complete Windows-directory → editable Linux-user
-mapping and warnings. Editing it discards an earlier grant and requires a new
-check; final confirmation repeats the engine-granted mapping. Unsupported TPM
-root encryption is no longer offered; the native default is `none`.
+map and warnings. An edit discards an earlier grant and needs a new check.
+Final confirmation repeats the map that the engine granted.
+The UI no longer offers unsupported TPM encryption for root; the native default is `none`.
 Hardware warnings remain visible during progress and on Done.
 
-The dedicated `native-proof / native-shell GUI acceptance` E2E job records
-actual UI Automation/CopyFromScreen observations before the confirmation
-button, compares displayed boot evidence independently to Linux QGA and the
-current Windows boot identity, and retains
+The dedicated `native-proof / native-shell GUI acceptance` E2E job will record
+observations from UI Automation/CopyFromScreen before the confirmation button.
+It independently compares displayed boot evidence with Linux QGA and the
+current Windows boot identity. It retains
 `native-gui-soak-proof-<run>-<attempt>` and
-`native-shell-build-<run>-<attempt>` artifacts. This is a source verification
-path, **not** a newly passed native cycle, an RC qualification, or the start
-or completion of a thirty-day soak.
+`native-shell-build-<run>-<attempt>` artifacts.
+
+This source verification path does **not** prove a new native cycle passed.
+It does not qualify an RC or start or complete a thirty-day soak.
 
 ## Screen gallery
 
@@ -408,7 +409,7 @@ there is no TCP port, URL, REST endpoint, or listener option. It does not open
 the GUI. `serve` defines no command-specific flags; additional arguments are
 not a supported configuration API. Use a trusted matching engine build.
 
-For a non-mutating protocol probe in PowerShell:
+For a read-only protocol probe in PowerShell:
 
 ```powershell
 $requests = @(
@@ -429,13 +430,13 @@ successful stdio probe does not authorize a native session.
 **Safety:** stdio is a trusted automation interface, not an untrusted local
 service. `StartInstall`, reboot, uninstall, defrag and VM actions can change the
 machine. Elevation, protected state and all engine preconditions still apply.
-Do not use mutating examples on a development workstation.
+Do not use examples that change the machine on a development workstation.
 
 ### Framing, responses and lifetime
 
-- Write one UTF-8 JSON object per line, terminated by LF (CRLF is accepted).
-  Blank lines are ignored. No JSON-RPC batches or `Content-Length` framing are
-  supported. The current reader limit is 10 MiB per line; use small requests.
+- Write one JSON object per line as UTF-8. End each line with LF; the reader also accepts CRLF.
+  The reader will ignore blank lines. It does not support batches for JSON-RPC or `Content-Length`.
+  The current reader limit is 10 MiB per line; use small requests.
 - Request envelope:
   `{"jsonrpc":"2.0","id":1,"method":"GetStatus","params":null}`.
   Method names are case-sensitive. Use a unique string or integer `id`.
@@ -447,25 +448,28 @@ Do not use mutating examples on a development workstation.
   `error.data` is optional; configuration errors can carry diagnostic data.
 - This adapter responds with `id:null` when the request has no `id`; do not
   rely on JSON-RPC client-notification silence. Malformed JSON uses `id:null`.
-  Unknown JSON object properties are not generally rejected by legacy calls;
-  native plan and confirmation decoders are deliberately stricter.
-- `-32700`: JSON decoding failed; `-32600`: missing/wrong `"2.0"` or empty
-  method; `-32601`: unknown method or unavailable in this session;
-  `-32602`: malformed params; `-32603`: engine failure, policy refusal, changed
-  observations, or unavailable capability. Treat messages as display text,
-  not stable machine-readable codes. An error is not a success receipt.
-- Dispatch is sequential, but install and VM workers emit asynchronous events.
-  Responses and events can be interleaved; route responses by `id` and events
+  Legacy calls will generally accept a property that they do not recognize in a JSON object.
+  Native plan and confirmation decoders are deliberately stricter.
+- `-32700`: JSON decode failed.
+- `-32600`: missing/wrong `"2.0"` or empty method.
+- `-32601`: unknown method or unavailable in this session.
+- `-32602`: malformed params.
+- `-32603`: engine failure, policy refusal, changed observations, or unavailable capability.
+  Treat messages as display text, not stable machine-readable codes.
+  An error is not a success receipt.
+- Dispatch is sequential, but workers for installs and VMs can emit events asynchronously.
+  Responses and events can alternate. Route responses by `id` and events
   by `method`, never by line position.
 - `StartInstall`/`PrepareVM` acceptance does not mean work finished. Read
   `GetStatus` or VM state and events. `CancelInstall` requests cancellation;
   `null` does not prove cleanup has completed.
-- `Shutdown` responds with `null` and ends the loop; EOF also ends it. Closing
-  the transport triggers VM shutdown and install cancellation/cleanup. The
-  engine waits for safe cleanup; its 30-second install warning is **not** a
+- `Shutdown` responds with `null` and ends the loop; EOF also ends it.
+  When the transport closes, the engine shuts down VMs and cancels/cleans up installs.
+  The engine waits for safe cleanup; its 30-second install warning is **not** a
   deadline after which it kills the worker. Drain stderr until process exit.
-  Exit 0 means the server loop ended normally, not that an install succeeded;
-  a reader error returns exit 1.
+
+  Exit 0 means the loop in the server ended normally. It does not mean an install succeeded.
+  A reader error returns exit 1.
 
 ### Session availability
 
@@ -478,8 +482,8 @@ every method:
 | Native assessment | `GetStatus`, `GetLastRun`, `GetRecoveryVerdict`, `GetInstallRecovery`; a configuration-capable session additionally permits `GetNativeConfiguration`, `GetNativeInstallSpace` and the three E2E drive methods |
 | Native install-purpose | `GetStatus`, `CancelInstall`, `Shutdown`, grants/confirmations for install, maintenance and VM, plus `GetUninstallInfo`, `InspectBoot`, `GetNativeVMStatus`; `Reboot` only after this session's own successful completed install |
 
-The trusted transport selects these capabilities. A JSON field cannot upgrade
-an assessment session. E2E drive calls remain inert unless the **engine's**
+The trusted transport selects these capabilities. A field in JSON cannot
+upgrade an assessment session. E2E drive calls remain inert unless the **engine's**
 environment enables `WOOTC_E2E_DRIVE=1`; this is a test facility, not a
 consumer automation API.
 
@@ -568,16 +572,17 @@ from the form. Confirmation is:
 {"jsonrpc":"2.0","id":12,"method":"ConfirmNativeInstall","params":{"kind":"confirm-install","protocolVersion":1,"session":"<grant.session>","brandId":"<grant.brandId>","intentId":"<grant.intentId>"}}
 ```
 
-Maintenance/VM confirmations have those same binding fields plus the granted
-`action`, using `kind:"confirm-maintenance"` / `"confirm-vm"` and their
-respective method names. Session and intent IDs are engine-issued 32-character
-lowercase hex. All confirmation fields are required, unknown/duplicate fields
-are refused, and confirmations are limited to 4096 bytes. The first attempt
-consumes its intent even if refused. Install/maintenance preparation is
-one-shot per session, including a failed prepare; a changed plan needs a new
-session. VM actions each need a fresh grant; a new VM prepare replaces an
-unconfirmed grant. Engine observations and original-user identity are checked
-again before mutation.
+Maintenance/VM confirmations have the same fields that bind the grant, plus the granted
+`action`. They use `kind:"confirm-maintenance"` / `"confirm-vm"` and their
+respective method names. The engine issues session and intent IDs as lowercase
+hex strings of 32 characters. The decoder needs every confirmation field.
+It refuses unknown/duplicate fields and limits confirmations to 4096 bytes.
+The first try consumes its intent even if the engine refuses it.
+
+Install/maintenance preparation is one-shot per session, including a failed
+prepare; a changed plan needs a new session. Each VM action needs a fresh
+grant; a new VM prepare replaces an unconfirmed grant.
+The engine checks its observations and the original user's identity again before mutation.
 
 ### Results, schemas and event payloads
 
@@ -626,27 +631,27 @@ Notifications omit `id`. Install progress carries `ProgressEvent`:
 `phaseId` and `error` may be absent. The example is a shape illustration, not
 an observed run. `vm:progress` carries `VMEvent` (`stage:string`,
 `percent:number`, `message:string`). A progress
-percentage, helper exit or running QEMU process does not establish login,
+percentage, helper exit or active QEMU process does not establish login,
 desktop readiness or successful migration. Read the durable lifecycle and
-independent evidence before reporting completion.
+independent evidence before you report completion.
 
 ### Contributor testing patterns
 
 - Protocol behavior and JSON goldens: from `app`, run `go test ./...`.
   `serve_test.go`, `serve_assessment_test.go`, `serve_shutdown_test.go` and
-  native session tests exercise decoding, routing, refusal, and cleanup.
+  tests for native sessions will exercise JSON decode, dispatch, refusal, and cleanup.
   Add behavioral requests/responses, not source-text assertions.
 - After an intentional Go DTO change, run `go generate ./...` from `app` and
   review generated DTO changes. Use `go test . -run TestDTOGoldens -update`
-  only when deliberately updating the golden contract; a new golden is not
+  only to deliberately update the golden contract; a new golden is not
   runtime evidence.
 - Cross-platform shell logic: `dotnet test shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj`
   and `dotnet test shell/Wootc.Shell.NativeTests/Wootc.Shell.NativeTests.csproj`.
   Recorded exchanges and the gallery are suitable for screen/blocked-state
   development, but do not prove Windows transport, elevation or installation.
-- On an isolated Windows fixture, use the real installed matching engine and
-  native shell, then run the native E2E lane described above. Include malformed
+- On an isolated Windows fixture, use the installed engine and native shell from the same build.
+  Run the native E2E lane above. Include malformed
   and replayed grants, cancel/EOF during an armed operation, and restart/recovery.
-  Observe cleanup and Windows return; a successful `Shutdown` response alone
-  proves neither. Interactive UAC, minimum OS, offline setup, accessibility,
+  Observe cleanup and Windows return; a successful `Shutdown` response
+  does not prove either result. Interactive UAC, minimum OS, offline setup, accessibility,
   consumer hardware and RC screenshots retain their own acceptance gates.

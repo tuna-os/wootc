@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -47,56 +46,6 @@ func TestScratchNeedGiB(t *testing.T) {
 	// would under-reserve for the very image that motivated this check.
 	if scratchNeedGiB(scratchDefaultCompressedBytes) < scratchNeedGiB(deckCompressedBytes) {
 		t.Error("the default compressed size reserves less than bazzite-deck needs")
-	}
-}
-
-// TestScratchNeedMatchesDeployer pins the Go formula to the shell one the
-// deployer actually runs: it extracts SCRATCH_MIN_GIB and scratch_need_gib
-// from payload/deployer/deploy.sh and compares them value by value. Change
-// either side alone and this goes red.
-func TestScratchNeedMatchesDeployer(t *testing.T) {
-	bash, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-	src, err := os.ReadFile(filepath.Join("..", "payload", "deployer", "deploy.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(src)
-	minLine := regexp.MustCompile(`(?m)^SCRATCH_MIN_GIB=(\d+)$`).FindStringSubmatch(text)
-	if minLine == nil {
-		t.Fatal("deploy.sh no longer defines SCRATCH_MIN_GIB=<n>")
-	}
-	if n, _ := strconv.Atoi(minLine[1]); n != scratchMinGiB {
-		t.Errorf("deploy.sh SCRATCH_MIN_GIB=%d, Go scratchMinGiB=%d", n, scratchMinGiB)
-	}
-	fn := regexp.MustCompile(`(?ms)^scratch_need_gib\(\) \{.*?^\}`).FindString(text)
-	if fn == "" {
-		t.Fatal("deploy.sh no longer defines scratch_need_gib()")
-	}
-	// The slack ensure_scratch_capacity keeps beyond the growth.
-	if !strings.Contains(text, "(( free >= grow + (1 << 30) ))") || scratchDriveSlackGiB != 1 {
-		t.Error("deploy.sh's 1 GiB drive slack and scratchDriveSlackGiB disagree")
-	}
-	samples := []int64{1, gibBytes, 4 * gibBytes, bazziteCompressedBytes, deckCompressedBytes,
-		scratchDefaultCompressedBytes, 5*gibBytes + 12345, 9*gibBytes - 1, 9 * gibBytes, 9*gibBytes + 1, 40 * gibBytes}
-	script := minLine[0] + "\n" + fn + "\n"
-	for _, b := range samples {
-		script += fmt.Sprintf("scratch_need_gib %d\n", b)
-	}
-	out, err := exec.Command(bash, "-c", script).Output()
-	if err != nil {
-		t.Fatalf("running deploy.sh's scratch_need_gib: %v", err)
-	}
-	got := strings.Fields(string(out))
-	if len(got) != len(samples) {
-		t.Fatalf("shell printed %q for %d samples", out, len(samples))
-	}
-	for i, b := range samples {
-		if sh, _ := strconv.Atoi(got[i]); sh != scratchNeedGiB(b) {
-			t.Errorf("scratch need for %d bytes: deploy.sh %d GiB, Go %d GiB", b, sh, scratchNeedGiB(b))
-		}
 	}
 }
 

@@ -14,7 +14,7 @@ exe drops out of the release matrix.
 
 **Recorded state as of 2026-11-02:** Bluefin, Bazzite and Aurora are all
 `pending`, all four decisions are `pending`, `ask.filed` is `false`, and
-`winget.identifierAgreed` is `false`. No third-party approval is recorded.
+`winget.identifierAgreed` is `false`. The records contain no third-party approval.
 The self-owned `wootc` and `tunaos` records are `blessed`; that is not an
 upstream endorsement of any image or migration path.
 
@@ -24,7 +24,7 @@ upstream endorsement of any image or migration path.
 | Bazzite | [blessing.json](../app/branding/bazzite/blessing.json) | not filed / pending / not agreed |
 | Aurora | [blessing.json](../app/branding/aurora/blessing.json) | not filed / pending / not agreed |
 
-The records, not assumptions in outreach issues, determine what is approved.
+The records determine the scope of approval, not assumptions in outreach issues.
 Asset provenance, shared organization membership, a successful build, previous
 downloads or an unanswered invitation are not consent.
 
@@ -32,52 +32,55 @@ downloads or an unanswered invitation are not consent.
 
 Issues [#594](https://github.com/tuna-os/wootc/issues/594),
 [#592](https://github.com/tuna-os/wootc/issues/592) and
-[#586](https://github.com/tuna-os/wootc/issues/586) share one review process.
-A maintainer must own each request; no request is authorized or sent merely
-because this document contains a draft.
+[#586](https://github.com/tuna-os/wootc/issues/586) use the same process for review.
+A maintainer must own each request. A draft in this document does not authorize
+or send a request.
 
-Before presenting a branded download as approved or arranging co-promotion:
+Before you claim approval for a branded download or arrange co-promotion:
 
-1. Name a wootc liaison and ask the project's authorized brand/release owner,
-   through an existing permitted channel, whether they want a review. Verify the
-   current venue with the project; historical URLs in `ask.venue` are not proof
-   of permission to post there.
-2. Supply a review packet tied to an exact release/commit: asset URL and
-   checksums, actual filename, Windows signature/publisher status, asset licenses
-   and provenance, UI screenshots from that build, image references/digests and
-   the supported hardware/storage/channel matrix. Include real retained
-   install → Linux login → Windows return → uninstall evidence and known
-   migration/recovery gaps, not just a link to a moving latest run.
-3. Ask the four branding questions separately. Ask the image maintainer to
-   review catalog defaults, hardware fit, preload/update assumptions and the
-   claimed file/Wi-Fi/profile migration behavior. Compatibility review is not
-   implied by a logo permission.
+1. Name a wootc liaison. Ask the project's authorized brand/release owner whether
+   they want a review, through an existing permitted channel.
+   Verify the current venue with the project.
+   Historical URLs in `ask.venue` do not prove permission to post there.
+2. Supply a packet for review tied to an exact release/commit.
+   Include the asset URL, checksums, actual filename and Windows signature/publisher status.
+   Include asset licenses, provenance and UI screenshots from that build.
+   Add image references/digests and the supported matrix for hardware/storage/channel.
+   Include real retained evidence of install → Linux login → Windows return → uninstall.
+   State known migration/recovery gaps; a link to a latest run that changes is not enough.
+3. Ask the four questions about the brand separately.
+   Ask the image maintainer to review catalog defaults, hardware fit and preload/update assumptions.
+   Ask them to review the claimed behavior for file/Wi-Fi/profile migration.
+   Logo permission does not imply a review of compatibility.
 4. Agree a review window with the reviewer. Two weeks is a proposal, not an
-   imposed deadline or automatic approval. No reply leaves the record pending.
+   imposed deadline or automatic approval. Without a reply, the record stays undecided.
 5. Record the authorized decision and durable public evidence for its exact
-   scope. A private answer is not permission to publish its contents: obtain a
-   publishable confirmation before entering it as public evidence. Record
-   winget namespace/publisher agreement separately from permission to ship an exe.
-6. Name the distributor, signing/release owner and support/escalation owner.
-   Obtain any winget publishing credentials through the repository's secret
-   settings, never in an issue or this document. A token is not brand permission.
-7. Only then agree optional upstream docs PRs, download-page links, announcement
-   copy, dates and aggregate metrics. Do not promise an upstream link or support
-   commitment. Use consented real reports for case studies; download counts
-   alone do not establish attempts or successful migrations.
+   scope. A private answer is not permission to publish its contents.
+   Get confirmation that you may publish before you add public evidence.
+   Record winget namespace/publisher agreement separately from permission to ship an exe.
+6. Name the distributor, the owner for signatures/releases, and the owner for support/escalation.
+   Get credentials to publish to winget through the repository's secret settings, never in an issue or this document.
+   A token is not brand permission.
+7. Only then agree on optional PRs for upstream docs, download-page links,
+   announcement copy, dates and aggregate metrics.
+   Do not promise an upstream link or support commitment.
+   Use real reports with consent for case studies.
+   Download counts alone do not establish tries or successful migrations.
 
-**Enforcement gap:** `packaging/brands.sh` still includes pending brands by
-default, warning in the log. Its existing `WOOTC_REQUIRE_BLESSING=1` mode drops
-pending brands; release owners must use that mode for approval-gated public
-distribution. This document does not claim that the default release workflow
-already enforces prior approval. Declined brands are excluded in either mode.
+**Enforcement gap:** `packaging/brands.sh` still includes brands that need approval
+by default and warns in the log. Its existing `WOOTC_REQUIRE_BLESSING=1` mode
+drops those brands. Release owners must use that mode for public distribution
+that needs prior approval. The default workflow for releases does not enforce
+prior approval. Both modes will exclude brands that have a refusal in their record.
 
-For every later release, the liaison and release owner must compare the approved
-identity, catalog and claims against the new build and retain new compatibility
-evidence. Re-ask when scope or upstream requirements change; a previous yes is
-not perpetual permission for new claims. The release owner records reviewed tag,
-image digest, evidence and unresolved issues in the release evidence. Keep brand
-permission, compatibility qualification and co-marketing approval distinct.
+For each later release, the liaison and release owner must compare the approved
+identity, catalog and claims against the new build. They must retain new
+evidence of compatibility. Ask again when scope or upstream requirements
+change; a previous yes is not perpetual permission for new claims.
+
+In the release evidence, the release owner records the tag, image digest,
+evidence and unresolved issues from the review. Keep permission for the brand,
+qualification of compatibility and approval for joint promotion distinct.
 
 ## What each project is asked
 
@@ -108,8 +111,8 @@ Not a description — the actual thing:
    published branding: [`app/branding/README.md`](../app/branding/README.md)
    § Asset provenance. This answers "where did you get our logo" before it
    is asked.
-3. **Retained E2E evidence** for the exact candidate build/image actually
-   installing, migrating, returning to Windows and uninstalling. The
+3. **Retained E2E evidence** for the exact candidate build/image: installation,
+   migration, return to Windows and uninstall. The
    [E2E index](https://tuna-os.github.io/wootc/e2e/latest/) is a discovery
    link, not by itself proof for the candidate.
 4. **The rendered winget manifests** for their namespace (below) — an offer,
@@ -127,11 +130,11 @@ they want:
   `winget.identifierAgreed`, and they can take it over at any time;
 - **no winget package** — the exe stays a direct download.
 
-Only the generic `TunaOS.wootc` identifier is wired to the automatic submission
-workflow (`.github/workflows/winget-publish.yml`); publishing still needs the
+The automatic submission workflow (`.github/workflows/winget-publish.yml`) uses
+only the generic `TunaOS.wootc` identifier. Publication still needs the
 maintainer's credentials, first-submission review and a successful workflow.
-No branded package may be submitted without its separate recorded namespace
-agreement. See [`packaging/winget/README.md`](../packaging/winget/README.md).
+Do not submit a branded package without a separate agreement for its namespace
+in the records. See [`packaging/winget/README.md`](../packaging/winget/README.md).
 
 Render a brand's manifests to show them exactly what would be published:
 
@@ -146,46 +149,46 @@ the shape of the package.
 
 ## The request
 
-Adapt per project; keep it short and make the "no" genuinely free.
+**Draft, not sent.** Adapt per project; keep it short and make the "no" genuinely free.
 
 > **Subject:** May we ship a Bazzite-branded Windows installer?
->
-> We build [wootc](https://github.com/tuna-os/wootc), early software for
-> installing a bootc Linux system beside Windows. It changes boot files and
+
+> We build [wootc](https://github.com/tuna-os/wootc), early software to
+> install a bootc Linux system beside Windows. It changes boot files and
 > startup settings; some storage paths also change partitions. Windows return,
 > migration and uninstall have limits documented in the attached evidence.
 > We have built a variant whose window says "Bazzite Installer" and uses your
 > mark, type and colours. Existing builds do not establish your approval.
->
+
 > We would like your review before any further approved distribution or
 > co-promotion. Four separate questions, and a no to any of them is
 > completely fine:
->
+
 > 1. May we use the Bazzite mark, colours and typeface in the installer?
 > 2. May we call it "Bazzite Installer"?
 > 3. May we use the tagline "`<the tagline from brand.json>`"?
 > 4. May we distribute an exe branded as Bazzite at all?
->
+
 > Here is the exact candidate and its checksums: `<pinned release links>`.
 > Screenshots from that build: `<retained walkthrough link>`.
 > Asset provenance and licenses: `<provenance link>`.
 > Supported image references/digests, retained journey evidence and known
-> limitations: `<candidate evidence links>`. Please also review image defaults
-> and the migration claims; permission to use your mark will not be treated
-> as a compatibility certification.
->
-> On winget: `Bazzite.Installer` belongs in your namespace, not ours. We
-> have the manifests rendered and would rather hand them to you than publish
-> under a name that isn't ours — attached/below. We are not submitting
-> anything until you say so.
->
-> Would you like to review this, and is a two-week feedback window useful?
-> No response will remain pending, not approved. Please identify the
-> authorized reviewer and a public decision location we may cite.
->
-> If the answer is no to any of it, tell us and we will drop it — the
-> branded exe comes out of our release matrix, which is a one-line change on
-> our side.
+> limitations: `<candidate evidence links>`.
+
+> Please also review image defaults and the migration claims.
+> We will not treat permission to use your mark as a compatibility certification.
+
+> On winget: `Bazzite.Installer` belongs in your namespace, not ours.
+> We have rendered the manifests — attached/below. We prefer to hand them to you,
+> not publish under a name that isn't ours. We will not submit anything
+> until you say so.
+
+> Would you like to review this? Would two weeks for feedback be useful?
+> No response means no approval; we will leave the decision open.
+> Please identify the authorized reviewer and a public decision location we may cite.
+
+> If the answer is no to any of it, tell us and we will drop it.
+> We will remove the branded exe from our release matrix.
 
 ## Recording the answer
 

@@ -54,11 +54,11 @@ Each item opens a gate when its matrix row passes:
 - [ ] Current-candidate full matrix for all green catalog images (#222).
 - [ ] Current-candidate BitLocker installation, editable Documents, save and persistence proof (#427); a refusal-path pass does not satisfy this.
 - [ ] Offline VM acceptance before generic pre-download becomes default-on (#217).
-- [ ] Windows editions and branded native setups verified on the same candidate (#240).
-- [ ] Encryption/filesystem axes verified before offering them; implementation or a historical closed issue is not new evidence.
+- [ ] Verify Windows editions and native setups for brands on the same candidate (#240).
+- [ ] Verify encryption/filesystem axes before you offer them; implementation or a historical closed issue is not new evidence.
 
-Several policy flags and deployment paths already exist on `main`. These
-checkboxes track their acceptance evidence, not whether their code was merged.
+Several policy flags and paths for deployment exist on `main`. These
+checkboxes track the evidence for acceptance, not code merges.
 
 When the **whole matrix** passes, `beta` becomes the default channel.
 The catalog then offers all images and lets users select custom references.
@@ -108,7 +108,7 @@ git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 ### Current-source prerelease
 
 A preview does not need to wait for the full GA matrix, winget submission or
-30-day soak. Freeze a candidate branch and retain the fresh native E2E gate:
+30-day soak. Freeze a candidate branch and retain a fresh E2E gate for native code:
 
 ```bash
 gh workflow run release.yml --repo tuna-os/wootc \
@@ -123,17 +123,17 @@ This path tests the default alpha scenario, not every matrix axis. Configured
 repository/environment policies still apply. An explicitly unsigned preview is
 supported; do not claim Authenticode, SmartScreen, or fresh-machine acceptance.
 
-Native setup attachment is asynchronous. Require the dispatched
-`winui-preview.yml` at the new tag to finish its `publish-preview` job, and check
-the expected setup assets plus `native-SHA256SUMS`. A green parent Release run
-with only boot/legacy assets is not a complete native download. Count actual
-setup installation only when the E2E route reports `inno`, not its explicitly
-limited file-copy fallback.
+Native setup attachment is asynchronous. Wait for `winui-preview.yml`,
+dispatched at the new tag, to finish its `publish-preview` job.
+Check the expected setup assets and `native-SHA256SUMS`.
+A green parent Release run with only boot/legacy assets is not a complete native download.
+Count setup installation only when the E2E route reports `inno`.
+Its file-copy fallback does not prove setup installation.
 
 ### Artifact set
 
 The current workflows prepare the following **native artifact set**. This
-describes a future qualifying release, not the published `v0.1.0-alpha.1`.
+describes a future release that passes its gates, not the published `v0.1.0-alpha.1`.
 Its primary GUI downloads are one Inno setup per eligible
 brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and

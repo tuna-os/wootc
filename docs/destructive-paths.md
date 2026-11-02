@@ -6,10 +6,10 @@ It records source gates, failure behavior, tests, and evidence limits. It is not
 the execution review for [#237](https://github.com/tuna-os/wootc/issues/237).
 That issue still needs an RC SHA and a full-tier run.
 
-**Working-tree follow-up, 2026-11-02:** the source updates below are not an RC
-clearance or a published release. Component checks and isolated runtime
-observations retain their stated boundaries; real Windows mutation, firmware,
-BitLocker editing and same-system promotion remain separate gates.
+**Source follow-up, 2026-11-02:** the source updates below are not an RC
+clearance or a published release. Component checks and observations from isolated
+runtime trials must retain their stated boundaries.
+Real Windows mutation, firmware, BitLocker changes and same-system promotion remain separate gates.
 
 ## Review method and status
 

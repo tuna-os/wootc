@@ -54,8 +54,8 @@ diagnosis issue on the same day. Automatic pre-releases continue each day.
 
 ## Native proof contract
 
-Wails cannot qualify. The native proof producer is implemented in
-`tests/e2e/native-proof*` and the dedicated full-cycle workflow job. GitHub must
+Wails cannot qualify. `tests/e2e/native-proof*` and the dedicated workflow job
+for the full cycle will produce native proof. GitHub must
 report its qualified job name as `native-proof / native-shell GUI acceptance`.
 These steps must pass:
 
@@ -81,7 +81,7 @@ value. A screenshot alone fails. The Linux summary, including `InstalledBootId`,
 must match independent live Linux facts from that try.
 
 The current-Windows observation comes from Windows CIM, not a UI claim. The
-collector requires this chronology within the same run and try:
+collector needs this chronology within the same run and try:
 confirmation → live Linux facts → actual Windows boot → UI summary →
 Windows capture → completed return. Missing, stale, ambiguous or contradictory
 evidence fails. An earlier Windows boot cannot prove a Linux-to-Windows return.

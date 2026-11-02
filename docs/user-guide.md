@@ -11,8 +11,8 @@ Some storage choices also change partitions. Read the proposed plan before you c
 
 This guide describes **current source**, not a guarantee that the latest
 published tag contains every feature. On 2026-11-02 the observed latest
-non-prerelease remained `v0.1.0-alpha.1`; main's native setup packaging is newer.
-Follow [getting started](getting-started.md) for actual download names and
+non-prerelease remained `v0.1.0-alpha.1`; main has newer native setup packages.
+Follow the [download guide](getting-started.md) for actual download names and
 [current status](status.md) for evidence and limits.
 
 ## Contents
@@ -34,11 +34,13 @@ The app checks your PC at startup. Its current requirements include:
 
 - **Windows 10 or 11**, 64-bit, with UEFI firmware.
 - **Enough free space on an admitted storage volume.** The native plan needs a
-  Linux disk of at least 20 GB **plus** image-dependent scratch, any offline
-  image copy and a safety reserve. The app reads the reserve for the selected
-  image and lowers the offered disk size to fit. A blanket "35 GB is enough"
-  is not valid for every current image or frontend. VM preparation has a
-  separate conservative 88 GiB host free-space gate; see [managed VM](managed-vm.md).
+  Linux disk of at least 20 GB. It also needs image-dependent scratch space,
+  space for any offline image copy, and a safety reserve. The app reads the
+  reserve for the selected image and lowers the offered disk size to fit.
+  A blanket "35 GB is enough" is not valid for every current image or frontend.
+
+  VM preparation has a separate conservative gate: 88 GiB of free space on the
+  host. See [managed VM](managed-vm.md).
 - **Secure Boot can remain on.** The installer checks whether your firmware trusts its Microsoft-signed loader before it changes boot configuration.
   It stops if it cannot confirm that trust.
 - **BitLocker off for the alpha install path.** The released alpha refuses an encrypted Windows drive.
@@ -49,33 +51,38 @@ You do not need a bootable USB for this path.
 
 ### Hardware warnings are not compatibility certificates
 
-Current source assesses a staged image's Linux PCI module aliases before disk
-or boot changes. A proven missing critical PCI driver can refuse the plan when
-both Windows device inventory and one target kernel inventory are complete.
+Current source will check aliases for Linux PCI modules in a staged image before
+disk or boot changes. A proven lack of an important PCI driver can stop the plan.
+This refusal needs complete inventories from Windows and from one target kernel.
 Nouveau-only graphics or firmware-framebuffer support gives a warning, not a
-promise of an accelerated desktop. Missing declared firmware also warns:
-Windows cannot establish which Linux firmware variant the device actually uses.
-USB PnP identifiers lack a complete Linux modalias, so partial/unknown inventory
-remains a warning rather than a fabricated match. Without a local/preloaded
-image the assessment may be unknown. Neither unknown nor warning means green.
-The detailed report is retained under the install root's
+promise of an accelerated desktop.
+
+Missing declared firmware also warns: Windows cannot establish which Linux
+firmware variant the device uses. USB PnP identifiers do not supply a complete
+Linux modalias. Partial or unknown inventory gives a warning, not a fabricated
+match. Without a local/preloaded image the assessment may be unknown.
+Neither unknown nor warning means green.
+
+The installer keeps the detailed report under the install root's
 `bundle\hardware-report.json`; include it with a compatibility report.
 
 <a id="2-install-linux-phase-1"></a>
 
 ## 2. Install Linux
 
-Use an artifact actually present in the chosen release. The published older
-generic executable is `wootc.exe`; current-source native packaging uses
-`wootc-Installer-Setup.exe` (or a distribution-specific setup), which installs
+Use an artifact present in the chosen release. The older published executable
+for the generic build is `wootc.exe`. Current source uses native setup packages:
+`wootc-Installer-Setup.exe` (or a distribution-specific setup). These install
 the WinUI shell and protected engine. A native release may retain
-`wootc-legacy.exe` for one release. The older Wails interface needs WebView2;
-the native shell does not. These artifact generations are not interchangeable.
+`wootc-legacy.exe` for one release.
+
+The older Wails interface needs WebView2; the native shell does not.
+These artifact generations are not interchangeable.
 
 ![Launchpad](screenshots/01-launchpad.png)
 
 *Historical Wails/mock illustration, not a screenshot of the RC/native package.
-No RC SHA is asserted for the retained image.*
+This guide asserts no RC SHA for the retained image.*
 
 1. **Pick a desktop.** The catalog has GNOME, KDE Plasma, Niri, and XFCE entries across several Linux bases.
    The selected brand and release channel determine the offered subset and
@@ -84,7 +91,7 @@ No RC SHA is asserted for the retained image.*
 2. **Set a password.** The app proposes your username, computer name, disk size, and encryption choice.
    Review them under **Advanced**. You can also change the Windows look option there.
 3. **Review “Make it feel like Windows.”** Defaults differ between frontends;
-   do not assume this box is selected. On supported Wayland desktops, the
+   do not assume the frontend selects this box. On supported Wayland desktops, the
    helpers transfer your selected wallpaper, accent, keyboard layout, and shortcuts.
    Saved Wi-Fi networks use a separate path.
 4. Click **Install**. The app creates the Linux disk file and stages boot files.
@@ -145,58 +152,70 @@ Keep your own backup. Do not assume a repeat import will preserve your later edi
 
 ### Existing Linux files and repeat imports
 
-Import is not permission to replace work already made on Linux. Standard
-external-file copies publish complete new files without overwriting an existing
-destination; unsafe symlinks/special files refuse. Office templates, fonts,
-autocorrect and defaults preserve different native content rather than counting
-it as migrated. Dictionary append uses a recovery journal and refuses a changed
-pending state. Read each category's result: a failed, partial or unverified
-selected category makes external import return nonzero even if others completed.
-The GUI must surface its actionable item error rather than “All set.”
-Scheduling desktop-look changes is only partial until actually applied, not a
-completed preference import.
+Import is not permission to replace work already made on Linux. For standard
+copies of external files, the helper will publish complete new files.
+It will not overwrite an existing destination and will refuse unsafe
+symlinks/special files. For Office templates, fonts, autocorrect and defaults,
+the helper will preserve native content that differs. It will not count that
+content as migrated.
+
+Dictionary append uses a recovery journal. It refuses if the state of an
+unfinished append changes. Read each category's result. A selected category that fails,
+partly completes or lacks verification makes external import return nonzero,
+even if others completed. The GUI must show the item's error and the action
+needed, not “All set.”
+
+A plan for desktop-look changes counts as partial until the helper applies it,
+not as a completed preference import.
 
 Browser import uses safe source traversal and exclusive publication.
-An existing Firefox import directory refuses a repeat copy, preserving Linux
-edits. Existing Firefox `profiles.ini` is not rewritten: a copied profile may
-need manual registration, and that case reports failure/advice rather than a
-false complete result. Failed copies can retain private `.wootc-*.partial`
-staging directories for inspection. Do not delete source data or assume a
-retry will overwrite/repair the target automatically.
+If the directory for Firefox import exists, the helper refuses a repeat copy to
+preserve Linux edits. The helper does not rewrite existing Firefox `profiles.ini`.
+A copied profile may need manual registration. That case reports failure/advice,
+not a false complete result.
 
-The Steam bridge keeps an existing library VDF byte-for-byte. If the Windows
-library is not already registered, use Steam's **Add Library** UI; the bridge
-does not silently rewrite native library configuration. WSL dotfiles, `.ssh`
-and Brewfile imports also preserve existing different destination bytes; merge
-desired configuration/formulae manually rather than assuming a retry replaces
-them. Per-item `copied`, `alreadyPresent`, `preserved` and `failed` outcomes
-describe what actually happened. None proves a live account is signed in.
+Failed copies can retain private `.wootc-*.partial` directories for inspection.
+Do not delete source data or assume a retry will overwrite/repair the target
+automatically.
 
-VS Code, Telegram, Signal, Thunderbird and OBS file/profile imports likewise
-preserve existing destinations rather than replacing them. New files or
-complete new profile trees publish exclusively as the target user; the helper
-does not recursively take ownership of unrelated native content. Thunderbird
-profile metadata is created only inside its new bundle. Read per-app copied,
-preserved and failed outcomes in `bridge-apps.json`; failed imports return
-nonzero. Copying a messenger profile or a synthetic fixture is not a verified
-login or a substitute for the app's own re-link procedure.
+The Steam bridge keeps an existing library VDF byte-for-byte. If Steam has not
+registered the Windows library, use Steam's **Add Library** UI. The bridge does not
+silently rewrite the configuration of native libraries. WSL dotfiles, `.ssh`
+and Brewfile imports will also preserve bytes that differ from those at the source.
+Manually merge the configuration/formulae you want; do not assume a retry
+replaces them.
+
+Per-item `copied`, `alreadyPresent`, `preserved` and `failed` outcomes describe
+what happened. None proves a live account has signed in.
+
+VS Code, Telegram, Signal, Thunderbird and OBS file/profile imports also
+preserve existing destinations. They publish new files or complete new profiles
+exclusively as the target user. The helper does not recursively take ownership
+of unrelated native content. The helper creates metadata for Thunderbird only
+inside its new bundle.
+
+Read per-app copied, preserved and failed outcomes in `bridge-apps.json`;
+failed imports return nonzero. A copy of a messenger profile or a synthetic
+fixture is not a verified login. It does not replace the app's own re-link
+procedure.
 
 ## 5. Try it first, commit later
 
-The RC requires Linux-inside-Windows first, according to
-[#596's Option A decision](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140).
-Current source can prepare a persistent VM disk with a selected Linux account,
-then stop/start that disk through the managed QEMU/WHPX runtime. It does not
-yet establish the complete consumer desktop journey: `desktopReady` remains
-false without independent guest evidence.
+The RC needs Linux-inside-Windows first, as
+[#596's Option A decision](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140)
+states. Current source can prepare a persistent VM disk with a selected Linux
+account, then stop/start that disk through the managed QEMU/WHPX runtime.
+It does not yet establish the complete desktop journey for consumers:
+`desktopReady` remains false without independent guest evidence.
 
 Use only a matching signed runtime and an explicitly admitted image.
-See [managed VM requirements and lifecycle](managed-vm.md) before trying it.
+See [managed VM requirements and lifecycle](managed-vm.md) before you try it.
 A helper receipt or QEMU process is not proof of graphical login, persistence,
-or native promotion. Current managed-disk promotion can attempt a verified
-read-only boot-input export, but still reports **not armed**; it does not
-silently redeploy, discard the existing system or write BCD/ESP.
-[ADR 0004](adr/0004-restore-vm-first-product.md) requires the same installed
+or native promotion. Current promotion of a managed disk can try to export
+verified boot inputs through read-only access. It still reports **not armed**.
+
+It does not silently redeploy, discard the existing system or write BCD/ESP.
+[ADR 0004](adr/0004-restore-vm-first-product.md) needs the same installed
 system and data to survive eventual native boot; that positive gate remains open.
 
 ## 6. Import from another disk or a backup
@@ -230,15 +249,16 @@ It needs the key to show your Windows folders until you convert them to Linux fo
 The installer writes a copy to the installer folder, which only administrators can read.
 The Linux installer moves that copy into the Linux disk and erases the copy on the Windows side.
 
-The TPM path attempts to seal the copy to this PC. It refuses a default-PCR
-binding downgrade on a TPM machine, retaining root-only plaintext for a
-retry rather than pretending the weaker seal met that requirement.
-Only when there is no usable TPM can the host-only fallback keep a local
-sealing key beside the encrypted recovery key. That fallback does **not**
-protect against an attacker who can read the whole unencrypted Linux disk.
-The helpers attempt to erase the retained key when the last linked Windows
-folder is converted or the Linux disk is deleted, but deletion is not proof
-that all storage remnants or backups have been erased.
+The TPM path tries to seal the copy to this PC. On a TPM machine, it refuses
+a downgrade to default PCRs. It keeps root-only plaintext for a retry and does
+not claim that the weaker seal met the requirement.
+
+Only without a usable TPM can the host-only fallback keep a local key for the
+seal beside the encrypted recovery key. That fallback does **not** protect
+against an attacker who can read the entire Linux disk without encryption.
+The helpers try to erase the retained key after conversion of the last linked
+Windows folder or deletion of the Linux disk. Deletion does not prove that no
+storage remnants or backups remain.
 
 If the sealed copy fails, for example after a TPM clear, Linux writes a message to the system log.
 Your Windows folders stay on the Windows drive.
@@ -247,10 +267,10 @@ To show them again, save your recovery key as `/etc/wootc/bitlocker-key`, readab
 Linux disk encryption is a separate choice:
 
 - **TPM auto-unlock:** a planned LUKS/TPM path; current install admission refuses
-  `tpm2-luks` until its remaining safety gates are satisfied. A UI default or
-  option is not evidence of working encryption.
-- **Passphrase:** Linux disk encryption that requires a password at boot;
-  verify that the selected image/path is qualified.
+  `tpm2-luks` until it meets all safety gates. A UI default or option does not
+  prove that encryption works.
+- **Passphrase:** Linux disk encryption that needs a password at boot;
+  verify qualification of the selected image/path.
 - **None:** anyone with access to the disk can read its contents.
 
 **One-time MOK enrollment.** Some distributions sign their kernel or drivers with their own key.
@@ -282,7 +302,7 @@ Keep both systems until you have verified your work and a separate backup.
 
 Open **Settings → Apps → Installed apps** and find the matching product.
 The older generic build registers **TunaOS (wootc)**; branded/native setup
-names follow their package identity and need a real Settings-rendering check.
+names follow their package identity. Check their appearance in the real Settings UI.
 Open that app and choose **Uninstall** on Manage for the engine's data choices.
 
 The uninstaller tries to:
@@ -292,24 +312,28 @@ The uninstaller tries to:
 - Restore the recorded Fast Startup and hibernation settings.
 
 It keeps `root.disk` by default. Default cleanup removes known installer
-subtrees and only empty disk/root directories; unfamiliar saved data and VM
+subtrees and only empty disk/root directories. Unfamiliar saved data and VM
 metadata remain even when a known root-disk filename is absent.
-Select **Also delete my Linux data** only if you intend explicit recursive
-product-tree deletion, including retained product data—not merely app removal.
+
+Select **Also delete my Linux data** only to delete the product tree recursively,
+including retained product data. This is more than app removal.
 A dedicated volume needs additional ownership and content checks before the app offers to return its space to Windows.
 If ownership or contents remain uncertain, the app preserves the partition and gives a reason.
 
-Current-source cleanup must confirm BCD rollback before removing recovery
-tasks, EFI files or state. If boot cleanup, file removal, secret sanitization
-or restoration of power settings fails, it reports the error and retains
-recovery/retry authority where possible; it does not report complete cleanup
-merely because deletion was requested. A corrupt/unreadable journal or orphaned
-armed/deployer marker means **needs repair**, not “no installation.”
-Removal keeps the Linux disk unless you explicitly choose otherwise.
+Current-source cleanup must confirm BCD rollback before it removes recovery
+tasks, EFI files or state. Boot cleanup, file removal, secret sanitization or
+restoration of power settings can fail. Cleanup then reports the error and
+retains recovery/retry authority where possible. A request for deletion does
+not mean complete cleanup.
+
+A corrupt/unreadable journal or orphaned armed/deployer marker means
+**needs repair**, not “no installation.” Removal keeps the Linux disk unless
+you explicitly choose otherwise.
 
 The Add/Remove registry entry must carry the engine's ownership marker before
-reuse or removal. An unmarked or foreign same-name entry is refused rather
-than adopted automatically. Do not delete its marker or state to bypass refusal.
+reuse or removal. The engine refuses an unmarked or foreign same-name entry;
+it does not adopt that entry automatically. Do not delete its marker or state
+to bypass refusal.
 
 An incomplete cleanup can leave files or boot state behind.
 Read any reported errors before you retry.
@@ -337,39 +361,43 @@ Uninstall does not undo work that you made on a graduated native disk.
 - **Setup stopped before it finished:** open wootc again.
   It shows how the last install ended (cancelled, closed, or failed) and the last step that finished.
   **Continue setup** keeps the checked part of the download and asks for your password again.
-  If setup stopped during startup-file changes, or its journal/markers are
-  damaged or ambiguous, it offers repair/removal guidance rather than assuming
-  there is no installation. Removal retains Linux data by default; inspect
-  reported errors before attempting another install.
+
+  If setup stopped during startup-file changes, it offers repair/removal guidance.
+  It also offers that guidance for a damaged or ambiguous journal/marker.
+  It does not assume there is no installation.
+  Removal will retain Linux data by default.
+  Inspect reported errors before you try another install.
   To see the same result in a terminal, run `wootc.exe recover --classify`.
 - **Windows asks to scan a drive:** a power cut or forced shutdown can leave it unclean.
   Complete the Windows check and inspect its result. Do not assume every file survived a failed shutdown.
 
 For support, retain the exact release/build SHA, frontend, selected image,
 `C:\wootc\state.json` (or the selected drive's install root) and relevant
-`logs\` / `install\` evidence. Review it before sharing: logs and profile paths
+`logs\` / `install\` evidence. Review it before you share it: logs and profile paths
 can contain personal data. Never attach passwords, recovery keys, cookies,
 session envelopes or a complete browser profile to a public issue.
+
 Current-source engine diagnostics include JSON lines on **stderr** with
 `timestamp`, `attemptId`, stable `phase`, `event`, `duration_ms` and optional
 `error_code`. Events are `phase_start`, `phase_complete`, `phase_error` and
 `phase_cancelled`; error codes are coarse `operation_failed` / `cancelled`,
-not raw failure text. The protected journal retains diagnostic errors.
-Do not mix stderr diagnostics into the stdio JSON-RPC stdout stream.
+not raw failure text. The protected journal retains errors for diagnosis.
+Do not mix stderr diagnostics into stdout for stdio JSON-RPC.
 
-For a Windows profile mapping, review the full editable account plan before
-continuing. Secondary generated names use `user1`, `user2`, and so on; a
-collision with your selected primary name is not permission to drop a profile.
-Duplicate, invalid or reserved Linux names are refused, and the reviewed
-Windows-profile set must still match what the engine discovers. The legacy
-installer refuses when it cannot establish the original interactive user or
-when alternate-admin elevation changes that identity; environment hints are
-not authority to collect another user's secrets.
+For a Windows profile mapping, review the complete account plan and edit it
+before you continue. Secondary generated names use `user1`, `user2`, and so on.
+A collision with your selected primary name is not permission to drop a profile.
+The engine refuses duplicate, invalid or reserved Linux names.
+The reviewed set of Windows profiles must still match what the engine discovers.
 
-If copying encrypted Windows Documents fails, the bridge preserves an existing
-Linux Documents directory rather than hiding native files behind a read-only
-Windows bind. Inspect the logged source path and use it for manual recovery;
-a fallback is not proof that the copy succeeded. Keep the Windows source.
+The legacy installer refuses if it cannot establish the original interactive user.
+It also refuses if alternate-admin elevation changes that identity.
+Environment hints are not authority to collect another user's secrets.
+
+If the bridge cannot copy Documents from encrypted Windows, it preserves an
+existing Documents directory on Linux. It does not hide native files behind a
+read-only Windows bind. Inspect the logged source path and use it for manual
+recovery; a fallback is not proof that the copy succeeded. Keep the Windows source.
 
 wootc remains early software. The tests cover some scenarios for native installation in VMs.
 It does not establish complete VM-first use or real-hardware acceptance.

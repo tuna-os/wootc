@@ -59,7 +59,7 @@ evidence of upstream endorsement; see [the approval record](docs/upstream-blessi
 The code on `main` prepares the native WinUI shell and protected engine as
 `wootc-Installer-Setup.exe` and branded `*-Installer-Setup.exe` assets, with one
 `wootc-legacy.exe` fallback. Those assets are not in the latest full release.
-Use the asset list of the release you actually downloaded, not a filename
+Use the asset list of the release you downloaded, not a filename
 from a newer build's instructions.
 
 `winget install TunaOS.wootc` is the intended package command. The first

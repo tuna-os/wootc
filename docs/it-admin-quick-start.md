@@ -8,60 +8,62 @@ The [enterprise migration specification](specs/enterprise-migration.md) is a
 proposal, not shipped fleet functionality.
 
 Use [current status](status.md) to select the release and supported journey.
-[Manual testing](manual-testing.md) describes the legacy native path; it cannot
-prove a native WinUI or VM-first release simply by reusing its checklist.
-If the selected build lacks matching instructions and evidence, stop the pilot
-rather than scaling a mismatched procedure across multiple PCs.
+The [manual test guide](manual-testing.md) is for the legacy native path.
+Its checklist does not prove a native WinUI or VM-first release.
+If the selected build lacks matching instructions and evidence, stop the pilot.
+Do not extend a mismatched procedure to multiple PCs.
 
 ## Before authorizing a pilot
 
-- Name a change approver, operator, data owner and recovery contact. Obtain
-  permission to modify boot configuration, the ESP and, where proposed, the
-  partition layout. A local administrator password is not organizational approval.
+- Name a change approver, operator, data owner and recovery contact. Get
+  permission to change boot configuration, the ESP and any proposed partition
+  layout. A local administrator password is not organizational approval.
 - Use a spare/test PC before anyone's primary workstation. Record model,
   firmware, Windows edition/version, architecture, storage layout and the exact
-  build/image **without serial numbers or personal identifiers in public logs**.
+  build/image. **Keep serial numbers and personal identifiers out of public logs.**
 - Check UEFI, free space, power and Secure Boot requirements against the release.
   Do not generalize one vendor's successful boot to other firmware or images.
 - Back up Windows, user data and WSL/application data to independent storage.
-  Verify a restore. Prepare Windows recovery media and a boot-repair escalation
-  route that does not depend on the installed Linux system.
+  Verify a restore. Prepare recovery media for Windows and an escalation route
+  for boot repair. That route must not depend on the installed Linux system.
 - Check BitLocker/device encryption and recovery-key escrow with the security
   owner. Confirm an authorized operator can retrieve the key if Windows requests
   it. Never put a key in a ticket, screenshot, script argument or public report.
   An alpha that refuses encrypted Windows is not permission to decrypt it.
-  Experimental beta key-handling code is not a release qualification; follow
+  Experimental beta code for keys is not a release qualification; follow
   [the encryption policy](user-guide.md#7-encryption--bitlocker) and status gate.
-- Confirm the Linux image supports the user's hardware and required work:
-  Office document fidelity/macros, accessibility, VPN, printers, smart cards,
-  graphics, meetings, security tooling and required applications. Neither a
+- Confirm support for the user's hardware and required work in the Linux image.
+  Check Office document fidelity/macros, accessibility, VPN, printers, smart cards,
+  graphics, meetings, security tools and required applications. Neither a
   Linux alternative nor Wine/Proton implies compatibility with every workload.
-- Save and close work. Arrange a maintenance window covering install, first
-  login, Windows return, uninstall and recovery, not just the initial download.
+- Save and close work. Arrange a maintenance window for more than the initial
+  download. Include install, first login, Windows return, uninstall and recovery.
 
 ## Corporate networks and trust
 
 Download only the pinned release asset and matching checksum manifest through
 approved channels. Compare SHA-256 locally; a checksum does not authenticate a
-publisher. The Windows binary may be unsigned and SmartScreen or application
+publisher. The Windows binary may lack a signature; SmartScreen or application
 control can refuse it. Do not disable Defender, SmartScreen, WDAC or company
-policy to continue. Obtain a security decision first; a blocked launch is valid
-pilot evidence.
+policy to continue. Get a security decision first.
+
+A blocked launch is valid pilot evidence.
 
 Check outbound access from Windows to the selected release/artifact and image
-registries, and separately the network required by the chosen deploy path.
-A Wi-Fi-only deployment needs payload preloading supported by that build.
-Preloading an OS image does not promise an entirely offline installation or
-updates. Captive portals, TLS interception, authenticated proxies and custom CA
-requirements need their own pilot: the privileged artifact client deliberately
-does **not** inherit ambient proxy settings. Do not bypass signature or TLS
-verification. Stop and file the exact sanitized error if approved connectivity
-cannot work. Never embed proxy passwords in an invitation or public log.
+registries. Separately check the network needed by the chosen deploy path.
+A Wi-Fi-only deployment needs a build that supports preloaded payloads.
+A preloaded OS image does not promise an entirely offline installation or updates.
+
+Captive portals, TLS interception, authenticated proxies and custom CA requirements
+need their own pilot. The privileged client for artifacts does **not** inherit
+proxy settings from its environment. Do not bypass signature or TLS verification.
+Stop and file the exact sanitized error if approved connectivity cannot work.
+Never embed proxy passwords in an invitation or public log.
 
 Saved home Wi-Fi is not proof of enterprise 802.1X enrollment. Expect to enroll
 certificates and sign in through the organization's supported Linux procedure.
-Domain/Entra join, device compliance and enterprise SSO are not automatically
-transferred to a new Linux account.
+The migration does not automatically transfer Domain/Entra join, device compliance
+or enterprise SSO to a new Linux account.
 
 ## Execute one complete journey
 
@@ -76,14 +78,14 @@ transferred to a new Linux account.
    change boot files/settings; an alternate storage plan can change partitions.
    Stop on a different disk/partition or an unclear ownership warning.
 4. Install, reach a real Linux desktop and test the required work task. Verify
-   actual file contents rather than just folder names. Cloud placeholders are
-   not downloaded data. Migrate one category at a time; keep the source and
+   the contents of files, not only folder names. Cloud placeholders do not
+   contain downloaded data. Migrate one category at a time; keep the source and
    backup. For developers, use [the WSL guide](wsl-migration.md).
-5. Reboot into the Windows desktop. Check that original files and critical
+5. Reboot into the Windows desktop. Check that original files and important
    applications still work. Re-enter Linux through the documented Manage path.
-6. Follow the [uninstall verification protocol](manual-testing.md#proving-the-uninstall-put-everything-back):
-   capture its baseline **after installation and before uninstall**, save it
-   outside `C:\wootc`, uninstall, boot Windows twice and run the verification.
+6. Follow the [uninstall verification protocol](manual-testing.md#proving-the-uninstall-put-everything-back).
+   Capture its baseline **after installation and before uninstall**.
+   Save it outside `C:\wootc`. Uninstall, boot Windows twice and run the verification.
    It supplements, not replaces, the pre-change baseline and recovery plan.
 
    From a reviewed checkout matching the test build, in Administrator PowerShell:
@@ -95,8 +97,8 @@ transferred to a new Linux account.
    ```
 
    The example preserves the Linux disk. Data deletion is a separate explicit
-   choice: export/verify Linux work before requesting it. Keep the baseline and
-   checklist in your change record, and sanitize any public attachment.
+   choice. Export/verify Linux work before you request deletion. Keep the baseline
+   and checklist in your change record, and sanitize any public attachment.
 7. Record checkpoint outcomes, assistance, symptoms and sanitized evidence in a
    [field report](https://github.com/tuna-os/wootc/issues/new?template=manual-test-report.yml).
    Only expand after the approver reviews real recovery/uninstall evidence for
@@ -111,23 +113,26 @@ transferred to a new Linux account.
   [problems and recovery](user-guide.md#10-problems-and-recovery). An inspect
   operation is not a repair. Do not hand-edit BCD, delete ESP directories or
   remove another operating system's entries to force a green report.
-- Uninstall tries to remove owned boot entries/files and restore recorded power
-  settings; it can fail. It retains Linux data by default and does not undo
-  migration onto a graduated native disk. Read every cleanup result and verify
-  Windows boot plus retained data before declaring rollback complete.
-- If Windows will not start or recovery ownership is uncertain, stop. Use the
-  prepared organizational Windows recovery process and recovery contact. Do not
-  attempt an improvised partition resize or irreversible cleanup from chat.
-- Suspected missing data, security-policy violations or recovery failures block
-  rollout. Preserve evidence and backups, file a sanitized issue, and require a
-  responsible maintainer/security decision and a real rerun before proceeding.
+- Uninstall tries to remove owned boot entries/files and restore the power
+  settings it recorded; it can fail. It retains Linux data by default and does
+  not undo migration onto a graduated native disk. Read every cleanup result.
+  Verify Windows boot plus retained data before you declare rollback complete.
+- If Windows will not start or recovery ownership is uncertain, stop. Use your
+  organization's prepared process for Windows recovery and its recovery contact.
+  Do not try an improvised partition resize or irreversible cleanup from chat.
+- Stop rollout for suspected data loss, violations of security policy or failures
+  of recovery. Preserve evidence and backups, and file a sanitized issue.
+  Get a decision from the responsible maintainer/security owner.
+  Complete a real rerun before you continue.
 
 ## Evidence and support boundaries
 
 Internal operational records may contain sensitive details; public wootc reports
-must not. Publish only consented sanitized findings. For an external alpha cohort,
-use the [cohort aggregate gate](alpha-adopter-program.md), not a list of employees
-or machines. No migration Discussions category, response SLA or support channel
-should be advertised until a maintainer has enabled it and assigned moderation.
-Consultant case studies require actual outcomes and customer publication consent;
-this procedure is not a customer endorsement.
+must not. Publish only sanitized results with consent. For an external alpha
+cohort, use the [cohort aggregate gate](alpha-adopter-program.md), not a list of
+employees or machines.
+
+Do not advertise a migration Discussions category, response SLA or support channel
+until a maintainer enables it and assigns moderation. Case studies from consultants
+need actual outcomes and customer consent for publication.
+This procedure is not a customer endorsement.

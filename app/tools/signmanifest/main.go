@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"wootc/internal/artifactauth"
+	"wootc/internal/privatefile"
 )
 
 func main() {
@@ -37,7 +38,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		if err = writeNew(args[1], key.Seed(), 0600); err != nil {
+		if err = privatefile.WriteNew(args[1], key.Seed()); err != nil {
 			return err
 		}
 		return writeNew(args[2], []byte(hex.EncodeToString(pub)+"\n"), 0644)

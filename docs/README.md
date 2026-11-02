@@ -77,7 +77,7 @@ and plans are context, not current operating instructions.
 - [dakota return-boot RCA](dakota-return-boot-rca.md) — **historical** Phase-2 hang investigation.
 - [Phase-2 attach postmortem](phase2-attach-postmortem.md) — **historical** debugging record.
 - [Phase-2 debug plan](phase2-debug-plan.md) — **historical** hypotheses and resolution path.
-- [v0.3.0-beta release notes](release-notes-v0.3.0-beta.md) — draft release material; consult tags and release evidence before treating it as shipped.
+- [v0.3.0-beta release notes](release-notes-v0.3.0-beta.md) — draft release material; consult tags and release evidence before you call it shipped.
 - [v1.0.0 release notes](release-notes-v1.0.0.md) — release goals and evidence checklist, not a shipped-version claim.
 
 ## Document collections

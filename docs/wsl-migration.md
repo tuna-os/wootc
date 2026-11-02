@@ -3,24 +3,24 @@
 WSL runs Linux inside Windows. wootc's native path installs a separate Linux
 system beside Windows; it does not turn your WSL installation into a bootable
 system. Your Windows account, WSL account and new Linux account are different.
-Keeping Windows lets you compare your work and return to the original tools.
-It is not a guarantee against data loss.
+With Windows, you can compare your work and return to the original tools.
+This does not guarantee protection against data loss.
 
-Read the [current status](status.md), [download and trust prompts](getting-started.md)
-and [user guide](user-guide.md) before choosing a build. Do not assume that a
-release tag proves VM-first use, a particular image or your hardware is ready.
-The complete VM-first experience has its own acceptance gate.
+Read the [current status](status.md), [download guide and trust prompts](getting-started.md)
+and [user guide](user-guide.md) before you choose a build.
+A release tag does not prove readiness for VM-first use, a particular image
+or your hardware. The complete VM-first experience has its own acceptance gate.
 
 ## 1. Inventory and back up in Windows
 
 1. Run `wsl --list --verbose` in PowerShell. Record the distributions you use
    privately; do not paste account details into a public report.
-2. In each WSL distribution, save open work, commit or independently back up
-   projects, and record required runtimes, packages, databases and services.
+2. In each WSL distribution, save open work. Commit projects or back them up
+   independently. Record required runtimes, packages, databases and services.
    Projects under `/home` live inside WSL, not in Windows Documents.
 3. Stop database/services cleanly, exit applications and run `wsl --shutdown`
-   from PowerShell. Do this before exporting or installing; do not copy a live
-   `ext4.vhdx` as if it were an application-consistent backup.
+   from PowerShell. Do this before you export or install.
+   Do not treat a copy of a live `ext4.vhdx` as an application-consistent backup.
 4. Export **each** needed distribution to independent backup storage. For
    example, if `wsl --list --verbose` lists `Ubuntu` and `E:` is your backup:
 
@@ -35,20 +35,20 @@ The complete VM-first experience has its own acceptance gate.
    to verify restoration on a separate test instance. An export is not proof
    of recovery until you have checked its contents and restore procedure.
 5. Back up Windows files separately, including cloud data downloaded for
-   offline use. Have Windows recovery media and any required BitLocker key
-   accessible without this PC. Do not decrypt or bypass organizational policy
-   to satisfy the installer.
+   offline use. Keep recovery media for Windows accessible without this PC.
+   Also keep any BitLocker key you need accessible without this PC.
+   Do not decrypt or bypass organizational policy to satisfy the installer.
 
 Keep these backups and WSL installed throughout the trial. Do **not** run
 `wsl --unregister`: it deletes the registered distribution's data.
 
 ## 2. Install through the supported journey
 
-Follow the selected build's [user guide](user-guide.md) and, if volunteering,
-[manual testing protocol](manual-testing.md). Use an admitted image and storage
-plan. Keep Windows as your recovery path; do not combine a first migration
-with removing Windows or reclaiming its partition. Review the proposed disk
-and boot changes, rather than assuming every plan is only a file creation.
+Follow the selected build's [user guide](user-guide.md).
+If you volunteer, also follow the [manual test protocol](manual-testing.md).
+Use an admitted image and storage plan. Keep Windows as your recovery path.
+Do not remove Windows or reclaim its partition during a first migration.
+Review the proposed disk and boot changes; do not assume every plan only creates a file.
 
 On first Linux login, inspect **Bring Over From Windows** and the WSL category
 when available. Availability in code or a dashboard is not proof that the
@@ -69,23 +69,24 @@ The implementation is
 | Packages | Maps a subset of installed Debian/Ubuntu `dpkg` packages to a proposed `~/.config/wootc/Brewfile`. This is neither the complete package set nor a version lock; other package managers are not reconstructed. |
 | Projects, databases, containers, services and credentials | No complete WSL filesystem, application state, account or service import. Move these deliberately from verified backups using the application's own procedure. |
 
-**Review configuration for secrets before selecting migration.** An allowlisted
+**Review configuration for secrets before you select migration.** An allowlisted
 `.gitconfig`, `.curlrc`, `.zshenv` or SSH config can itself contain a token,
 private host name or command. An allowlist is not a secret scanner. Also review
-commands in shell startup files before opening the destination shell. Excluding
-private-key files does not mean every copied configuration is non-sensitive.
+commands in shell startup files before you open the destination shell.
+The exclusion of private-key files does not make every copied configuration non-sensitive.
 
 ## 4. Rebuild and verify the development environment
 
-1. Compare copied dotfiles with your backup and review the actual per-item
-   import results. A preserved collision or partial result is not a completed
-   migration. Merge skipped files deliberately; adapt WSL paths such as `/mnt/c`,
-   `wsl.exe` calls and Windows executables. Keep native edits and back up the
-   destination config before editing it. Do not replace a destination symlink
-   or delete an existing file just to force the importer to run.
-2. Inspect `~/.config/wootc/Brewfile` before installing anything. Preserve any
-   native edits; a conflicting proposal needs an explicit manual merge, not
-   silent regeneration or an assumption that a retry refreshed the file.
+1. Compare copied dotfiles with your backup and review import results for each
+   item. A preserved collision or partial result is not a completed migration.
+   Deliberately merge files that the helper skipped. Adapt WSL paths such as
+   `/mnt/c`, `wsl.exe` calls and Windows executables.
+
+   Keep native edits and back up the destination config before you edit it.
+   Do not replace a destination symlink or delete an existing file to force the importer to run.
+2. Inspect `~/.config/wootc/Brewfile` before you install anything. Preserve any
+   native edits. Manually merge a proposal that conflicts with native content.
+   Do not assume silent regeneration or that a retry refreshed the file.
    Where Homebrew is available and the reviewed tools are appropriate, run as
    your normal user:
 
@@ -93,14 +94,14 @@ private-key files does not mean every copied configuration is non-sensitive.
    brew bundle --file="$HOME/.config/wootc/Brewfile"
    ```
 
-   This downloads software; it is optional, not an automatic full toolchain
-   restore. Use your distribution's supported tooling for packages not mapped.
-3. Restore one non-sensitive project to a new Linux directory, compare important
+   This optional step will download software; it does not automatically restore
+   the full toolchain. Use your distribution's supported tools for other packages.
+3. Restore a non-sensitive project to a new Linux directory. Compare important
    files with the backup, and run its normal build/tests. Re-establish language
-   runtimes, databases and containers using their supported migration methods.
+   runtimes, databases and containers with their supported migration methods.
 4. Sign into services again or enroll new keys through your organization's
-   approved procedure. Do not copy credential stores just to avoid sign-in.
-5. Verify actual file contents, editor settings, network access and a work task.
+   approved procedure. Do not copy credential stores to avoid sign-in.
+5. Verify the contents of files, editor settings, network access and a work task.
    A populated dashboard or generated Brewfile alone is not success.
 6. Reboot to the Windows desktop, confirm the original WSL environment still
    works, and re-enter Linux using the documented management path. For an alpha
@@ -109,13 +110,14 @@ private-key files does not mean every copied configuration is non-sensitive.
 ## If it does not work
 
 A missing WSL category, wrong source, empty folder, unexpected prompt or broken
-return to Windows is a finding, not an invitation to force-mount disks or delete
+return to Windows is a problem to report. Do not force-mount disks or delete
 the original. Stop and submit a sanitized
-[field report](https://github.com/tuna-os/wootc/issues/new?template=manual-test-report.yml),
-noting the build, WSL1/WSL2, checkpoint and whether help was needed. Never attach
-an export, `.vhdx`, recovery key, raw home directory or credential-bearing config.
-See [recovery and uninstall](user-guide.md#10-problems-and-recovery).
+[field report](https://github.com/tuna-os/wootc/issues/new?template=manual-test-report.yml).
+Include the build, WSL1/WSL2, checkpoint and whether you needed help.
 
-Real user stories and public videos require an actual completed journey and the
-participant's separate publication consent. This guide is a procedure, not a
-claim that a WSL graduation case study has already succeeded.
+Never attach an export, `.vhdx`, recovery key, raw home directory or configuration
+with credentials. See [recovery and uninstall](user-guide.md#10-problems-and-recovery).
+
+Real user stories and public videos need an actual completed journey and the
+participant's separate consent for publication. This guide is a procedure, not
+a claim of a successful case study for a WSL graduation.

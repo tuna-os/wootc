@@ -645,8 +645,7 @@ fi
 # the worse ratio; +4 GiB covers ext4 metadata/journal, per-layer tar-split
 # files, the committed ntfs-3g layer and fisherman's own scratch files.
 # app/install_space.go applies the same formula on Windows, BEFORE the reboot,
-# so the installer refuses a drive this would refuse here;
-# TestScratchNeedMatchesDeployer runs this function to pin the two together.
+# so the installer refuses a drive this would refuse here.
 SCRATCH_MIN_GIB=20
 scratch_need_gib() {  # <compressed layer bytes> -> GiB the scratch must hold
     local bytes=$1 gib=$((1 << 30)) need

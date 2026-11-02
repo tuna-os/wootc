@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -262,53 +264,136 @@ func TestInterruptedStagingLeavesTheESPReinstallable(t *testing.T) {
 	}
 }
 
-// Claims already earned must never disappear. os.WriteFile truncates in place,
-// so a reader could catch the manifest empty mid-rewrite and conclude nothing
-// was owned — the same false "another operating system" from the other side.
-// Ownership must only ever grow as far as any reader can tell.
+// Every observed manifest must be one complete snapshot, retaining all earlier
+// claims. Seed ownership first so an empty read can never pass as a first install,
+// and add a new claim on each write so every iteration really replaces the file.
 func TestManifestIsNeverObservablyEmpty(t *testing.T) {
 	esp := t.TempDir()
 	paths := []string{
-		filepath.Join("EFI", "fedora", "shimx64.efi"),
-		filepath.Join("EFI", "fedora", "grubx64.efi"),
-		filepath.Join("EFI", "wootc", "deployer-vmlinuz"),
-		filepath.Join("EFI", "wootc", "deployer-initramfs.img"),
+		"efi/fedora/shimx64.efi",
+		"efi/fedora/grubx64.efi",
+		"efi/wootc/deployer-vmlinuz",
+		"efi/wootc/deployer-initramfs.img",
+	}
+	initial := len(paths)
+	if err := recordESPOwnership(esp, paths); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 200 {
+		paths = append(paths, fmt.Sprintf("efi/wootc/claim-%03d", i))
 	}
 
 	done := make(chan struct{})
+	var writerErr error
 	go func() {
 		defer close(done)
-		for i := 0; i < 200; i++ {
-			for _, p := range paths {
-				if err := recordESPOwnership(esp, []string{p}); err != nil {
-					t.Errorf("claim failed: %v", err)
-					return
-				}
+		for _, p := range paths[initial:] {
+			if err := recordESPOwnership(esp, []string{p}); err != nil {
+				writerErr = fmt.Errorf("claiming %s: %w", p, err)
+				return
 			}
 		}
 	}()
-
-	seen := 0
-	for {
-		select {
-		case <-done:
-			if seen == 0 {
-				t.Skip("reader never observed a manifest; nothing to conclude")
-			}
-			return
-		default:
+	// Even a fatal reader assertion must join the writer before TempDir cleanup
+	// or test completion. Only this test's owning goroutine reports failures.
+	defer func() {
+		<-done
+		if writerErr != nil {
+			t.Errorf("manifest writer failed: %v", writerErr)
 		}
+	}()
+
+	seen := initial
+	for {
 		owned, err := readESPOwnership(esp)
 		if err != nil {
 			t.Fatalf("manifest unreadable while being rewritten: %v", err)
 		}
-		if len(owned) == 0 {
-			continue // not written yet
+		if len(owned) < seen || len(owned) > len(paths) {
+			t.Fatalf("ownership snapshot has %d claims; expected %d..%d", len(owned), seen, len(paths))
 		}
-		if len(owned) < seen {
-			t.Fatalf("ownership shrank from %d to %d claims — a reader caught the manifest mid-rewrite", seen, len(owned))
+		for i, p := range paths {
+			if owned[p] != (i < len(owned)) {
+				t.Fatalf("incomplete ownership snapshot with %d claims: path %s present=%v", len(owned), p, owned[p])
+			}
 		}
 		seen = len(owned)
+		select {
+		case <-done:
+			// The snapshot above may precede the last replacement. Read once
+			// more after the writer has finished to check every claim landed.
+			owned, err := readESPOwnership(esp)
+			if err != nil {
+				t.Fatalf("final manifest unreadable: %v", err)
+			}
+			if len(owned) != len(paths) {
+				t.Fatalf("final manifest has %d claims, want %d", len(owned), len(paths))
+			}
+			for _, p := range paths {
+				if !owned[p] {
+					t.Fatalf("final manifest is missing %s", p)
+				}
+			}
+			return
+		default:
+		}
+	}
+}
+
+func TestManifestReplacementPreservesAnOpenSnapshot(t *testing.T) {
+	esp := t.TempDir()
+	oldContent := "# claims\nefi/fedora/shimx64.efi\n"
+	newContent := oldContent + "efi/fedora/grubx64.efi\n"
+	writeFile(t, espManifestPath(esp), oldContent)
+	f, err := openESPManifest(espManifestPath(esp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	if err := writeESPManifest(esp, newContent); err != nil {
+		t.Fatalf("replacement with an open manifest reader: %v", err)
+	}
+	oldSnapshot, err := io.ReadAll(f)
+	if err != nil || string(oldSnapshot) != oldContent {
+		t.Fatalf("open reader lost its complete old snapshot: %q (%v)", oldSnapshot, err)
+	}
+	owned, err := readESPOwnership(esp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(owned) != 2 || !owned["efi/fedora/shimx64.efi"] || !owned["efi/fedora/grubx64.efi"] {
+		t.Fatalf("new reader did not receive the complete replacement: %v", owned)
+	}
+	if !manifestLanded(espManifestPath(esp), newContent) {
+		t.Fatal("replacement content could not be verified")
+	}
+}
+
+func TestManifestReadFailureDoesNotBecomeEmptyOwnership(t *testing.T) {
+	esp := t.TempDir()
+	// A directory cannot supply manifest contents. This exercises open failures
+	// on Windows and scanner read failures on platforms that can open directories.
+	if err := os.MkdirAll(espManifestPath(esp), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	owned, err := readESPOwnership(esp)
+	if err == nil || owned != nil {
+		t.Fatalf("unreadable manifest returned ownership %v, error %v", owned, err)
+	}
+	rel := filepath.Join("EFI", "fedora", "shimx64.efi")
+	if err := guardESPDestinations(esp, []string{rel}); err == nil {
+		t.Fatal("destination guard accepted an unreadable ownership manifest")
+	}
+	called := false
+	if err := stageESPFile(esp, rel, func() error {
+		called = true
+		return nil
+	}); err == nil || called {
+		t.Fatalf("staging proceeded without readable ownership: callback=%v, error=%v", called, err)
+	}
+	if manifestLanded(espManifestPath(esp), "") {
+		t.Fatal("unreadable manifest was mistaken for landed empty content")
 	}
 }
 

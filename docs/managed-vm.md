@@ -5,10 +5,10 @@ A restart reuses that image and `vm\firmware-vars.fd`.
 It does not redeploy Linux. Native promotion needs more proof (ADR 0004).
 
 The [2026-10-30 decision on #596](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140)
-chose **Option A: VM-first remains required for RC**. Closing an earlier VM
+chose **Option A: VM-first remains required for RC**. A closed VM
 issue does not prove the desktop or same-image native-promotion gate.
-The source contracts below are not a claim that the latest published tag
-contains a usable complete VM-first product.
+The source contracts below do not claim that the latest published tag
+contains a complete, usable product with a VM-first workflow.
 
 Standard releases still need to publish the signed runtime package.
 The GUI offers explicit setup through `InstallVMRuntime`.
@@ -90,8 +90,8 @@ from Windows when possible. `PrepareVM` accepts these choices. Without an accoun
 `TryInVMFresh` refuses preparation.
 
 Both host and helper accept the same account syntax: 1–32 characters,
-`[a-z_][a-z0-9_-]{0,31}`. Names `root`, `nobody`, `daemon`, `bin` and `sys`
-are reserved and refused before disk preparation. Passwords must be nonempty,
+`[a-z_][a-z0-9_-]{0,31}`. Host and helper reserve the names `root`, `nobody`, `daemon`, `bin` and `sys`.
+They refuse these names before disk preparation. Passwords must be nonempty,
 at most 1024 bytes, without NUL or line breaks. These choices create the Linux
 account; they do not migrate Windows authentication.
 
@@ -142,29 +142,32 @@ A guest request to power off does not prove that each application saved its docu
 
 ### Same-image native boot-input export is not promotion
 
-Current source can attempt a non-arming export from a verified stopped VM via
-the signed builder's advertised `export-boot` operation. This requires a rebuilt
-and re-signed matching helper/runtime; an older runtime without that operation
+Current source can try an export that does not arm boot from a VM with verified stopped state.
+It uses the signed builder's advertised `export-boot` operation.
+This needs a matching helper/runtime, rebuilt and re-signed; an older runtime without that operation
 refuses. It attaches the existing target read-only, with no scratch disk,
-network or account credentials. The installed kernel must match its module tree
-and BLS entry; a tmpfs overlay supplies workspace for the installed `dracut`
-to create a separate native initramfs with the required attach/storage closure.
+network or account credentials.
+
+The installed kernel must match its module tree and BLS entry.
+A tmpfs overlay provides workspace for the installed `dracut`.
+It creates a separate native initramfs with the required attach/storage closure.
 It does not borrow a different kernel ABI as a fallback.
 
 The bounded export contains fixed boot files and validated digests, bound to
 the current run, installation and GPT disk identity. Artifacts stay under
 `vm/native-boot-<run>`; `vm/promotion.json` records `exporting`,
 `export-failed` or `boot-inputs-verified`, while VM state remains stopped.
-The separate native entry preserves installed root/ostree options. A successful
+The separate entry for native boot preserves the installed root/ostree options. A successful
 export still returns **not armed**: it does not write the ESP/BCD, prove Secure
 Boot/hardware readiness, or establish a native login. VM execution, filesystem
 immutability and same-image native boot still need real runtime acceptance.
 
 ## Required runtime acceptance (not supplied by the helper receipt)
 
-Use an isolated Windows 11/WHPX fixture with at least 8 GiB host RAM and
-88 GiB free on the target volume, a matching signed runtime, and a pinned
-supported image. Keep the account and disk disposable, not a user's live PC.
+Use an isolated Windows 11/WHPX fixture with at least 8 GiB of host RAM.
+Keep 88 GiB free on the target volume.
+Use a matching signed runtime and a pinned supported image.
+Keep the account and disk disposable, not a user's live PC.
 
 1. Record Windows `LastBootUpTime`, `bcdedit /enum all`, BitLocker and Fast
    Startup before preparation. Use the actual app account/`PrepareVM` route.
@@ -173,20 +176,20 @@ supported image. Keep the account and disk disposable, not a user's live PC.
    In a graphical editor, save a random nonce to
    `~/Documents/wootc-vm-first.txt`, change an application preference, and reopen
    both in the guest. A shell command or receipt is not graphical-login proof.
-3. Request `StopVM`. Require the guest QMP `SHUTDOWN` evidence **and** actual
-   process exit before accepting `stopped` with no writer.
+3. Request `StopVM`. Check for guest QMP `SHUTDOWN` evidence **and** actual
+   process exit before you accept `stopped` with no writer.
 4. `BootInVM` must reuse the same disk path/GPT identity and firmware variables.
    Reopen the nonce/preference graphically. Confirm Windows boot identity and
-   boot configuration did not change: this must not require a host native reboot.
-5. Current native promotion may export boot inputs, but must report **not
-   armed** and leave BCD/ESP and target disk bytes unchanged. A future positive
-   promotion gate additionally requires login into the **same installed
-   system** natively, reading the VM nonce/preference, creating a second native
-   nonce, returning cleanly to Windows, and reading both markers after another
-   VM launch. Do not mark that gate passed from export or a redeployed image.
+   boot configuration did not change: this must not need a host native reboot.
+5. Current native promotion may export boot inputs, but must report **not armed**.
+   It must leave BCD/ESP and bytes on the target disk unchanged.
+   A future positive gate for promotion needs native login into the **same installed system**.
+   Read the VM nonce/preference, then create a second native nonce.
+   Return cleanly to Windows, launch the VM again, and read both markers.
+   Do not mark that gate passed from export or a redeployed image.
 
 `desktopReady` deliberately remains false; the draft guest observer is not a
-substitute for an installed, wired and independently verified desktop observer.
+substitute for a desktop observer that independent checks verify, with installation and connections complete.
 Keep receipts, guest screenshots, process/shutdown evidence, host boot
 observations and exact build/image/runtime identities together.
 

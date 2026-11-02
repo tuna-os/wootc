@@ -25,7 +25,7 @@ Never post account credentials or API keys in issues or pull requests.
 
 ## Prerequisites
 
-Clone with submodules, or initialize them after cloning:
+Clone with submodules, or initialize them after you clone:
 
 ```bash
 git submodule update --init --recursive
@@ -44,26 +44,26 @@ below; the runner skips a lane when its executable is missing.
 
 The fixtures also use standard Unix tools such as `rsync`, `jq`, QEMU's
 common/GUI utilities and `binutils`; individual suites may need additional
-tools. For Debian/Ubuntu, a useful starting set is:
+tools. For Debian/Ubuntu, this set is useful:
 
 ```bash
 sudo apt-get update
 sudo apt-get install bats python3 rsync jq qemu-system-common qemu-system-gui binutils
 ```
 
-Install Go, PowerShell and just through the linked instructions; this command
+Install Go, PowerShell and `just` through the linked instructions; this command
 does not install them. macOS can run suitable portable lanes, but some fixtures
-exercise Linux utilities. On Windows, use a Linux development environment
+use utilities from Linux. On Windows, use a Linux development environment
 (for example WSL) for the Bash fast tier; Windows-specific engine and WinUI
-tests still require Windows. Native shell development has separate .NET and
+tests still need Windows. Native shell development has separate .NET and
 Windows SDK requirements in [the shell guide](docs/winui-shell.md).
 
 ### Containers and Linux/KVM E2E are separate
 
 - Install [Podman](https://podman.io/docs/installation) for `just test-slow`.
   On macOS/Windows, follow its `podman machine init` / `podman machine start`
-  setup. A Podman machine is not proof that the project's privileged Linux
-  integration tests or nested Windows/KVM E2E are supported on that host.
+  setup. A Podman machine does not prove host support for privileged integration
+  tests on Linux or nested Windows/KVM E2E.
 - For a Linux VM host, install QEMU utilities (`sudo apt-get install qemu-utils`
   on Debian/Ubuntu, `sudo dnf install qemu-img` on Fedora). Confirm with
   `qemu-img --version`. See [QEMU downloads](https://www.qemu.org/download/).
@@ -75,18 +75,18 @@ Windows SDK requirements in [the shell guide](docs/winui-shell.md).
   ```
 
   If the device is absent, load the appropriate module (`sudo modprobe kvm_intel`
-  or `sudo modprobe kvm_amd`). If access is denied, follow your distribution's
+  or `sudo modprobe kvm_amd`). If you cannot access it, follow your distribution's
   KVM group policy (commonly `sudo usermod -aG kvm "$USER"`, then log out and
   back in). A VM host also needs nested virtualization exposed by its provider.
   See [KVM setup](https://www.linux-kvm.org/page/RunningKVM).
 - macOS and Windows do not expose Linux `/dev/kvm` directly. Full hosted E2E
-  uses the project's dedicated remote hosts and credentials; installing these
-  packages does not grant access. Read [agent lessons](docs/agent-lessons.md)
-  and [E2E architecture](docs/e2e-architecture.md) before using that lane.
+  uses the project's dedicated remote hosts and credentials; these
+  packages do not grant access. Read [agent lessons](docs/agent-lessons.md)
+  and [E2E architecture](docs/e2e-architecture.md) before you use that lane.
 
-There are no repository-pinned Podman or QEMU minimum versions. Record the
-versions actually used with evidence rather than inventing compatibility
-guarantees.
+There are no repository-pinned Podman or QEMU minimum versions.
+Record the versions you used and their evidence.
+Do not invent compatibility guarantees.
 
 ## Building and testing
 

@@ -58,11 +58,11 @@ sync mechanics, state.json, reboot — is orchestration and stays.
 
 ## Shared policy, engine and diagnostics
 
-`app/install_policy.go` evaluates admission using explicit system, catalogue,
-platform, space and profile dependencies rather than `App`/frontend state.
+`app/install_policy.go` checks admission with explicit dependencies for the
+system, catalogue, platform, space and profile, not `App`/frontend state.
 `app/install_engine.go` owns the execution sequence. Wails, CLI and RPC must not
-grow a second copy of policy or privileged install operations. Image staging
-and hardware checks run during preparation before Fast Startup changes or
+grow a second copy of policy or privileged install operations. Preparation
+stages the image and checks hardware before Fast Startup changes or
 creation of `root.disk`. A hardware warning or partial inventory is not a
 compatibility pass; see [the user guide](user-guide.md#hardware-warnings-are-not-compatibility-certificates).
 
@@ -71,13 +71,13 @@ compatibility pass; see [the user guide](user-guide.md#hardware-warnings-are-not
 `tests/e2e/lib/layer-evidence.sh` and `layer-evidence.py` separate infrastructure
 evidence from Windows-installer/deployer attribution. They are sourceable
 adapters, not a second result ledger: all assertions/failures delegate to the
-existing `results.sh` / `results.py` authority. A fresh, bounded QGA
-`guest-info` response establishes infrastructure reachability only.
+existing `results.sh` / `results.py` authority. A fresh QGA
+`guest-info` response within the size limit proves only that infrastructure responds.
 
-Deployer attribution additionally requires the current run's reset result,
-then the exact OEM `RunId` receipt or an existing authenticated `gui-install`
-assertion, the selected image, and fresh ordered deployer-started/lifecycle
-metadata. An old receipt, mismatched image or reachable guest cannot supply
+Deployer attribution also needs the current run's reset result.
+It then needs the exact OEM `RunId` receipt or an existing authenticated `gui-install`
+assertion, plus the selected image and fresh, ordered deployer-started/lifecycle metadata.
+An old receipt, a mismatch in image identity or a guest that responds cannot supply
 that attribution. Even valid attribution never satisfies deployed-system,
 Linux-boot, root-disk or user-data assertions; those retain their independent
 observations. `tests/unit/test_layer_evidence.py` covers the adapter behavior,
@@ -85,46 +85,48 @@ but this documentation update does not claim that suite or a VM run passed.
 
 ### Engine and deployer diagnostics
 
-`app/migration_diagnostics.go` emits local JSON lines to **stderr**, never RPC
+`app/migration_diagnostics.go` will emit records locally as JSON to **stderr**, never RPC
 stdout. Records carry `timestamp`, `attemptId`, stable `phase`, `event`,
-`duration_ms` and optional `error_code`. Phases include `prepare`, the generated
-installer phase IDs, `commit` and enclosing `install`; events are
+`duration_ms` and optional `error_code`. Phases include `prepare`, phase IDs from
+the generated installer, `commit` and the outer `install`; events are
 `phase_start`, `phase_complete`, `phase_error` or `phase_cancelled`.
 The only failure codes are `operation_failed` and `cancelled`. This channel
-excludes raw configuration, passwords, paths, subprocess errors and session
+excludes configuration in raw form, passwords, paths, subprocess errors and session
 material; the protected journal/lifecycle records remain the recovery authority.
 A diagnostic sink failure must not change the privileged operation's outcome.
 
 The deployer packages sourceable `/usr/libexec/wootc-dso-closure.sh`
 (`find_ldso`, `dso_closure`) and `/usr/libexec/wootc-lifecycle.sh`
-(`write_ntfs_state`, `write_deployer_started`, with image identity passed
-explicitly). Container and initramfs packaging must carry these modules; a
-host-side source test alone does not prove they exist in the boot image.
+(`write_ntfs_state`, `write_deployer_started`, with explicit image identity).
+Container and initramfs packages must carry these modules.
+A source test on the host alone does not prove they exist in the boot image.
 
 `/usr/libexec/wootc-migration-diagnostics.sh` supplies deployer phase timing
-with the same JSON field names. It uses the boot UUID as attempt identity and
-`/proc/uptime` for elapsed milliseconds, writing stderr and the append-only
-deployer log alongside existing text diagnostics. Stable phases are
+with the same JSON field names. It uses the boot UUID to identify each try and
+`/proc/uptime` for elapsed milliseconds. It writes to stderr and the append-only
+deployer log alongside existing text diagnostics.
+
+Stable phases are
 `ntfs-mounted`, `scratch-setup`, `bundle-ingest`, `network-wait`,
 `registry-preflight`, `fisherman`, `verification` and `reboot`. Each transition
 starts the next phase and completes the prior one; cleanup records final
 completion/error from the exit status. It uses only `operation_failed` for an
-error, never raw errors or credentials. This module must also be packaged.
+error, never raw errors or credentials. Packages must also carry this module.
 
 Encrypted session envelopes stay on the NTFS source under
 `wootc/install/slurp/session`. Do not copy them into installed `/usr/share`
-or conflate them with the separate vault/Wi-Fi ingest path. The installed
-user explicitly unlocks them for each target import attempt; see the
+or conflate them with the separate vault/Wi-Fi ingest path. For each target import,
+the installed user must explicitly unlock them; see the
 [session contract](session-migration.md).
 
 ## Catalogue provenance is not support evidence
 
-The public upstream source snapshot is `app/data/catalog-sources.json`, pinned
-to a reviewed bootc-migrate commit recorded in
-`app/data/catalog-provenance.json`. `app/data/catalog-policy.json` retains
+`app/data/catalog-sources.json` holds the public snapshot of upstream source.
+`app/data/catalog-provenance.json` records the reviewed bootc-migrate commit for that snapshot.
+`app/data/catalog-policy.json` retains
 wootc-owned display, support status, bootloader, family and MOK policy.
-Go resolves source plus policy; `app/data/images.json` is the generated
-packaging/E2E artifact, not an independent hand-maintained catalogue.
+Go combines source and policy; `app/data/images.json` is the generated
+artifact for packages/E2E, not an independent hand-maintained catalogue.
 
 From the repository root:
 
@@ -134,14 +136,16 @@ python3 app/catalog_sync.py
 python3 app/catalog_sync.py --revision <reviewed-40-character-lowercase-hex-commit>
 ```
 
-The first checks offline; the second regenerates from the retained snapshot
-and reviewed policy; the last explicitly downloads a reviewed immutable source
-revision and validates it before writing. Replace the angle-bracket argument
-with the reviewed full commit. Upstream publication does not automatically add
+The first checks offline. The second regenerates from the retained snapshot
+and reviewed policy. The last downloads an immutable revision of reviewed source,
+validates it, then writes it. Replace the angle-bracket argument
+with the reviewed full commit.
+
+Upstream publication does not automatically add
 a product or promote its wootc status. Its v1 identity/backend/family rules do
 not supply bootloader, MOK, firmware compatibility or wootc runtime acceptance.
-An upstream backend change must pass wootc's explicit boot-policy consistency
-check rather than silently changing the installed boot chain. Private brand
+An upstream backend change must pass wootc's explicit check for consistent boot policy.
+It must not silently change the installed boot chain. Private brand
 and enterprise overrides keep the public `Image` contract.
 
 ## Working rules

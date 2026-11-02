@@ -84,13 +84,6 @@ var systemProfiles = map[string]bool{
 	"rendszergazda": true, "vendég": true, "vendeg": true, "alapértelmezett fiók": true, "alapertelmezett fiok": true,
 }
 
-// ProfileAccount ties a raw Windows profile directory to its Linux account.
-// It is also the editable plan mapping; directory identities are not editable.
-type ProfileAccount struct {
-	WindowsDir string `json:"windowsDir"`
-	LinuxUser  string `json:"linuxUser"`
-}
-
 // listProfilesIn returns a mapping for every real Windows profile under
 // usersDir, excluding the built-in system profiles and the primary user's own
 // profile: `primary` is the chosen Linux username (already created as the

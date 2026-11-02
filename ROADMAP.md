@@ -48,15 +48,15 @@ for the work to restore the intended first experience.
 - **Earlier user experience**: Windows appears on the boot menu, and users can re-arm a one-shot boot. Product boots have calm text. First login offers a welcome and a bookmark to the Windows drive. Add/Remove has an entry. Uninstall tries cleanup; complete restoration still needs proof. Guides exist in `docs/getting-started.md` and `docs/manual-testing.md`.
 - The winget package (`TunaOS.wootc`) supports automatic submission on full releases. It still needs the one-time `WINGET_TOKEN` secret.
 
-**In flight**: RC acceptance and signing setup remain incomplete. Phase A of the WinUI migration (#340) added `wootc.exe serve` JSON-RPC. Phases B (#343) and C (#344) contain substantial native implementation and component checks, but their open acceptance trackers do not establish a complete Windows-hosted VM journey.
+**In flight**: RC acceptance and setup for signatures remain incomplete. Phase A of the WinUI migration (#340) added `wootc.exe serve` JSON-RPC. Phases B (#343) and C (#344) contain substantial native implementation and component checks. Their open acceptance trackers do not establish a complete VM journey on Windows.
 
-Phase D (#345) closed on 2026-10-31 after the native packaging cutover merged. The latest full release is still `v0.1.0-alpha.1`; it does not contain native setup assets. The post-cutover Secure Boot authority and publisher-policy defects in #688 block release acceptance. Phase E (#346) must retain the legacy fallback until a clean native release and its audit exist.
+Phase D (#345) closed on 2026-10-31 after the merge of the native package cutover. The latest full release is still `v0.1.0-alpha.1`; it does not contain native setup assets. The post-cutover Secure Boot authority and publisher-policy defects in #688 block release acceptance. Phase E (#346) must retain the legacy fallback until a clean native release and its audit exist.
 
-**Open verification**: #596 retains the VM-first RC requirement reaffirmed by the maintainer on 2026-10-30. Closing #178 does not supply desktop, persistence, or same-system promotion evidence. Dakota's historical hang tracker #209 and the earlier GUI reliability epic #399 are closed; their old red matrix rows are historical, not proof of a new pass. Session migration remains open under #1 and its target-side import issues.
+**Open verification**: #596 retains the VM-first requirement for RC, which the maintainer reaffirmed on 2026-10-30. Closure of #178 does not supply desktop, persistence, or same-system promotion evidence. Dakota's historical hang tracker #209 and the earlier epic for GUI reliability #399 have closed. Their red rows in the old matrix remain historical, not proof of a new pass. Session migration remains open under #1 and its target-side import issues.
 
 ### Working-tree follow-up — 2026-11-02
 
-The 58 open issues were grouped into these workstreams. This is a source-work
+The source work groups the 58 open issues into these workstreams. This is a source-work
 record, not issue closure, a released artifact, or an upgrade of the matrix.
 
 | Workstream / issues | Source work and remaining acceptance boundary |
@@ -84,7 +84,7 @@ The first complete release passed the E2E gate. It shipped installers for five b
 The VM has been the world so far; this milestone makes real laptops the evidence source.
 - Maintainer + early-tester manual runs per `docs/manual-testing.md`, with a field-report issue template; every report triaged to green/fixed/filed.
 - Offline proof: `offline=on` matrix axis (`-nic none`), then `preloadImage` default-on for the generic build.
-- Re-verify Dakota on the candidate build after the historical Phase-2 hang tracker (#209) closed. Catalog status still requires current acceptance evidence.
+- Re-verify Dakota on the candidate build after closure of the historical tracker for the Phase-2 hang (#209). Catalog status still needs current evidence for acceptance.
 - No console flash on launch (#179) — the first second must look intentional.
 - Harness reliability: QGA-channel loss classified and retried, WU neutralization proven across editions.
 - Upstream must accept the first winget submission.

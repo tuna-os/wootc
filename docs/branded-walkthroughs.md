@@ -8,12 +8,11 @@ brand.json, logo, typeface and theme that a `-X main.brandID=<brand>` binary
 compiles in.
 
 The test drives the Wails frontend bundle with a mock backend through four
-journey screens. It checks embedded brand identity and presentation, not a
-native setup or real installation. Regenerating Playwright images does not
-turn them into native/RC evidence; fresh native images need matching build
-and fixture provenance.
+journey screens. It checks the embedded identity and presentation of each brand,
+not native setup or real installation. New Playwright images are not native/RC evidence.
+Fresh native images need provenance for the matching build and fixture.
 
-**Recorded video walkthroughs:** retained runs are linked from the gallery at
+**Recorded video walkthroughs:** the gallery links to retained runs at
 **https://tuna-os.github.io/wootc/e2e/** and
 [/e2e/latest/](https://tuna-os.github.io/wootc/e2e/latest/). Inspect each run's
 SHA, frontend and terminal observations; some historical runs lack a user-data
@@ -36,12 +35,13 @@ Each brand has the same journey:
 
 ### Bazzite brand test record
 
-This is a **historical mixed evidence ledger**, not a certification of the
-current native `Bazzite-Installer-Setup.exe`. The Wails branding flag
-`-X main.brandID=bazzite`, mock screenshots and older exe resources are not
-native setup acceptance. Check the linked run/commit and exact artifact for each
-claim. Results below are retained records, not tests rerun by the 2026-11-02
-documentation audit; only appropriately scoped real runs prove runtime behavior.
+This **historical ledger mixes evidence types**. It does not certify the
+current native `Bazzite-Installer-Setup.exe`. The Wails brand flag
+`-X main.brandID=bazzite`, mock screenshots and older exe resources do not
+prove native setup acceptance. Check the linked run/commit and exact artifact for each claim.
+
+The documentation audit on 2026-11-02 kept these records; it did not rerun the tests.
+Only real runs with the appropriate scope can prove runtime behavior.
 
 | Check | Status | Evidence |
 |---|:--:|---|

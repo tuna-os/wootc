@@ -7,28 +7,29 @@ Their appearance and available choices depend on your Windows settings.
 ## 1. Download
 
 Open the [Releases page](https://github.com/tuna-os/wootc/releases/latest) and
-check the **tag and asset names actually listed**. As inspected on 2026-11-02,
+check the **listed tag and asset names**. As inspected on 2026-11-02,
 the latest non-prerelease is `v0.1.0-alpha.1`. It provides `wootc.exe` and
 `Bazzite-Installer.exe`, `Bluefin-Installer.exe`, `Aurora-Installer.exe` and
 `TunaOS-Installer.exe`. These are older Wails builds and need WebView2.
-They are not the native setup packages described by current main.
+They are not the native setup packages that current main describes.
 
 Main's release workflow now prepares native
 `wootc-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Aurora-Installer-Setup.exe` and
 `TunaOS-Installer-Setup.exe`, with `native-SHA256SUMS` and a one-release
-`wootc-legacy.exe` compatibility artifact. **Do not assume those files are
-available in an older tag.** A matching native package installs the WinUI shell
-and protected engine; that shell does not need WebView2. See the
+`wootc-legacy.exe` compatibility artifact.
+**Do not assume those files are available in an older tag.**
+A matching native package installs the WinUI shell and protected engine.
+That shell does not need WebView2. See the
 [native shell status](winui-shell.md) and [verification matrix](status.md)
-before testing a preview or source build.
+before you test a preview or source build.
 
 Save the chosen executable anywhere — Downloads is fine. Verify it before
-running it, then use only the instructions for that tag and frontend.
-Distribution-specific builds select their own image; offline/preloaded
-behavior must be checked for the particular package rather than assumed from
-the brand name. The planned winget command is `winget install TunaOS.wootc`;
-it is not an installation route until Microsoft's package review is complete.
+you run it, then use only the instructions for that tag and frontend.
+Distribution-specific builds select their own image. Check offline/preloaded
+behavior for the particular package; do not assume it from the brand name.
+The planned winget command is `winget install TunaOS.wootc`.
+It is not an installation route until Microsoft's package review is complete.
 
 To check an older published download, compare its `SHA256SUMS` entry with
 PowerShell's output:
@@ -51,8 +52,8 @@ If you trust the source and want to continue, choose **Keep** in Edge: `…` →
 ## 2. The blue "Windows protected your PC" screen
 
 When you run the selected executable, SmartScreen can show **Windows protected
-your PC**. Check the actual artifact's signature; main's packaging definition
-does not establish that a published Windows binary is signed.
+your PC**. Check the actual artifact's signature. Main's package definition
+does not prove that a publisher signed a published Windows binary.
 A signature identifies a publisher; it does not guarantee that SmartScreen will accept a new file.
 [Microsoft describes the checks for file and publisher reputation](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation).
 
@@ -82,9 +83,9 @@ From here, the matching installer takes over. Current source uses the tagline:
 
 > Bring Windows to Linux — keep everything.
 
-This is a product goal, not a guarantee that every app, login or recovery path
-is qualified. Older published builds and branded packages can show different
-screens. The [user guide](user-guide.md) describes current-source behavior
+This is a product goal, not a guarantee of qualification for every app, login
+or recovery path. Older published builds and branded packages can show different
+screens. See the [user guide](user-guide.md) for behavior in current source
 and its evidence boundaries.
 
 The **Install** button starts changes before you restart.
@@ -100,10 +101,11 @@ cleanup actions and data choices.
 
 ## Coming from WSL?
 
-Read [Moving from WSL](wsl-migration.md) before changing your setup. Keep a
-separate export/backup of each WSL distribution and verify any manual file
-transfer on Linux. wootc does not automatically import a WSL distribution,
-accounts, passwords or running services, and it does not promise zero data loss.
+Read the [WSL migration guide](wsl-migration.md) before you change your setup.
+Keep a separate export/backup of each WSL distribution and verify any manual
+file transfer on Linux. wootc does not automatically import a WSL distribution,
+accounts, passwords or active services. It does not promise protection against
+all data loss.
 
-Evaluating a machine for work? The [IT-admin quick start](it-admin-quick-start.md)
-describes the single-machine evaluation boundary; it is not a fleet rollout guide.
+For a work PC, read the [IT-admin quick start](it-admin-quick-start.md).
+It describes the single-machine evaluation boundary, not fleet rollout.

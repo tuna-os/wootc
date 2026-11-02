@@ -1,11 +1,11 @@
 # Docs truth pass — the record
 
 This is a **dated record**, not a live status page or a certification.
-Each entry states what was inspected and what remained unobserved. Static
-source review does not substitute for walking the matching release build.
-Earlier entries refer to `tests/unit/docs-truth.bats`; that wording-check suite
-was removed in the 2026-11-02 pass below. Those historical references describe
-the old process, not current enforcement.
+Each entry states what the reviewer inspected and what remained unobserved.
+Static source review does not substitute for a walk through the matching release build.
+Earlier entries refer to `tests/unit/docs-truth.bats`.
+The 2026-11-02 pass below removed that suite of prose checks.
+Those historical references describe the old process, not current enforcement.
 
 ---
 
@@ -324,7 +324,7 @@ workflow on main do not make a release asset exist.
 | Fresh visual material | Regenerate GUI and branded screenshots and nightly timelapse from that RC; retain SHA, frontend, fixture and provenance. Existing images are not newly dated evidence |
 | Real-hardware safety/recovery | Authorized backed-up hardware cohort with pre/post boot, partition, power and filesystem observations; VM results cannot fill this row |
 
-Keep #233 open until the RC walk has no unexplained failed claim and the image
-sets are pinned to that RC. The authoritative live matrix and release decision
+Keep #233 open until the RC walk has no unexplained failed claim.
+The image sets must also pin that RC. The authoritative live matrix and release decision
 remain [status](status.md), [roadmap](../ROADMAP.md) and
 [release instructions](RELEASING.md).

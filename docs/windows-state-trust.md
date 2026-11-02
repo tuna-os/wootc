@@ -44,29 +44,31 @@ can also show that installation began.
 
 Unreadable/corrupt install journals and orphaned armed/deployer markers fail
 closed as **needs repair**. They are not evidence that no installation exists.
+
 Removal keeps the Linux disk by default. Current uninstall must observe BCD
-rollback before removing recovery tasks, EFI files and installer state; it
-captures recursive-removal errors instead of claiming cleanup from an issued
-command. A secret overwrite/sync failure refuses unlinking the unsanitized
-secret, retaining a visible failure rather than pretending sanitization passed.
+rollback before it removes recovery tasks, EFI files and installer state.
+It captures errors from recursive removal; an issued command does not prove cleanup.
+If secret overwrite/sync fails, uninstall refuses to unlink the unsanitized secret.
+It retains a visible failure and does not claim sanitization passed.
 
-Prior Fast Startup/hibernation capture is written durably to the power-state
-file and an owned registry mirror **before** disabling those settings. Restore
-must observe its result and retain retry authority if it fails. The Add/Remove
-key is owned only with `WootcOwner=wootc-install-v1`; an unmarked or foreign
-same-name key refuses mutation/removal. There is no ownership-adoption shim.
+The installer durably writes prior Fast Startup/hibernation state to the power-state
+file and a registry mirror that it owns **before** it disables those settings.
+Restore must observe its result and retain retry authority if it fails.
+Only `WootcOwner=wootc-install-v1` establishes ownership of the Add/Remove key.
+The installer refuses to change or remove an unmarked or foreign key with the same name.
+There is no ownership-adoption shim.
 
-Recovery-password staging validates all eight groups/checksums and retains
-canonical hyphens, without including the secret in errors. Linux sealing must
-make the sealed file and directory durable before destroying plaintext.
-Host-only sealing keeps a local key on the disk and therefore does **not**
-protect against an attacker who can read the entire unencrypted disk image.
-On a TPM machine the sealing path refuses a default-PCR downgrade and retains
-root-only plaintext for retry; host-only fallback applies only without a usable
-TPM. Default uninstall removes known installer subtrees and only empty
-disk/root directories, preserving unfamiliar saved data and VM metadata even
-when a known root disk is absent. Explicit Linux-data deletion keeps its
-recursive product-tree scope; partition removal still requires its receipt.
+Recovery-password preparation validates all eight groups/checksums and retains
+canonical hyphens, without the secret in errors.
+Linux must make the sealed file and directory durable before it destroys plaintext.
+A host-only seal keeps a local key on the disk.
+It therefore does **not** protect against an attacker who can read the entire unencrypted image of the disk.
+On a TPM machine, the seal path refuses a default-PCR downgrade and retains root-only plaintext for retry.
+
+Host-only fallback applies only without a usable TPM.
+Default uninstall removes known installer subtrees and only empty disk/root directories.
+It will preserve the unfamiliar saved data and the VM metadata, even when a known root disk is absent.
+Explicit Linux-data deletion keeps its recursive product-tree scope; partition removal still needs its receipt.
 These are source contracts, not newly observed BCD, firmware, sanitization or
 power-restoration acceptance. The hardware/RC failure and retry matrix remains
 required.

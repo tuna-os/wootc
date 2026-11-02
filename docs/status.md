@@ -14,15 +14,15 @@ published on 2026-08-22. Its assets are the Wails `wootc.exe` and branded
 `*-Installer.exe` executables; it has no native `*-Installer-Setup.exe`,
 `wootc-legacy.exe`, or `native-SHA256SUMS`.
 
-The native packaging cutover (#345) merged and closed on 2026-10-31. That
+The native package cutover (#345) merged and closed on 2026-10-31. That
 implementation does not prove a released native artifact or its GUI, setup,
-accessibility, hardware, and full-cycle gates. The post-cutover authority and
-publisher-policy defects are tracked in #688.
+accessibility, hardware, and full-cycle gates. Issue #688 tracks the post-cutover
+defects in authority and publisher policy.
 
 The maintainer reaffirmed VM-first as an RC requirement on 2026-10-30 in
 [#596](https://github.com/tuna-os/wootc/issues/596#issuecomment-6514382140).
-Although #178 is closed, no complete Windows-hosted desktop, persistent-work,
-and same-system native-promotion acceptance record is established here.
+Closure of #178 does not establish complete acceptance here.
+That still needs a desktop on Windows, persistent work, and native promotion of the same system.
 The soak has no recorded start; earlier native/Wails passes cannot count.
 
 The following dated records remain historical evidence. References below to
@@ -48,9 +48,9 @@ hosted matrix acceptance, or permission to open a support-policy gate.
 | Mounted migration scripts | Isolated Corral Ubuntu VM running privileged Fedora containers: main suite 90/90, auxiliary folder/profile suites 6/6, 6/6 and 12/12. Actual ordinary-user Documents editing/reopen, preserved Windows originals, collisions and refusal paths were exercised on seeded files, not real BitLocker. |
 | Linux credential backend | Actual isolated Secret Service creation/reopen and locked, missing-keyring and unavailable-service states exercised. This does not prove a real authenticated browser/application session. |
 
-The nested Windows fixture reached a Windows lock screen, but did not provide a
-working QGA control channel. No native Windows full-cycle, real BitLocker/TPM,
-signed setup, firmware mutation or same-system VM promotion pass is claimed.
+The fixture for nested Windows reached a Windows lock screen, but lacked a
+usable control channel for QGA. This record claims no pass for a native Windows full-cycle,
+real BitLocker/TPM, signed setup, firmware mutation or VM promotion of the same system.
 
 ## Phase 1: Linux inside Windows
 

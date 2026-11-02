@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -84,7 +85,7 @@ func readESPOwnership(espPath string) (map[string]bool, error) {
 
 func readESPOwnershipFile(path string) (map[string]bool, error) {
 	owned := map[string]bool{}
-	f, err := os.Open(path)
+	f, err := openESPManifest(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return owned, nil
@@ -106,7 +107,10 @@ func readESPOwnershipFile(path string) (map[string]bool, error) {
 		}
 		owned[normalizeESPPath(line)] = true
 	}
-	return owned, sc.Err()
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return owned, nil
 }
 
 // normalizeESPPath makes comparisons independent of separator and case. ESPs
@@ -318,7 +322,12 @@ func writeFileSynced(path, content string) error {
 // manifestLanded reports whether final already holds exactly the content this
 // write intended — the ground truth a lying rename return code can't fake.
 func manifestLanded(final, content string) bool {
-	b, err := os.ReadFile(final)
+	f, err := openESPManifest(final)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	b, err := io.ReadAll(f)
 	return err == nil && string(b) == content
 }
 

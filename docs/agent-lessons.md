@@ -858,27 +858,57 @@ No claim of an installed desktop or a complete installation follows from this ru
 
 ## 36. Ordinary unit tests must not control their Windows host
 
-The full Windows app-module test gate exposed a source-level safety defect:
-untagged tests described as non-Windows dev-stub checks called the production
-Windows restart, partition, power, boot/ESP, uninstall, and credential-collection
-implementations. An RPC method-inventory smoke test also invoked real reboot,
-defragmentation, uninstall, and boot actions. An assertion expecting a platform
-error is not isolation: a successful `shutdown /r /t 5 /f` schedules the restart
-before the assertion can fail.
+The full test gate for the Windows app module exposed a safety defect in source.
+Untagged tests for non-Windows dev stubs called production code on Windows.
+That code could restart the host, change partitions, power and boot/ESP state,
+uninstall the product, and collect credentials.
+An RPC smoke test for method inventory also invoked real reboot,
+defragmentation, uninstall, and boot actions.
 
-- Delete obsolete stub/no-op and all-method inventory checks instead of making
-  them pass through test-mode production no-ops or recording mock echoes.
-- Preserve actual protocol refusal, replay, cancellation, ownership, and corrupt
-  state behavior. Use owned temporary paths and existing dependency boundaries;
-  never remove or overwrite `C:\wootc` files merely to clear a test fixture.
+An assertion that expects a platform error does not isolate the host.
+A successful `shutdown /r /t 5 /f` schedules the restart before the assertion can fail.
+
+- Delete obsolete stub/no-op checks and checks that invoke every method.
+  Do not substitute test-mode no-ops in production or record mock echoes.
+- Preserve refusal by the protocol, replay, cancellation, ownership, and behavior for corrupt state.
+  Use owned temporary paths and existing dependency boundaries.
+  Never remove or overwrite `C:\wootc` files merely to clear a test fixture.
 - A cancelled install-engine test still enters preparation before its first
   step. Supply an isolated platform fixture, not the real preparation adapter.
-- Transport tests must not run unrelated startup discovery: the Windows
-  uninstall probe validates existing installation trees and reapplies their
-  root ACL. Construct the transport's App directly instead.
-- Keep the full Windows `go test ./...` gate. Narrow method selectors hide
-  cross-platform hazards instead of repairing them.
+- Transport tests must not run unrelated startup discovery.
+  The uninstall probe on Windows validates existing installation trees and reapplies their root ACL.
+  Construct the transport's App directly instead.
+- Keep the full Windows `go test ./...` gate.
+  Narrow selectors for methods can hide cross-platform hazards; they do not repair them.
 
-The runner lost communication during a full-suite attempt, but its final test
-log and Windows restart events were unavailable. These call paths establish a
-real host-action risk, not attribution for that particular runner loss.
+The runner lost communication during a full-suite try.
+Its final test log and Windows restart events were unavailable.
+These call paths establish a real risk of host actions.
+They do not establish the cause of that particular runner loss.
+
+## 37. Platform contracts need platform evidence
+
+The full Windows module on 2026-11-02 exposed defects in file access and fixtures.
+Linux checks and Windows cross-builds did not detect them.
+
+- Use `internal/privatefile` for private JSON and Ed25519 seeds.
+  Windows needs a protected ACL before the first byte.
+  Elevated state keeps BA ownership and BA/SYSTEM access.
+  An ordinary generator keeps access for its effective user.
+  Refuse unsafe existing files before truncation; do not repair their ACL.
+- Preserve the exact catalog bytes on checkout.
+  A targeted `.gitattributes` rule keeps the snapshot at LF.
+  Do not normalize bytes before their hash check or change the reviewed digest to fit CRLF.
+- Manifest readers on Windows need `FILE_SHARE_DELETE`.
+  Use the scoped content reader for ownership snapshots.
+  State identity pins must still block replacement.
+  Join each test writer before the test returns; report errors in the owner goroutine.
+  This does not guarantee atomic writes on every FAT32 implementation.
+- Create an owned HKCU parent for a registry fixture.
+  Leave guarded creation of the leaf to production code.
+  Keep refusal controls for foreign and unmarked keys.
+- Test consumer outcomes, not producer source or generated copies.
+  Do not rewrite the checkout to compare source bytes.
+
+Run the actual program on Windows before a release.
+A successful Linux smoke or cross-build does not supply that evidence.

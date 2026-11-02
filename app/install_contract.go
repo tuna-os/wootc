@@ -31,6 +31,13 @@ type Image struct {
 	MokEnroll string `json:"mokEnroll,omitempty"`
 }
 
+// ProfileAccount ties a raw Windows profile directory to its Linux account.
+// It is also the editable plan mapping; directory identities are not editable.
+type ProfileAccount struct {
+	WindowsDir string `json:"windowsDir"`
+	LinuxUser  string `json:"linuxUser"`
+}
+
 // InstallConfig is the parameters collected on Screen 1.
 type InstallConfig struct {
 	ImageRef   string `json:"imageRef"`
