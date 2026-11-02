@@ -3,7 +3,7 @@ module wootc
 go 1.26.0
 
 require (
-	github.com/klauspost/compress v1.18.4
+	github.com/klauspost/compress v1.20.3
 	github.com/tredoe/osutil v1.5.0
 	github.com/wailsapp/wails/v2 v2.17.1
 	golang.org/x/crypto v0.58.0
