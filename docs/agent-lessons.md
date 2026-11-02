@@ -902,11 +902,21 @@ Linux checks and Windows cross-builds did not detect them.
 - Manifest readers on Windows need `FILE_SHARE_DELETE`.
   Use the scoped content reader for ownership snapshots.
   State identity pins must still block replacement.
+  A held destination handle can still block replacement.
+  Refused publication must preserve old claims and stop payload changes.
+
   Join each test writer before the test returns; report errors in the owner goroutine.
   This does not guarantee atomic writes on every FAT32 implementation.
 - Create an owned HKCU parent for a registry fixture.
   Leave guarded creation of the leaf to production code.
   Keep refusal controls for foreign and unmarked keys.
+- Resolve aliases in each Windows path for a fixture before you bind identity.
+  Create a private proof directory for a local test.
+  Retain the driver's explicit destination when it supplies one.
+- Open a secret observer with the required share flags on Windows.
+  Close it before final path checks.
+- Compare paths with the same separator after platform cleanup.
+  Keep the boundary checks for sibling directories and foreign drives.
 - Test consumer outcomes, not producer source or generated copies.
   Do not rewrite the checkout to compare source bytes.
 

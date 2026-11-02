@@ -35,10 +35,10 @@ Each brand has the same journey:
 
 ### Bazzite brand test record
 
-This **historical ledger mixes evidence types**. It does not certify the
+This **historical ledger has mixed types of evidence**. It does not certify the
 current native `Bazzite-Installer-Setup.exe`. The Wails brand flag
 `-X main.brandID=bazzite`, mock screenshots and older exe resources do not
-prove native setup acceptance. Check the linked run/commit and exact artifact for each claim.
+prove acceptance of native setup. Check the linked run/commit and exact artifact for each claim.
 
 The documentation audit on 2026-11-02 kept these records; it did not rerun the tests.
 Only real runs with the appropriate scope can prove runtime behavior.

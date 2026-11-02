@@ -25,6 +25,7 @@ on:
       - 'app/native_install_plan.go'
       - 'app/native_serve_windows.go'
       - '.github/workflows/native-original-user.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 

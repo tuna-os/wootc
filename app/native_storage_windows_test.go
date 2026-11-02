@@ -134,19 +134,27 @@ func TestNativeConfigurationStorageIgnoresInheritedWindowsDirectory(t *testing.T
 	}
 }
 
+// The dedicated proof driver retains its explicit destination. The ordinary
+// full-module suite owns a private temporary tree with the same Windows ACLs.
+func nativeStorageProofDirectory(t *testing.T) string {
+	t.Helper()
+	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
+	if base == "" {
+		return trustedFixture(t)
+	}
+	if err := prepareTrustedStateTree(base); err != nil {
+		t.Fatal(err)
+	}
+	return base
+}
+
 func retainNativeStorageQueryFailure(t *testing.T, err error) {
 	t.Helper()
 	var failure *nativeStorageObservationFailure
 	if !errors.As(err, &failure) {
 		return
 	}
-	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
-	if base == "" {
-		return
-	}
-	if err := os.MkdirAll(base, 0700); err != nil {
-		t.Fatal(err)
-	}
+	base := nativeStorageProofDirectory(t)
 	prefix := filepath.Join(base, t.Name())
 	if err := os.MkdirAll(filepath.Dir(prefix), 0700); err != nil {
 		t.Fatal(err)
@@ -168,14 +176,8 @@ func TestNativeConfigurationActualTrustedModuleManifestInventory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
-	if base == "" {
-		t.Fatal("private hosted diagnostic destination required")
-	}
+	base := nativeStorageProofDirectory(t)
 	destination := filepath.Join(base, "trusted-system-modules")
-	if err := os.MkdirAll(base, 0700); err != nil {
-		t.Fatal(err)
-	}
 	if err := os.Mkdir(destination, 0700); err != nil {
 		t.Fatal(err)
 	}

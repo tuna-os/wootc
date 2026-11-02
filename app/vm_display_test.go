@@ -95,7 +95,10 @@ func TestVMDisplayChild(t *testing.T) {
 }
 func displaySession(t *testing.T, mode string) (*vmSession, vmDisplayRequest, string) {
 	t.Helper()
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	spy := filepath.Join(dir, "spy")
 	cmd := exec.Command(os.Args[0], "-test.run=^TestVMDisplayChild$")
 	cmd.Env = append(os.Environ(), "WOOTC_DISPLAY_CHILD="+mode, "WOOTC_DISPLAY_SPY="+spy)
@@ -418,7 +421,10 @@ func TestVMDisplayActualRetainedByteBudget(t *testing.T) {
 }
 
 func TestVMDisplayNeverInheritsDesktopClaim(t *testing.T) {
-	root := t.TempDir()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmd := exec.Command(os.Args[0], "-test.run=^TestVMDisplayChild$")
 	cmd.Env = append(os.Environ(), "WOOTC_DISPLAY_CHILD=normal")
 	state := VMState{RunID: "run", InstallID: "install", DiskID: "gpt", DiskPath: filepath.Join(root, "root.disk"), Phase: vmReady, DesktopReady: true}

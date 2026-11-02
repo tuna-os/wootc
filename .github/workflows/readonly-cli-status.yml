@@ -9,6 +9,7 @@ on:
       - 'app/state_trust*.go'
       - 'tests/e2e/state-trust-standard-user.ps1'
       - '.github/workflows/readonly-cli-status.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -145,7 +145,7 @@ limits of cleanup/recovery. A theme cannot change these rules.
 
 A brand must not turn a data-preservation goal into a guarantee.
 It cannot promise that no operation deletes data or that failed cleanup restores every setting.
-It cannot hide partial results or lie about what happens to the person's data.
+It must not hide a partial result or lie about what happens to the person's data.
 
 ## Testing a brand
 

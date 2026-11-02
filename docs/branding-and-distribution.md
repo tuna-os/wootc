@@ -5,7 +5,7 @@ does not prove that a publisher released or qualified a native package.
 The observed latest non-prerelease remains `v0.1.0-alpha.1` with Wails executables;
 see the [start guide](getting-started.md).
 
-The owner originally wanted automated GitHub releases with an un-branded
+The owner's original intent was to automate GitHub releases with an un-branded
 **wootc** build and branded builds. Brands include **TunaOS**, the **Bluefin
 family** (bluefin / dakota), **Aurora**, and **Bazzite**.
 Each brand uses its own config and asset overrides.

@@ -13,6 +13,7 @@ on:
       - tests/offline-image-native.py
       - tests/unit/test_offline_image_bundle.py
       - .github/workflows/offline-image-bundle.yml
+  workflow_dispatch:
 permissions:
   contents: read
 

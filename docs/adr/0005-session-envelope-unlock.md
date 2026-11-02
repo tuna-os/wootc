@@ -89,5 +89,5 @@ It also needs tests in a real user session for correct/wrong password, retry, pr
 Test refusal of locked/unavailable secret stores, safe source discovery, preserved destination content, multi-store rollback and crash/retry.
 Test whether the UI shows truthful outcomes that persist after restart.
 
-Before any separate signed-in state, obtain live launch/restart evidence with a disposable account.
+Before any separate signed-in state, get live launch/restart evidence with a disposable account.
 No synthetic crypto/database fixture fulfills that authentication gate.

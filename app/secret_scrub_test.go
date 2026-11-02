@@ -53,11 +53,8 @@ func TestScrubFileZeroesBeforeRemoving(t *testing.T) {
 	if err := os.WriteFile(p, []byte("123456"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Hold a second handle to observe the content after the overwrite.
-	h, err := os.Open(p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Observe the overwritten object without preventing its removal.
+	h := openScrubObservation(t, p)
 	defer h.Close()
 	if err := scrubFile(p); err != nil {
 		t.Fatal(err)
@@ -70,6 +67,12 @@ func TestScrubFileZeroesBeforeRemoving(t *testing.T) {
 		if b != 0 {
 			t.Fatalf("content not zeroed: %q", buf)
 		}
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(p); !os.IsNotExist(err) {
+		t.Fatalf("scrubbed file was not removed: %v", err)
 	}
 }
 

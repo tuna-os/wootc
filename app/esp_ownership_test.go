@@ -1,10 +1,12 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -340,33 +342,89 @@ func TestManifestIsNeverObservablyEmpty(t *testing.T) {
 	}
 }
 
-func TestManifestReplacementPreservesAnOpenSnapshot(t *testing.T) {
+func TestManifestHeldSnapshotPreservesAuthorityAndStaging(t *testing.T) {
 	esp := t.TempDir()
-	oldContent := "# claims\nefi/fedora/shimx64.efi\n"
-	newContent := oldContent + "efi/fedora/grubx64.efi\n"
-	writeFile(t, espManifestPath(esp), oldContent)
-	f, err := openESPManifest(espManifestPath(esp))
+	oldRel := "efi/fedora/shimx64.efi"
+	newRel := "efi/fedora/grubx64.efi"
+	writeFile(t, filepath.Join(esp, filepath.FromSlash(oldRel)), "old boot file")
+	if err := recordESPOwnership(esp, []string{oldRel}); err != nil {
+		t.Fatal(err)
+	}
+	final := espManifestPath(esp)
+	oldContent, err := os.ReadFile(final)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := openESPManifest(final)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer f.Close()
 
-	if err := writeESPManifest(esp, newContent); err != nil {
-		t.Fatalf("replacement with an open manifest reader: %v", err)
+	called := false
+	newPath := filepath.Join(esp, filepath.FromSlash(newRel))
+	write := func() error {
+		called = true
+		owned, err := readESPOwnership(esp)
+		if err != nil || len(owned) != 2 || !owned[oldRel] || !owned[newRel] {
+			return fmt.Errorf("boot-file write began without complete ownership: %v (%v)", owned, err)
+		}
+		return os.WriteFile(newPath, []byte("new boot file"), 0o644)
+	}
+	stageErr := stageESPFile(esp, newRel, write)
+	if stageErr != nil {
+		// FILE_SHARE_DELETE does not grant POSIX replacement of an open
+		// destination. Windows may refuse until this held snapshot closes;
+		// unlike real consumers, this test holds it beyond the retry window.
+		var renameErr *os.LinkError
+		if runtime.GOOS != "windows" || !errors.Is(stageErr, os.ErrPermission) ||
+			!errors.As(stageErr, &renameErr) || renameErr.Op != "rename" ||
+			renameErr.Old != final+".tmp" || renameErr.New != final {
+			t.Fatalf("unexpected publication failure: %v", stageErr)
+		}
+		if called {
+			t.Fatal("boot-file write ran despite failed ownership publication")
+		}
+		if _, err := os.Stat(newPath); !os.IsNotExist(err) {
+			t.Fatalf("refused staging created a boot file: %v", err)
+		}
+		if !manifestLanded(final, string(oldContent)) {
+			t.Fatal("refused publication changed the authoritative old manifest")
+		}
+		owned, err := readESPOwnership(esp)
+		if err != nil || len(owned) != 1 || !owned[oldRel] {
+			t.Fatalf("refused publication lost old ownership: %v (%v)", owned, err)
+		}
+		if err := guardESPDestinations(esp, []string{oldRel}); err != nil {
+			t.Fatalf("refused publication made the old boot file foreign: %v", err)
+		}
+	} else if !called {
+		t.Fatal("successful ownership publication did not stage the boot file")
 	}
 	oldSnapshot, err := io.ReadAll(f)
-	if err != nil || string(oldSnapshot) != oldContent {
-		t.Fatalf("open reader lost its complete old snapshot: %q (%v)", oldSnapshot, err)
+	if err != nil || string(oldSnapshot) != string(oldContent) {
+		t.Fatalf("held reader lost its complete old snapshot: %q (%v)", oldSnapshot, err)
 	}
-	owned, err := readESPOwnership(esp)
-	if err != nil {
+	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if len(owned) != 2 || !owned["efi/fedora/shimx64.efi"] || !owned["efi/fedora/grubx64.efi"] {
-		t.Fatalf("new reader did not receive the complete replacement: %v", owned)
+	if stageErr != nil {
+		if err := stageESPFile(esp, newRel, write); err != nil {
+			t.Fatalf("staging did not recover after the held reader closed: %v", err)
+		}
+		if !called {
+			t.Fatal("recovered publication did not stage the boot file")
+		}
 	}
-	if !manifestLanded(espManifestPath(esp), newContent) {
-		t.Fatal("replacement content could not be verified")
+	owned, err := readESPOwnership(esp)
+	if err != nil || len(owned) != 2 || !owned[oldRel] || !owned[newRel] {
+		t.Fatalf("new reader did not receive complete published ownership: %v (%v)", owned, err)
+	}
+	if content, err := os.ReadFile(newPath); err != nil || string(content) != "new boot file" {
+		t.Fatalf("published boot file has unexpected content: %q (%v)", content, err)
+	}
+	if err := guardESPDestinations(esp, []string{oldRel, newRel}); err != nil {
+		t.Fatalf("published boot files are not reinstallable: %v", err)
 	}
 }
 

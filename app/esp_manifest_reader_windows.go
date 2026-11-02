@@ -8,9 +8,9 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// Manifest readers retain a complete old snapshot while atomic publication
-// replaces its pathname. Ordinary Go opens do not share deletion on Windows,
-// so they can block that replacement or fail to open during it.
+// Short-lived manifest content readers share deletion to cooperate with
+// publication. This does not grant POSIX replacement of an open destination:
+// Windows can still refuse publication until a held reader closes.
 func openESPManifest(path string) (*os.File, error) {
 	pointer, err := windows.UTF16PtrFromString(path)
 	if err != nil {

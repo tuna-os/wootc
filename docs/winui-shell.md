@@ -637,14 +637,13 @@ independent evidence before you report completion.
 
 ### Contributor testing patterns
 
-- Protocol behavior and JSON goldens: from `app`, run `go test ./...`.
+- Protocol behavior: from `app`, run `go test ./...`.
   `serve_test.go`, `serve_assessment_test.go`, `serve_shutdown_test.go` and
   tests for native sessions will exercise JSON decode, dispatch, refusal, and cleanup.
   Add behavioral requests/responses, not source-text assertions.
 - After an intentional Go DTO change, run `go generate ./...` from `app` and
-  review generated DTO changes. Use `go test . -run TestDTOGoldens -update`
-  only to deliberately update the golden contract; a new golden is not
-  runtime evidence.
+  review the generated DTO changes. Validate compatibility through actual RPC
+  requests and consumers, not raw JSON copies.
 - Cross-platform shell logic: `dotnet test shell/Wootc.Shell.Tests/Wootc.Shell.Tests.csproj`
   and `dotnet test shell/Wootc.Shell.NativeTests/Wootc.Shell.NativeTests.csproj`.
   Recorded exchanges and the gallery are suitable for screen/blocked-state

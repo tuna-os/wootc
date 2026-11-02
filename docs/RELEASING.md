@@ -86,6 +86,33 @@ A shell or transport change needs fresh proof; its earlier streak cannot carry.
 Use the [run ledger](soak.md) for #235. Do not claim the #239 streak from a release
 list alone or from dates before these gates pass.
 
+### Manual tests at a frozen ref
+
+Freeze a candidate branch at its full commit SHA. Keep that branch fixed until
+all tests end. These workflows check out the selected ref. They have no
+`source_sha` input.
+
+Use this test-only route before a release. It does not publish or waive release
+or E2E gates. Keep `release_tag` empty for `winui-preview.yml`.
+
+```bash
+repo=tuna-os/wootc
+ref='<frozen-candidate-branch>'
+sha='<full-candidate-sha>'
+test "$(gh api "repos/$repo/commits/$ref" --jq .sha)" = "$sha" || exit 1
+
+for workflow in ci-tests.yml ci.yml native-configuration.yml lint.yml ste.yml \
+  native-original-user.yml readonly-cli-status.yml offline-image-bundle.yml \
+  vm-qmp-controls.yml vm-guest-observer-controls.yml; do
+  gh workflow run "$workflow" --repo "$repo" --ref "$ref" || exit 1
+done
+gh workflow run winui-preview.yml --repo "$repo" --ref "$ref" -f release_tag=
+```
+
+Record each run ID. Accept the run only if its `head_sha` matches `$sha`.
+Reject runs at any other SHA, even if they pass. A skipped gate does not count as proof.
+These tests do not change the unsigned preview or GA policy.
+
 ## Cutting a release
 
 Releases are **E2E-gated**. The tagged gate uses Windows 11, Bluefin LTS,

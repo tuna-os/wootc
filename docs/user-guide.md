@@ -381,7 +381,7 @@ Current-source engine diagnostics include JSON lines on **stderr** with
 `timestamp`, `attemptId`, stable `phase`, `event`, `duration_ms` and optional
 `error_code`. Events are `phase_start`, `phase_complete`, `phase_error` and
 `phase_cancelled`; error codes are coarse `operation_failed` / `cancelled`,
-not raw failure text. The protected journal retains errors for diagnosis.
+not raw failure text. The protected journal will retain errors for diagnosis.
 Do not mix stderr diagnostics into stdout for stdio JSON-RPC.
 
 For a Windows profile mapping, review the complete account plan and edit it
@@ -394,7 +394,7 @@ The legacy installer refuses if it cannot establish the original interactive use
 It also refuses if alternate-admin elevation changes that identity.
 Environment hints are not authority to collect another user's secrets.
 
-If the bridge cannot copy Documents from encrypted Windows, it preserves an
+If a copy of Documents from encrypted Windows fails, the bridge preserves an
 existing Documents directory on Linux. It does not hide native files behind a
 read-only Windows bind. Inspect the logged source path and use it for manual
 recovery; a fallback is not proof that the copy succeeded. Keep the Windows source.

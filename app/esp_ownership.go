@@ -232,6 +232,11 @@ func recordESPOwnership(espPath string, relPaths []string) error {
 // sibling temp file, flush it to the device, then rename over: a reader sees
 // either the whole old manifest or the whole new one, and an interruption at
 // any point leaves one of those two on disk.
+//
+// Windows may refuse replacement while a destination handle remains open,
+// even when it shares deletion. Publication is bounded, not a promise to
+// outwait an indefinitely held snapshot: failure leaves the old manifest
+// authoritative and stageESPFile must not start the boot-file write.
 func writeESPManifest(espPath, content string) error {
 	final := espManifestPath(espPath)
 	return persistManifest(final+".tmp", final, content)
