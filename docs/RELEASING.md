@@ -115,7 +115,7 @@ These tests do not change the unsigned preview or GA policy.
 
 ## Cutting a release
 
-Releases are **E2E-gated**. The tagged gate uses Windows 11, Bluefin LTS,
+Releases are **E2E-gated**. The tagged gate uses Windows 11, Bluefin `:stable`,
 BitLocker off, the native GUI install, and `phase3: true` on a hosted runner.
 It ends in graduated Linux and checks this run's file from Windows Documents.
 That final boot does not prove a Windows return after graduation.
