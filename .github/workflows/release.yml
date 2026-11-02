@@ -152,28 +152,36 @@ jobs:
           fi
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             sha="${{ github.event.workflow_run.head_sha }}"
-            echo "tag=auto-v$(date -u +%Y%m%d)-${sha::7}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "channel=auto" >> "$GITHUB_OUTPUT"
+            {
+              echo "tag=auto-v$(date -u +%Y%m%d)-${sha::7}"
+              echo "prerelease=true"
+              echo "channel=auto"
+            } >> "$GITHUB_OUTPUT"
           elif [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "channel=tagged" >> "$GITHUB_OUTPUT"
+            {
+              echo "tag=${GITHUB_REF_NAME}"
+              echo "prerelease=false"
+              echo "channel=tagged"
+            } >> "$GITHUB_OUTPUT"
           elif [ -n "$REQUESTED_TAG" ]; then
             # Dispatch with an explicit tag: a FULL release. The release
             # action creates the tag at the dispatched SHA using the
             # workflow's own token, so cutting a release needs no tag-push
             # rights anywhere else — pick the branch, name the tag, and the
             # same E2E gate stands in front of it.
-            echo "tag=$REQUESTED_TAG" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-            echo "channel=tagged" >> "$GITHUB_OUTPUT"
+            {
+              echo "tag=$REQUESTED_TAG"
+              echo "prerelease=false"
+              echo "channel=tagged"
+            } >> "$GITHUB_OUTPUT"
           else
             # workflow_dispatch from a branch: synthesize a tag rather than
             # publishing a release literally named "main".
-            echo "tag=manual-v$(date -u +%Y%m%d)-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=true" >> "$GITHUB_OUTPUT"
-            echo "channel=manual" >> "$GITHUB_OUTPUT"
+            {
+              echo "tag=manual-v$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+              echo "prerelease=true"
+              echo "channel=manual"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build deployer boot artifacts
@@ -182,6 +190,7 @@ jobs:
         # shim+GRUB out of a Fedora container, wubildr best-effort.
         run: |
           set -euo pipefail
+          mkdir -p release-assets
           podman build -t wootc-deployer -f payload/deployer/Containerfile .
           for artifact in deployer-vmlinuz deployer-initramfs.img; do
             podman run --rm --entrypoint /bin/cat wootc-deployer "/out/$artifact" \
@@ -254,7 +263,6 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
           (cd app/frontend && npm ci && npm run build)
-          mkdir -p release-assets
           [ -n "$RELEASE_TAG" ] || { echo "::error::no release tag to pin the boot artifacts to"; exit 1; }
           SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
           [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
@@ -345,7 +353,7 @@ jobs:
         # boot artifacts" (run 32549251225).
         run: |
           set -euo pipefail
-          (cd release-assets && sha256sum * > SHA256SUMS)
+          (cd release-assets && sha256sum -- * > SHA256SUMS)
           (cd app && go run ./tools/signmanifest sign "$WOOTC_SIGNING_DIR/seed" ../release-assets/SHA256SUMS ../release-assets/SHA256SUMS.sig)
           (cd app && go run ./tools/signmanifest verify "$WOOTC_SIGNING_DIR/public.hex" ../release-assets/SHA256SUMS ../release-assets/SHA256SUMS.sig)
           cp "$WOOTC_SIGNING_DIR/public.hex" release-assets/artifact-public-key.hex

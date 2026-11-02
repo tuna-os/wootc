@@ -98,10 +98,39 @@ source SHA. Their proof covers the stages selected by that run.
 The `skip_e2e` input can waive the gate for an emergency dispatch.
 The release notes disclose that waiver.
 
+### Named full release
+
 ```
 git tag v0.1.0-alpha.1 && git push origin v0.1.0-alpha.1
 # → tests → native E2E gate (real Windows VM, bluefin:stable) → build + publish
 ```
+
+### Current-source prerelease
+
+A preview does not need to wait for the full GA matrix, winget submission or
+30-day soak. Freeze a candidate branch and retain the fresh native E2E gate:
+
+```bash
+gh workflow run release.yml --repo tuna-os/wootc \
+  --ref <frozen-candidate-branch> -f release_tag= -f skip_e2e=false
+```
+
+The empty `release_tag` creates a `manual-vYYYYMMDD-<sha7>` GitHub prerelease.
+A nonempty tag is a full-release switch in this workflow, even if its name
+contains `-alpha`. Do not use that switch for this preview route.
+
+This path tests the default alpha scenario, not every matrix axis. Configured
+repository/environment policies still apply. An explicitly unsigned preview is
+supported; do not claim Authenticode, SmartScreen, or fresh-machine acceptance.
+
+Native setup attachment is asynchronous. Require the dispatched
+`winui-preview.yml` at the new tag to finish its `publish-preview` job, and check
+the expected setup assets plus `native-SHA256SUMS`. A green parent Release run
+with only boot/legacy assets is not a complete native download. Count actual
+setup installation only when the E2E route reports `inno`, not its explicitly
+limited file-copy fallback.
+
+### Artifact set
 
 The current workflows prepare the following **native artifact set**. This
 describes a future qualifying release, not the published `v0.1.0-alpha.1`.
