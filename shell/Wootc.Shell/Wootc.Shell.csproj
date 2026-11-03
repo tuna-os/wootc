@@ -16,7 +16,7 @@
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.4" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.6.5" />
     <ProjectReference Include="../Wootc.Shell.Core/Wootc.Shell.Core.csproj" />
     <ProjectReference Include="../Wootc.Shell.Native/Wootc.Shell.Native.csproj" />
     <Compile Remove="Engine/Dto.cs" />
