@@ -39,7 +39,7 @@ the cross-platform Go packages. Windows-tagged Go (`app/*_windows.go`) only
 builds on Windows by design, so this tier covers the platform-independent
 code.
 
-When changing `app/data/images.json`, compare every shared image against
+When you change `app/data/images.json`, compare every shared image against
 bootc-migrate's reviewed catalog:
 
 ```bash
