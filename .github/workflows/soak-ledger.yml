@@ -1,6 +1,6 @@
 name: Native soak ledger
 on:
-  workflow_run: # zizmor: ignore[dangerous-triggers] source workflow runs only on schedule or dispatch; job checks out main and skips fork runs
+  workflow_run: # zizmor: ignore[dangerous-triggers] record runs only for same-repo schedule or dispatch runs and checks out main, see its if
     workflows: ['E2E GUI-driven (publish timelapse)']
     types: [completed]
   schedule:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   record:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository }}
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')) }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
