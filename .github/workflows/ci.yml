@@ -31,10 +31,11 @@ jobs:
       recipe: ${{ steps.scope.outputs.recipe }}
       gui: ${{ steps.scope.outputs.gui }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           # The PR merge commit and its base parent.
           fetch-depth: 2
+          persist-credentials: false
       - id: scope
         env:
           EVENT: ${{ github.event_name }}
@@ -65,14 +66,15 @@ jobs:
     if: needs.changes.outputs.deployer == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Install podman
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq podman
-      - uses: ./.github/actions/podman-runtime
+      - uses: $/.github/actions/podman-runtime
 
       - name: Build deployer
         run: |
@@ -89,7 +91,7 @@ jobs:
           ls -lah deployer-initramfs.img deployer-vmlinuz systemd-bootx64.efi
 
       - name: Upload deployer artifacts
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: wootc-deployer
           path: |
@@ -103,15 +105,17 @@ jobs:
     if: needs.changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: app/go.mod
           # go.sum is in app/; the default (a root go.sum) caches nothing.
           cache-dependency-path: app/go.sum
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 26
 
@@ -135,7 +139,7 @@ jobs:
           go vet ./...
 
       - name: Upload wootc.exe
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: wootc-exe
           path: app/wootc.exe
@@ -146,9 +150,10 @@ jobs:
     if: needs.changes.outputs.recipe == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
+          persist-credentials: false
 
       - name: Build fisherman
         run: |
@@ -175,9 +180,11 @@ jobs:
     if: needs.changes.outputs.gui == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 26
           cache: npm
@@ -201,7 +208,7 @@ jobs:
 
       - name: Upload GUI screenshots and report
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: gui-walkthrough-${{ github.run_attempt }}
           if-no-files-found: warn

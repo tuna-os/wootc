@@ -1,6 +1,6 @@
 name: Native soak ledger
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] source workflow runs only on schedule or dispatch; job checks out main and skips fork runs
     workflows: ['E2E GUI-driven (publish timelapse)']
     types: [completed]
   schedule:
@@ -21,7 +21,7 @@ jobs:
       contents: write
     steps:
       # Always execute trusted main code, never the completed run's checkout.
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] a later step pushes the soak-ledger branch with these credentials
         with:
           ref: main
           fetch-depth: 1
