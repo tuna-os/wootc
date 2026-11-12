@@ -71,10 +71,11 @@ jobs:
     outputs:
       brands: ${{ steps.pick.outputs.brands }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           # The PR merge commit and its base parent.
           fetch-depth: 2
+          persist-credentials: false
       - id: pick
         env:
           EVENT: ${{ github.event_name }}
@@ -159,14 +160,16 @@ jobs:
         os: [ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.1.0
         with:
           global-json-file: shell/global.json
       - name: Run startup, route and refusal counterexamples
         working-directory: shell
         run: dotnet test Wootc.Shell.Tests --configuration Release --logger "trx;LogFileName=core.trx"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-core-${{ matrix.os }}
@@ -180,13 +183,15 @@ jobs:
     name: Native preview XAML and packaging build
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.1.0
         with:
           global-json-file: shell/global.json
       # NuGet packages only: restore still resolves every version from the
       # project files, so a cache hit changes download time, not inputs.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@v6.1.0 # zizmor: ignore[cache-poisoning] NuGet download cache only; restore resolves every version from the project files
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
@@ -197,7 +202,7 @@ jobs:
       - name: Restore and publish the native preview
         working-directory: shell
         run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} --output ../out/winui-preview
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/setup-go@v7.0.0 # zizmor: ignore[cache-poisoning] keeps the Go module cache; disabling it would change the job
         with:
           go-version-file: app/go.mod
           # go.sum is in app/; the default (a root go.sum) caches nothing.
@@ -259,13 +264,13 @@ jobs:
           Get-ChildItem shell/Wootc.Shell/obj -Recurse -File |
             Where-Object { $_.Name -match '^(App|MainWindow|XamlTypeInfo)[.]g[.]' } |
             Copy-Item -Destination out/winui-source-diagnostics
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-core-windows-latest
           path: shell/Wootc.Shell.Tests/TestResults/*.trx
           if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-preview-diagnostics
@@ -277,13 +282,13 @@ jobs:
             shell/Wootc.Shell.UiTests/TestResults/*.trx
             shell/Wootc.Shell.NativeTests/TestResults/*.trx
           if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-native-gallery
           path: out/native-gallery/
           if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-preview-unpackaged
@@ -303,18 +308,20 @@ jobs:
       matrix:
         brand: ${{ fromJSON(needs.plan.outputs.brands) }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6.1.0
         with:
           global-json-file: shell/global.json
       # NuGet packages only: restore still resolves every version from the
       # project files, so a cache hit changes download time, not inputs.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@v6.1.0 # zizmor: ignore[cache-poisoning] NuGet download cache only; restore resolves every version from the project files
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
           restore-keys: nuget-${{ runner.os }}-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/setup-go@v7.0.0 # zizmor: ignore[cache-poisoning] keeps the Go module cache; disabling it would change the job
         with:
           go-version-file: app/go.mod
           # go.sum is in app/; the default (a root go.sum) caches nothing.
@@ -325,12 +332,13 @@ jobs:
           PRODUCTION: ${{ needs.release-context.outputs.production }}
           RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
           ARTIFACT_PUBLIC_KEY: ${{ needs.release-context.outputs.artifact_public_key }}
+          BRAND: ${{ matrix.brand }}
         run: |
-          dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ matrix.brand }} --output out/branded-preview
+          dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} "-p:NativeBrandId=$env:BRAND" --output out/branded-preview
           if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
           New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
           Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
-          $ldflags = "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=${{ matrix.brand }}"
+          $ldflags = "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=$env:BRAND"
           if ($env:ARTIFACT_PUBLIC_KEY) { $ldflags += " -X main.artifactPublicKey=$env:ARTIFACT_PUBLIC_KEY" }
           if ($env:RELEASE_TAG) { $ldflags += " -X main.releaseTag=$env:RELEASE_TAG" }
           Push-Location app
@@ -338,29 +346,34 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Branded engine build refused' }
       - name: Compile, install, observe and remove the preview package
         shell: pwsh
-        run: ./shell/packaging/test-installed-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
+        env:
+          BRAND: ${{ matrix.brand }}
+        run: ./shell/packaging/test-installed-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/preview-installer
       - name: Compile the production setup asset for a release
         if: ${{ needs.release-context.outputs.production == 'true' }}
         shell: pwsh
         env:
           RELEASE_TAG: ${{ needs.release-context.outputs.tag }}
+          BRAND: ${{ matrix.brand }}
         run: |
           New-Item -ItemType Directory -Force out/release-installer | Out-Null
           $scratch = Join-Path $env:RUNNER_TEMP 'wootc-release-inno'
-          $compiled = ./shell/packaging/compile-preview.ps1 -BrandId '${{ matrix.brand }}' -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/release-installer -ScratchDirectory $scratch -Mode release -ReleaseTag $env:RELEASE_TAG
+          $compiled = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/branded-preview -OutputDirectory out/release-installer -ScratchDirectory $scratch -Mode release -ReleaseTag $env:RELEASE_TAG
           Get-Item -LiteralPath $compiled.Installer | Format-List FullName, Length
       - name: Install and remove the production setup smoke package
         if: ${{ needs.release-context.outputs.production == 'true' }}
         shell: pwsh
+        env:
+          BRAND: ${{ matrix.brand }}
         run: |
-          $brand = Get-Content -LiteralPath 'app/branding/${{ matrix.brand }}/brand.json' -Raw | ConvertFrom-Json
+          $brand = Get-Content -LiteralPath "app/branding/$env:BRAND/brand.json" -Raw | ConvertFrom-Json
           $setupName = if ($brand.exeName -eq 'wootc') { 'wootc-Installer-Setup.exe' } else { "$($brand.exeName)-Setup.exe" }
           $installer = Join-Path (Resolve-Path out/release-installer) $setupName
           if (-not (Test-Path -LiteralPath $installer -PathType Leaf)) { throw "Production setup is missing: $installer" }
           $p = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Production setup exited with $($p.ExitCode)" }
           $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
-          $installRoot = Join-Path $programFiles 'wootc Native\${{ matrix.brand }}'
+          $installRoot = Join-Path $programFiles "wootc Native\$env:BRAND"
           foreach ($file in @('bundle\Wootc.Shell.exe', 'bundle\wootc-engine.exe', 'bundle\native-package.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $installRoot $file) -PathType Leaf)) { throw "Production setup omitted $file" }
           }
@@ -369,7 +382,7 @@ jobs:
           $u = Start-Process -FilePath $uninstaller.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "Production uninstaller exited with $($u.ExitCode)" }
           if (Test-Path -LiteralPath (Join-Path $installRoot 'bundle')) { throw "Production uninstaller left the native bundle behind" }
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
           name: winui-preview-package-${{ matrix.brand }}
@@ -389,9 +402,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Bind the release tag to the exact tested source
         id: tag
         env:
@@ -413,7 +427,7 @@ jobs:
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft > release.json
           jq -e --arg t "$tag" '.tagName == $t and (.isDraft | not)' release.json > /dev/null
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           pattern: winui-preview-package-*
           path: preview-artifacts

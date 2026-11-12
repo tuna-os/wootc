@@ -19,7 +19,7 @@ name: Release
 on:
   push:
     tags: ['v*']
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] publish runs only for same-repo schedule or dispatch runs on main, see its if
     workflows: ['E2E GUI-driven (publish timelapse)']
     types: [completed]
     branches: [main]
@@ -52,9 +52,9 @@ jobs:
     if: ${{ github.event_name != 'workflow_run' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with: { submodules: recursive }
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/checkout@v7.0.1
+        with: { submodules: recursive, persist-credentials: false }
+      - uses: actions/setup-go@v7.0.0
         with: { go-version: '1.27', cache: false }
       # Before ~90 min of VM: a final tag without its narrative notes, or
       # with notes still marked draft, can never publish (#242).
@@ -67,7 +67,7 @@ jobs:
           if [ -n "$tag" ]; then bash tools/release/check-notes.sh "$tag"; fi
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq bats
       - run: bash tests/run.sh fast
-      - uses: ./.github/actions/podman-runtime
+      - uses: $/.github/actions/podman-runtime
       - run: bash tests/migration/test-bridge.sh
 
   # ── 2. the gate: GUI native install and graduation from Windows ───────────
@@ -75,7 +75,7 @@ jobs:
     name: E2E gate (real Windows VM)
     needs: tests
     if: ${{ github.event_name != 'workflow_run' && !inputs.skip_e2e }}
-    uses: ./.github/workflows/e2e-hosted.yml
+    uses: $/.github/workflows/e2e-hosted.yml
     with:
       # Gate on the shipped WinUI shell, not the one-release Wails fallback.
       # This is the same real GUI path that the setup assets will expose.
@@ -105,18 +105,21 @@ jobs:
     needs: [tests, e2e-gate]
     if: >-
       ${{ always() && (
-        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+        (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_repository.full_name == github.repository &&
+          (github.event.workflow_run.event == 'schedule' || github.event.workflow_run.event == 'workflow_dispatch')) ||
         (github.event_name != 'workflow_run' && needs.tests.result == 'success' &&
           (needs.e2e-gate.result == 'success' || inputs.skip_e2e))
       ) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: recursive
           # Auto channel: build the exact SHA the nightly proved, not
           # whatever main has moved to since.
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
+          persist-credentials: false
       # Reclaim BEFORE the tool setups, and never touch the toolcache: the
       # first publish run (32557070841) deleted $AGENT_TOOLSDIRECTORY and
       # /usr/local/lib/node_modules AFTER setup-node had installed Node
@@ -132,16 +135,17 @@ jobs:
           docker image prune -af 2>/dev/null || true
           echo "--- after cleanup ---"; df -h /
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      - uses: actions/setup-go@v7.0.0
         with: { go-version: '1.27', cache: false }
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with: { node-version: '26' }
-      - uses: ./.github/actions/podman-runtime
+      - uses: actions/setup-node@v7.1.0
+        with: { node-version: '26', package-manager-cache: false }
+      - uses: ./.github/actions/podman-runtime # zizmor: ignore[self-repository] job runs the checked-out workflow_run head_sha's action, not the workflow commit's
 
       - name: Resolve channel + tag
         id: chan
         env:
           REQUESTED_TAG: ${{ inputs.release_tag }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           # Reject output-file/manifest injection as well as malformed tags.
           tag="${REQUESTED_TAG}"
@@ -151,7 +155,7 @@ jobs:
             exit 1
           fi
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            sha="${{ github.event.workflow_run.head_sha }}"
+            sha="$WORKFLOW_RUN_HEAD_SHA"
             echo "tag=auto-v$(date -u +%Y%m%d)-${sha::7}" >> "$GITHUB_OUTPUT"
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
             echo "channel=auto" >> "$GITHUB_OUTPUT"
@@ -238,7 +242,7 @@ jobs:
         working-directory: ${{ github.workspace }}
 
       - name: Create a signing key for this release only
-        run: |
+        run: | # zizmor: ignore[github-env] writes a mktemp path under RUNNER_TEMP, no external input
           set -euo pipefail
           key_dir=$(mktemp -d "$RUNNER_TEMP/wootc-signing.XXXXXX")
           (cd app && go run ./tools/signmanifest generate "$key_dir/seed" "$key_dir/public.hex")
@@ -279,7 +283,7 @@ jobs:
         id: azure-login
         if: ${{ vars.WOOTC_SIGN_STORETYPE == 'TRUSTEDSIGNING' && vars.AZURE_CLIENT_ID != '' }}
         continue-on-error: true
-        uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        uses: azure/login@v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
@@ -361,17 +365,19 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.chan.outputs.tag }}
           SIGNING: ${{ steps.authenticode.outputs.signing }}
+          CHANNEL: ${{ steps.chan.outputs.channel }}
+          GATE_RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
           {
             echo "## wootc $RELEASE_TAG"
             echo
-            if [ "${{ steps.chan.outputs.channel }}" = "auto" ]; then
+            if [ "$CHANNEL" = "auto" ]; then
               echo "Automated pre-release, cut from the exact commit the nightly"
               echo "GUI-driven E2E just proved: a real Windows 11 VM installed this"
               echo "build through the GUI and booted natively into Linux."
               echo "See the gate run for its selected stages and final OS."
               echo
-              echo "Gate run: ${{ github.event.workflow_run.html_url }}"
+              echo "Gate run: $GATE_RUN_URL"
             elif [ "${{ inputs.skip_e2e }}" = "true" ]; then
               echo "> ⚠️ **Published WITHOUT the E2E gate** (\`skip_e2e\`). Not verified"
               echo "> against a real Windows VM."
@@ -412,7 +418,7 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
-      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3
+      - uses: softprops/action-gh-release@v3.0.4 # zizmor: ignore[superfluous-actions] replacing the release action would change how releases publish
         with:
           tag_name: ${{ steps.chan.outputs.tag }}
           target_commitish: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.ref_type != 'tag' && github.sha || '') }}

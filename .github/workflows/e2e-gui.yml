@@ -51,7 +51,7 @@ concurrency:
 
 jobs:
   run:
-    uses: ./.github/workflows/e2e-hosted.yml
+    uses: $/.github/workflows/e2e-hosted.yml
     with:
       image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
       gui_install: true
@@ -103,7 +103,7 @@ jobs:
     steps:
       - run: |
           echo "Re-dispatching once: harness classified the failure as '$VERDICT'"
-          gh workflow run e2e-gui.yml --repo "${{ github.repository }}" --ref "${{ github.ref_name }}" \
+          gh workflow run e2e-gui.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
             -f image="$IMAGE" -f phase3="$PHASE3" -f uninstall_check="$UNCHK" -f gui_frontend="$FRONTEND" -f flake_retry=1
 
   publish:
@@ -118,9 +118,9 @@ jobs:
     if: ${{ needs.run.result == 'success' && (inputs.gui_frontend || 'native') == 'native' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1 # zizmor: ignore[artipacked] a later step force-pushes the pages-assets branch with these credentials
 
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           # Must track e2e-hosted.yml's per-case upload name. This job passes no
           # case_name, so the reusable workflow uploads "e2e-run-<run_id>";
