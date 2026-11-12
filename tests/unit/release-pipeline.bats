@@ -422,8 +422,10 @@ STUB
 }
 
 @test "release.yml logs in to Azure with OIDC, in the publish job only, right before signing (#229)" {
-    # Pinned by full SHA with a version comment, like every other action.
-    grep -qE 'uses: azure/login@[0-9a-f]{40} # v[0-9.]+$' "$RELEASE"
+    # Pinned to an exact release tag, locked to its commit in actions.lock,
+    # like every other action.
+    grep -qE 'uses: azure/login@v[0-9]+\.[0-9]+\.[0-9]+$' "$RELEASE"
+    grep -qE "^    'azure/login@v[0-9]+\.[0-9]+\.[0-9]+':$" .github/workflows/actions.lock
     grep -q 'client-id: ${{ vars.AZURE_CLIENT_ID }}' "$RELEASE"
     grep -q 'tenant-id: ${{ vars.AZURE_TENANT_ID }}' "$RELEASE"
     grep -q 'subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}' "$RELEASE"
