@@ -167,6 +167,7 @@ on the [task boards](https://github.com/tuna-os/wootc/issues/210).
 Installer components for Windows derive from
 [WubiUEFI](https://github.com/hakuna-m/wubiuefi) and use **GPL-2.0**
 ([LICENSE-GPL-2.0](LICENSE-GPL-2.0)); the deployer initramfs and GRUB
-configuration are **MIT** ([LICENSE-MIT](LICENSE-MIT)). fisherman, bootc,
+configuration are **MIT** ([LICENSE-MIT](LICENSE-MIT)). The `slurp` Go
+module is also MIT ([slurp/LICENSE](slurp/LICENSE)). fisherman, bootc,
 bootupd, podman, and skopeo are separate binaries under their own
 (Apache-2.0) licenses, invoked over a process boundary.

@@ -107,6 +107,9 @@ def build(root, brand, output, version, tags, ldflags, repository="tuna-os/wootc
         source = work / "app"
         shutil.copytree(root / "app", source,
                         ignore=shutil.ignore_patterns("node_modules", "*.syso", ".git", "*.exe"))
+        # app/go.mod replaces the shared slurp module with ../slurp.
+        if (root / "slurp").is_dir():
+            shutil.copytree(root / "slurp", work / "slurp", ignore=shutil.ignore_patterns(".git"))
         resource_json = work / "winres.json"
         resource_json.write_text(json.dumps(config))
         subprocess.run(["go", "run", WINRES, "make", "--arch", "amd64", "--in", str(resource_json),

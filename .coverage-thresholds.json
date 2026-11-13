@@ -7,6 +7,11 @@
       "module": "wootc"
     },
     {
+      "name": "slurp",
+      "directory": "slurp",
+      "module": "github.com/tuna-os/wootc/slurp"
+    },
+    {
       "name": "fisherman-tui",
       "directory": "fisherman/tui",
       "module": "github.com/tuna-os/fisherman/tui"

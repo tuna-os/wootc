@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,21 +14,26 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tuna-os/wootc/slurp"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // Linux side of the migration dashboard: the app runs inside the
 // installed system where wootc-passthrough.service has bridged the
-// Windows volume at /run/wootc/host.
+// Windows volume at /run/wootc/host. The Windows knowledge (which profile
+// folders bridge, which profile is the user's, where the look bundle
+// lives) comes from the shared slurp module, which fisherman uses too.
 
-var bridgeFolders = []string{"Documents", "Pictures", "Downloads", "Music", "Videos", "Desktop"}
+const hostVolume = "/run/wootc/host"
+
+var hostUsers = filepath.Join(hostVolume, slurp.UsersDir)
 
 var tokenConsentApps = map[string]bool{
 	"chrome": true, "edge": true, "spotify": true,
 }
 
 func detectMode() string {
-	if isMounted("/run/wootc/host") {
+	if isMounted(hostVolume) {
 		return "migration"
 	}
 	return "installer" // `wails dev` on a workstation
@@ -57,7 +63,7 @@ func migrationCategories() ([]BridgeCategory, error) {
 	stateDir := filepath.Join(u.HomeDir, ".config", "wootc")
 
 	var cats []BridgeCategory
-	for _, f := range bridgeFolders {
+	for _, f := range slurp.UserFolders() {
 		c := BridgeCategory{
 			ID: f, Label: f, Reversible: true,
 			Description: fmt.Sprintf("Your Windows %s, already visible in your home folder.", f),
@@ -131,14 +137,7 @@ func convertCategory(id string, progress func(MigrationProgress)) error {
 	if err != nil {
 		return err
 	}
-	valid := false
-	for _, f := range bridgeFolders {
-		if f == id {
-			valid = true
-			break
-		}
-	}
-	if !valid {
+	if !slurp.IsUserFolder(id) {
 		return fmt.Errorf("category %q cannot be converted this way", id)
 	}
 
@@ -151,7 +150,7 @@ func convertCategory(id string, progress func(MigrationProgress)) error {
 	if fileExists(filepath.Join(stateDir, "converted-"+id)) {
 		return fmt.Errorf("%s has already been converted to native storage", id)
 	}
-	src := filepath.Join("/run/wootc/host/Users", u.Username, id)
+	src := filepath.Join(hostUsers, u.Username, id)
 	dst := filepath.Join(u.HomeDir, id)
 	if !dirExists(src) && !isMounted(dst) {
 		return fmt.Errorf("%s source not found — nothing to convert", id)
@@ -393,27 +392,26 @@ func setMigrationProfile(profile string) error {
 	if err != nil {
 		return err
 	}
-	root := "/run/wootc/host/Users"
-	entries, err := os.ReadDir(root)
+	profiles, err := slurp.Profiles(hostUsers)
 	if err != nil {
 		return fmt.Errorf("list Windows profiles: %w", err)
 	}
-	for _, entry := range entries {
-		if entry.IsDir() && strings.EqualFold(entry.Name(), profile) {
+	for _, name := range profiles {
+		if strings.EqualFold(name, profile) {
 			path := filepath.Join(u.HomeDir, ".config", "wootc", "profile-map.json")
-			if err := marshalJSONToFile(path, map[string]string{"windowsProfile": entry.Name()}); err != nil {
+			if err := marshalJSONToFile(path, map[string]string{"windowsProfile": name}); err != nil {
 				return err
 			}
 			// Re-run the read-only app/Office collectors immediately so the
 			// dashboard reflects the newly selected profile without waiting for
 			// the next bridge-service restart.
 			if _, lookErr := exec.LookPath("wootc-detect-apps"); lookErr == nil {
-				if output, runErr := exec.Command("wootc-detect-apps", entry.Name(), u.Username).CombinedOutput(); runErr != nil {
+				if output, runErr := exec.Command("wootc-detect-apps", name, u.Username).CombinedOutput(); runErr != nil {
 					return fmt.Errorf("refresh app bridge: %w: %s", runErr, strings.TrimSpace(string(output)))
 				}
 			}
 			if _, lookErr := exec.LookPath("wootc-office-bridge"); lookErr == nil {
-				if output, runErr := exec.Command("wootc-office-bridge", entry.Name(), u.Username).CombinedOutput(); runErr != nil {
+				if output, runErr := exec.Command("wootc-office-bridge", name, u.Username).CombinedOutput(); runErr != nil {
 					return fmt.Errorf("refresh Office bridge: %w: %s", runErr, strings.TrimSpace(string(output)))
 				}
 			}
@@ -424,41 +422,28 @@ func setMigrationProfile(profile string) error {
 }
 
 func resolvedWindowsProfile(u *user.User) (path, profile string, err error) {
-	return resolvedWindowsProfileIn(u, "/run/wootc/host/Users")
+	return resolvedWindowsProfileIn(u, hostUsers)
 }
 
 // Keep the production mount fixed while testing profile selection on real files.
+// The choice saved in Migration settings wins, then the Linux user name; a
+// volume with a single real profile resolves to it (slurp.ResolveProfile).
 func resolvedWindowsProfileIn(u *user.User, root string) (path, profile string, err error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return "", "", fmt.Errorf("Windows profiles are unavailable: %w", err)
-	}
-	var profiles []string
-	for _, entry := range entries {
-		if entry.IsDir() && entry.Name() != "Public" && entry.Name() != "Default" && entry.Name() != "Default User" && entry.Name() != "All Users" {
-			profiles = append(profiles, entry.Name())
-		}
-	}
 	mapPath := filepath.Join(u.HomeDir, ".config", "wootc", "profile-map.json")
 	var mapping struct {
 		WindowsProfile string `json:"windowsProfile"`
 	}
-	if data, readErr := os.ReadFile(mapPath); readErr == nil && unmarshalJSON(data, &mapping) == nil {
-		for _, candidate := range profiles {
-			if strings.EqualFold(candidate, mapping.WindowsProfile) {
-				return filepath.Join(root, candidate), candidate, nil
-			}
-		}
+	if data, readErr := os.ReadFile(mapPath); readErr != nil || unmarshalJSON(data, &mapping) != nil {
+		mapping.WindowsProfile = ""
 	}
-	for _, candidate := range profiles {
-		if strings.EqualFold(candidate, u.Username) {
-			return filepath.Join(root, candidate), candidate, nil
-		}
+	path, profile, err = slurp.ResolveProfile(root, mapping.WindowsProfile, u.Username)
+	switch {
+	case errors.Is(err, slurp.ErrProfileAmbiguous):
+		return "", "", fmt.Errorf("could not map Linux user %q to one Windows profile; choose a profile in Migration settings", u.Username)
+	case err != nil:
+		return "", "", fmt.Errorf("Windows profiles are unavailable: %w", err)
 	}
-	if len(profiles) == 1 {
-		return filepath.Join(root, profiles[0]), profiles[0], nil
-	}
-	return "", "", fmt.Errorf("could not map Linux user %q to one Windows profile; choose a profile in Migration settings", u.Username)
+	return path, profile, nil
 }
 
 func lookMigration() (LookMigration, error) {
@@ -470,8 +455,8 @@ func lookMigration() (LookMigration, error) {
 	if resolveErr != nil {
 		return LookMigration{Note: resolveErr.Error()}, nil
 	}
-	slurp := filepath.Join(path, "..", "..", "wootc", "install", "slurp", "slurp.json")
-	data, err := os.ReadFile(slurp)
+	// path is <volume>/Users/<profile>.
+	data, err := os.ReadFile(slurp.LookPath(filepath.Join(path, "..", "..")))
 	if err != nil {
 		return LookMigration{Note: "Windows look was not selected during install."}, nil
 	}
