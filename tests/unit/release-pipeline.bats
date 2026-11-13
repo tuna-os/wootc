@@ -450,8 +450,8 @@ STUB
 }
 
 @test "release.yml passes actionlint and yamllint" {
-    command -v actionlint >/dev/null || skip "actionlint not installed (lint.yml runs it in CI)"
-    command -v yamllint >/dev/null || skip "yamllint not installed (lint.yml runs it in CI)"
+    command -v actionlint >/dev/null || skip "actionlint not installed (the lint job in ci.yml runs it in CI)"
+    command -v yamllint >/dev/null || skip "yamllint not installed (the lint job in ci.yml runs it in CI)"
     SHELLCHECK_OPTS=--severity=warning run actionlint "$RELEASE"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     run yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$RELEASE"

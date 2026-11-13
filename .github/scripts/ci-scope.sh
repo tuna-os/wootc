@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# ci-scope.sh: decide which path-scoped PR jobs in ci.yml and ci-tests.yml a
-# change can affect.
+# ci-scope.sh: decide which path-scoped PR jobs in ci.yml a change can affect.
 #
 # Reads the changed paths (one per line) on stdin and prints one
 # "<scope>=true|false" line per scope, ready for $GITHUB_OUTPUT. Run it from
@@ -8,7 +7,7 @@
 # main the pushed range's. With --all, prints every scope as true
 # (workflow_dispatch, the nightly schedule, an unreadable push range).
 #
-# A change to this script, to ci.yml/ci-tests.yml or to a local action selects
+# A change to this script, to ci.yml or to a local action selects
 # every scope. The fast tier and lint are not scoped: they run on every PR
 # and every push.
 #
@@ -16,9 +15,9 @@
 #   app        ci.yml build-app (wootc.exe + Linux dashboard; app/ requires slurp/)
 #   recipe     ci.yml validate-recipe (fisherman submodule)
 #   gui        ci.yml gui-tests (Playwright walkthrough of app/frontend)
-#   classic    ci-tests.yml classic-offline (the hash-pinned audit sources)
-#   migration  ci-tests.yml integration + gui-shots (payload/migration)
-#   partition  ci-tests.yml partition-policy (Windows PowerShell policy)
+#   classic    ci.yml classic-offline (the hash-pinned audit sources)
+#   migration  ci.yml integration + gui-shots (payload/migration)
+#   partition  ci.yml partition-policy (Windows PowerShell policy)
 set -euo pipefail
 
 scopes=(deployer app recipe gui classic migration partition)
@@ -34,7 +33,7 @@ else
     while IFS= read -r f; do
         [ -n "$f" ] || continue
         case "$f" in
-            .github/scripts/ci-scope.sh | .github/workflows/ci.yml | .github/workflows/ci-tests.yml | .github/actions/*)
+            .github/scripts/ci-scope.sh | .github/workflows/ci.yml | .github/actions/*)
                 select_all ;;
         esac
         case "$f" in

@@ -9,7 +9,7 @@
 # failing" left three others latently broken, each passing only while it happened
 # to draw a podman-4 runner:
 #
-#   - ci-tests.yml gui-shots   (found by CI, red on a podman-5 draw)
+#   - ci.yml gui-shots         (found by CI, red on a podman-5 draw)
 #   - ci.yml build-deployer    (podman build, never repaired)
 #   - e2e-snapshot.yml prime   (runs the full E2E)
 #
@@ -27,7 +27,6 @@ setup() {
 # e2e-kvm.yml is deliberately absent: it runs on self-hosted boxes (himachal,
 # dilli) whose podman/crun pair is matched, and the action no-ops there anyway.
 hosted_container_workflows() {
-    echo ci-tests.yml
     echo ci.yml
     echo e2e-hosted.yml
     echo e2e-snapshot.yml

@@ -8,10 +8,6 @@ workflows:
         - 'zizmorcore/zizmor-action@v0.8.1'
     '.github/workflows/bitlocker-fixture-controls.yml':
         - 'actions/checkout@v7.0.1'
-    '.github/workflows/ci-tests.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v7.0.0'
-        - 'actions/upload-artifact@v7.0.2'
     '.github/workflows/ci.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/setup-go@v7.0.0'
@@ -41,9 +37,6 @@ workflows:
     '.github/workflows/e2e-snapshot.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'
-    '.github/workflows/lint.yml':
-        - 'actions/checkout@v7.0.1'
-        - 'actions/setup-go@v7.0.0'
     '.github/workflows/linux-package-execute.yml':
         - 'actions/checkout@v7.0.1'
         - 'actions/upload-artifact@v7.0.2'

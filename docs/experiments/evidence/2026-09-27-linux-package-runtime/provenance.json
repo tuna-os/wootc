@@ -61,8 +61,7 @@
     "priorProvenance": "runtime-prior-provenance.json"
   },
   "sourceHashes": {
-    ".github/workflows/ci-tests.yml": "6c765fe51f0e48d1fe4a7357d8974b43ebc3fbb56d50dcc38abee0bfb6e16ecf",
-    ".github/workflows/linux-package-execute.yml": "7fa1819dbd507c82844685239c012f444cec3221f084da592e73c62ff0f1bb45",
+    ".github/workflows/linux-package-execute.yml": "1d8bdf055c8bf3c1713bcedd56edec003ee11c0a70128b2aba8a68e3c6fe98f4",
     ".github/workflows/linux-package-runtime.yml": "24d1e777160e6c6b7384c92291ce09ecf409d1944b1618af32f0a4ead4fbe58f",
     "docs/experiments/evidence/2026-09-27-esp-orchestrator/authenticated-dependencies/authenticated-dependency-plan.json": "ada5ba0f52a7c42620a5d0e5b8c2926c452022accd3877b5fe6a436ec3cb83a8",
     "docs/experiments/evidence/2026-09-27-linux-command-failure/controls.log": "5a7863766f8bf2f9ec3ac1c2adca3c43f8c48bb2649d3e80dacf3c50f7bed4de",
