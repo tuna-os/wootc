@@ -4,7 +4,7 @@ on:
   pull_request:
     paths: ['app/serve.go', 'app/serve_assessment_test.go', '.github/workflows/native-rpc-capabilities.yml']
   push:
-    branches: [main, 'fix/native-preview-rpc-capabilities']
+    branches: [main]
     paths: ['app/serve.go', 'app/serve_assessment_test.go', '.github/workflows/native-rpc-capabilities.yml']
   workflow_dispatch:
 

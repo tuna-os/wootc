@@ -7,7 +7,7 @@ on:
       - 'tests/lint-ps1.ps1'
       - '.github/workflows/bitlocker-fixture-controls.yml'
   push:
-    branches: [main, 'fix/fixture-activation-diagnostics-main']
+    branches: [main]
     paths:
       - 'tests/e2e/fixture-bitlocker-*.ps1'
       - 'tests/lint-ps1.ps1'

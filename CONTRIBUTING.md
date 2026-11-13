@@ -56,9 +56,9 @@ CI runners are shared by all tuna-os repositories, so a PR runs only the
 jobs that its change can affect:
 
 - Lint and the fast tier run on every PR.
-- The other jobs in `ci.yml` and `ci-tests.yml` run only when the PR changes
+- The other jobs in `ci.yml` run only when the PR changes
   their inputs. `.github/scripts/ci-scope.sh` holds the path map. A change to
-  that script, to those two workflows, or to `.github/actions/` runs all jobs.
+  that script, to that workflow, or to `.github/actions/` runs all jobs.
 - `winui-preview.yml` packages one brand per PR. The brand changes with the
   run number. The PR also packages each brand whose `app/branding/<brand>/`
   it changes. Set the `WINUI_PREVIEW_BRANDS_PER_PR` repository variable to

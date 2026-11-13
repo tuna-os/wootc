@@ -1,7 +1,5 @@
 name: Native original-user binding controls
 on:
-  push:
-    branches: ['fix/native-install-authorization']
   pull_request:
     paths:
       - 'app/native_peer_windows.go'

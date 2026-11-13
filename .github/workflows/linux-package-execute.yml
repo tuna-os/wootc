@@ -7,10 +7,11 @@ on:
         description: Exact reviewed 40-hex source commit (must match selected ref)
         required: true
         type: string
+  # A PR runs this only when the workflow itself changes. Its `controls` job is
+  # a strict subset of `source` in linux-package-runtime.yml, which already runs
+  # on every change to the package-runtime sources and tests.
   pull_request:
     paths:
-      - tests/e2e/package-runtime/**
-      - tests/unit/test_linux_package_*.py
       - .github/workflows/linux-package-execute.yml
 
 permissions:
