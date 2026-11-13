@@ -9,7 +9,7 @@
     {
       "name": "fisherman-tui",
       "directory": "fisherman/tui",
-      "module": "github.com/projectbluefin/fisherman/tui"
+      "module": "github.com/tuna-os/fisherman/tui"
     },
     {
       "name": "fisherman-core",

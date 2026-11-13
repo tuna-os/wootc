@@ -160,11 +160,17 @@ jobs:
           cd fisherman/fisherman
           go build -o /tmp/fisherman ./cmd/fisherman/
 
+      # fisherman validate checks the target the way the install does: the
+      # disk must be a whole disk or an attached loop device (lsblk lists it).
+      # The deployer installs to an attached loop device, so validate against
+      # one; an unattached /dev/loop0 is "not a whole disk".
       - name: Validate default recipe
         run: |
-          cat > /tmp/test-recipe.json << 'EOF'
+          truncate -s 20G /tmp/wootc-root.disk
+          loop=$(sudo losetup --find --show /tmp/wootc-root.disk)
+          cat > /tmp/test-recipe.json << EOF
           {
-            "disk": "/dev/loop0",
+            "disk": "${loop}",
             "filesystem": "xfs",
             "composeFsBackend": false,
             "bootloader": "grub2",

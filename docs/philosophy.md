@@ -55,7 +55,7 @@ not a reinstall).
 
 Within the tuna-os / Universal Blue family, wootc is the **conversion
 front door**: the Windows-hosted complement to the bootc-installer family,
-driving [fisherman](https://github.com/projectbluefin/fisherman) under the
+driving [fisherman](https://github.com/tuna-os/fisherman) under the
 hood. One engine ships as five installers — generic wootc plus branded
 TunaOS, Bluefin, Aurora, and Bazzite builds
 ([branding-and-distribution.md](branding-and-distribution.md)).
