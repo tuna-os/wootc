@@ -7,7 +7,7 @@ partition. Uninstalling is deleting one file and one BCD entry.
 **Prior art**: [WubiUEFI](https://github.com/hakuna-m/wubiuefi) proved the
 dual-boot loop-file model with millions of users. wootc replaces Wubi's
 Ubuntu-specific pipeline (ISO → casper → ubiquity → preseed) with
-[fisherman](https://github.com/projectbluefin/fisherman) driving
+[fisherman](https://github.com/tuna-os/fisherman) driving
 [bootc install](https://github.com/containers/bootc). The result: smaller
 downloads, no installer wizard, same system whether running from loop file
 or real disk.
@@ -383,7 +383,7 @@ populate root.disk with the chosen bootc image.
 | Component | Purpose |
 |---|---|
 | Fedora 44 kernel | Boots on wide range of hardware |
-| [fisherman](https://github.com/projectbluefin/fisherman) | Go binary: partition, format, bootc install to-filesystem |
+| [fisherman](https://github.com/tuna-os/fisherman) | Go binary: partition, format, bootc install to-filesystem |
 | podman + skopeo | Pull OCI images, run bootc container |
 | ntfs3 (in-kernel) | Mount Windows NTFS partition (no FUSE overhead) |
 | dracut + network modules | DHCP, DNS |
@@ -1682,7 +1682,7 @@ communicating with an MIT-licensed deployer over a process boundary
 | Project | Role | License |
 |---|---|---|
 | [WubiUEFI](https://github.com/hakuna-m/wubiuefi) | Windows installer, BCD, GRUB core images | GPL-2.0 |
-| [fisherman](https://github.com/projectbluefin/fisherman) | Disk partitioning, bootc install, data slurp | Apache-2.0 |
+| [fisherman](https://github.com/tuna-os/fisherman) | Disk partitioning, bootc install, data slurp | Apache-2.0 |
 | [bootc](https://github.com/containers/bootc) | Container-native OS install and updates | Apache-2.0 |
 | [bootupd](https://github.com/coreos/bootupd) | Bootloader installation (invoked by bootc) | Apache-2.0 |
 | [podman](https://github.com/containers/podman) | OCI image pull and container execution | Apache-2.0 |
@@ -1758,7 +1758,7 @@ wootc/
 │   └── recipes/
 │       └── (image catalogs, default recipes)
 │
-├── fisherman/                      ← git submodule: projectbluefin/fisherman
+├── fisherman/                      ← git submodule: tuna-os/fisherman
 ├── tests/
 │   ├── e2e/                        ← full KVM e2e test
 │   └── unit/                       ← platform + payload unit tests
@@ -1775,7 +1775,7 @@ wootc/
 | Project | Role | License |
 |---|---|---|
 | [WubiUEFI](https://github.com/hakuna-m/wubiuefi) | Windows installer, BCD, GRUB core images | GPL-2.0 |
-| [fisherman](https://github.com/projectbluefin/fisherman) | Disk partitioning, bootc install, data slurp | Apache-2.0 |
+| [fisherman](https://github.com/tuna-os/fisherman) | Disk partitioning, bootc install, data slurp | Apache-2.0 |
 | [bootc](https://github.com/containers/bootc) | Container-native OS install and updates | Apache-2.0 |
 | [bootupd](https://github.com/coreos/bootupd) | Bootloader installation (invoked by bootc) | Apache-2.0 |
 | [podman](https://github.com/containers/podman) | OCI image pull and container execution | Apache-2.0 |
