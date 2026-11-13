@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/klauspost/compress v1.20.4
 	github.com/tredoe/osutil v1.5.0
+	github.com/tuna-os/wootc/slurp v0.0.0
 	github.com/wailsapp/wails/v2 v2.17.1
 	golang.org/x/crypto v0.59.0
 	golang.org/x/mod v0.43.0
@@ -42,3 +43,7 @@ require (
 )
 
 // replace github.com/wailsapp/wails/v2 v2.13.0 => /home/james/go/pkg/mod
+
+// The shared Windows-migration module lives in this repository; fisherman
+// requires it by version.
+replace github.com/tuna-os/wootc/slurp => ../slurp

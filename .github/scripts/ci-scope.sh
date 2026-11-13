@@ -13,7 +13,7 @@
 # and every push.
 #
 #   deployer   ci.yml build-deployer (payload/deployer/Containerfile inputs)
-#   app        ci.yml build-app (wootc.exe + Linux dashboard)
+#   app        ci.yml build-app (wootc.exe + Linux dashboard; app/ requires slurp/)
 #   recipe     ci.yml validate-recipe (fisherman submodule)
 #   gui        ci.yml gui-tests (Playwright walkthrough of app/frontend)
 #   classic    ci-tests.yml classic-offline (the hash-pinned audit sources)
@@ -41,7 +41,7 @@ else
             fisherman | payload/* | platform/dracut/*) hit[deployer]=1 ;;
         esac
         case "$f" in
-            app/* | packaging/*) hit[app]=1 ;;
+            app/* | slurp/* | packaging/*) hit[app]=1 ;;
         esac
         case "$f" in
             fisherman) hit[recipe]=1 ;;

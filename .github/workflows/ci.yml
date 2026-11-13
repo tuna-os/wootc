@@ -130,6 +130,14 @@ jobs:
           python3 packaging/build-windows.py --brand wootc --output app/wootc.exe --tags desktop,production
           (cd app && GOOS=windows GOARCH=amd64 go vet ./...)
 
+      # app/ builds against the shared slurp module (app/go.mod replaces it
+      # with ../slurp); fisherman requires the same module by version.
+      - name: Test shared slurp module
+        run: |
+          cd slurp
+          go test ./...
+          GOOS=windows GOARCH=amd64 go vet ./...
+
       - name: Build Linux migration dashboard
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q libgtk-3-dev libwebkit2gtk-4.1-dev
