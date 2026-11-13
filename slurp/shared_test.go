@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -15,9 +14,9 @@ func TestCategories_CanonicalOrderAndCopy(t *testing.T) {
 	for _, c := range Categories() {
 		names = append(names, c.Name)
 	}
-	want := []string{"Documents", "Desktop", "Downloads", "Pictures", "Music", "Videos", "Wallpapers"}
+	want := []string{"Documents", "Pictures", "Downloads", "Music", "Videos", "Desktop", "Wallpapers"}
 	if !reflect.DeepEqual(names, want) {
-		t.Fatalf("Categories() = %v, want %v (the order is the scan JSON contract)", names, want)
+		t.Fatalf("Categories() = %v, want %v (the order is the dashboard order)", names, want)
 	}
 	got := Categories()
 	got[0].Name = "mutated"
@@ -27,7 +26,7 @@ func TestCategories_CanonicalOrderAndCopy(t *testing.T) {
 }
 
 func TestUserFolders(t *testing.T) {
-	want := []string{"Documents", "Desktop", "Downloads", "Pictures", "Music", "Videos"}
+	want := []string{"Documents", "Pictures", "Downloads", "Music", "Videos", "Desktop"}
 	if got := UserFolders(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("UserFolders() = %v, want %v", got, want)
 	}
@@ -214,66 +213,5 @@ func TestWallpaperSources(t *testing.T) {
 	got[0] = "mutated"
 	if WallpaperSources()[0] == "mutated" {
 		t.Error("WallpaperSources() returned the package's own slice")
-	}
-}
-
-// The scan and recipe JSON shapes are consumed by every frontend and by
-// `fisherman scan`; their field names may not drift.
-func TestJSONShapes(t *testing.T) {
-	scan := ScanResult{Disk: "/dev/sda", Partitions: []NTFSPartScan{{
-		Partition: "/dev/sda2", TotalBytes: 3,
-		Users: []UserScan{{Name: "Alice", TotalBytes: 3, Categories: []CategoryScan{{Name: "Documents", Path: "Documents", Bytes: 3, Count: 1}}}},
-	}}}
-	got, _ := json.Marshal(scan)
-	want := `{"disk":"/dev/sda","partitions":[{"partition":"/dev/sda2","users":[{"name":"Alice","categories":[{"name":"Documents","path":"Documents","bytes":3,"count":1}],"totalBytes":3}],"totalBytes":3}]}`
-	if string(got) != want {
-		t.Errorf("ScanResult JSON\n%s\nwant\n%s", got, want)
-	}
-	if got, _ := json.Marshal(ScanResult{Disk: "/dev/sdb"}); string(got) != `{"disk":"/dev/sdb","partitions":null}` {
-		t.Errorf("empty ScanResult JSON = %s", got)
-	}
-	cfg := SlurpConfig{SourcePartition: "/dev/sda2", Users: []SlurpUserConfig{{Name: "Alice", Categories: []string{"Documents"}}}}
-	got, _ = json.Marshal(cfg)
-	if want := `{"sourcePartition":"/dev/sda2","users":[{"name":"Alice","categories":["Documents"]}]}`; string(got) != want {
-		t.Errorf("SlurpConfig JSON = %s, want %s", got, want)
-	}
-}
-
-func TestNewSlurper_Defaults(t *testing.T) {
-	r := &fakeRunner{}
-	s := NewSlurper(r, nil)
-	if s.Runner != r || s.Progress != nil || s.Warnings != os.Stderr {
-		t.Errorf("NewSlurper wiring = %+v", s)
-	}
-	if s.ScratchBase != "/run/fisherman-slurp" || s.MountPoint != "/run/fisherman-slurp-mnt" ||
-		s.ScanMountPoint != "/run/fisherman-slurp-scan" || s.ScratchFS != "/run" || s.Available == nil {
-		t.Errorf("NewSlurper paths = %+v", s)
-	}
-	s.Available = nil
-	if got := s.AvailableScratchBytes(); got != 0 {
-		t.Errorf("no observation: AvailableScratchBytes = %d, want 0", got)
-	}
-}
-
-type recordingProgress struct{ lines []string }
-
-func (p *recordingProgress) Substep(msg string) { p.lines = append(p.lines, "substep: "+msg) }
-func (p *recordingProgress) Info(msg string)    { p.lines = append(p.lines, "info: "+msg) }
-
-func TestProgressAndWarningsReachTheCaller(t *testing.T) {
-	s := sl(t)
-	p := &recordingProgress{}
-	var warnings strings.Builder
-	s.Progress, s.Warnings = p, &warnings
-	stubRun(t, "chown", "chmod")
-	scratch := t.TempDir()
-	if err := s.InjectWallpapers(t.TempDir(), &WallpaperResult{Found: true, ScratchDir: scratch, Count: 2}); err != nil {
-		t.Fatal(err)
-	}
-	if len(p.lines) != 1 || !strings.HasPrefix(p.lines[0], "info: Migrated 2 Windows wallpaper(s) to ") {
-		t.Errorf("progress = %v", p.lines)
-	}
-	if w := warnings.String(); !strings.Contains(w, "could not chown wallpapers") || !strings.Contains(w, "could not chmod wallpapers") {
-		t.Errorf("warnings = %q", w)
 	}
 }

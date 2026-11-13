@@ -130,8 +130,8 @@ jobs:
           python3 packaging/build-windows.py --brand wootc --output app/wootc.exe --tags desktop,production
           (cd app && GOOS=windows GOARCH=amd64 go vet ./...)
 
-      # app/ builds against the shared slurp module (app/go.mod replaces it
-      # with ../slurp); fisherman requires the same module by version.
+      # app/ builds against the slurp module (app/go.mod replaces it with
+      # ../slurp).
       - name: Test shared slurp module
         run: |
           cd slurp

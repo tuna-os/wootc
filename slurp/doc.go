@@ -1,26 +1,15 @@
-// Package slurp is the Windows data-migration knowledge shared by wootc and
-// fisherman: what a Windows user profile holds that is worth bringing to
-// Linux, where it lives on the volume, and how to move it.
+// Package slurp is wootc's Windows data-migration knowledge: what a Windows
+// user profile holds that is worth bringing to Linux, where it lives on the
+// volume, and the shape of the look bundle wootc writes before it reboots.
 //
-// It has two halves.
+// It needs only a path to a Windows volume (C:\ on a running Windows, or the
+// volume bridged at /run/wootc/host on the installed Linux system): the
+// user-folder categories (Categories, UserFolders, CategoryPath), profile
+// discovery and selection (Profiles, ResolveProfile), the wallpaper source
+// paths, the BCP-47 → XKB and Windows → IANA time zone maps, and the look
+// bundle (Look, PinnedApp, BundleDir, LookFile, LookPath).
 //
-// The platform-neutral half needs only a path to a Windows volume (mounted
-// read-only by fisherman, bridged at /run/wootc/host by wootc, or C:\ on a
-// running Windows): the user-folder categories (Categories, UserFolders,
-// CategoryPath), profile discovery and selection (Profiles, ResolveProfile),
-// the wallpaper source paths, the BCP-47 → XKB and Windows → IANA time zone
-// maps, and the Go shape of the look bundle wootc writes before it reboots
-// (Look, PinnedApp, BundleDir, LookFile).
-//
-// The offline half (Slurper) is what an installer running on Linux does to a
-// Windows disk it is about to overwrite: find the NTFS partitions, measure
-// what each profile holds (Scan, ScanJSON), copy the user's choice into
-// RAM-backed scratch before partitioning (ExtractData, ExtractWallpapers), and
-// copy it into the installed system afterwards (InjectData,
-// InjectWallpapers). It runs no command itself: the caller supplies a Runner
-// (mount, umount, lsblk, cp, chown, chmod, restorecon) and, optionally, a
-// Progress sink.
-//
-// The module uses only the standard library and imports neither wootc nor
-// fisherman, so either can depend on it.
+// The collectors that query a running Windows (netsh, the registry, DPAPI)
+// stay in wootc's app; this module holds what both of wootc's sides share.
+// It uses only the standard library.
 package slurp

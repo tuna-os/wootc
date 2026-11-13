@@ -115,7 +115,7 @@ run_fast() {
         # app/: only the non-windows-tagged code compiles here (status mutex,
         # embedded catalog). fisherman TUI and core are fully cross-platform.
         run_go_module app app || rc=1
-        # slurp/: the Windows-migration module app/ and fisherman share.
+        # slurp/: the Windows-migration module app/'s Windows and Linux sides share.
         run_go_module slurp slurp || rc=1
         run_go_module fisherman/tui fisherman-tui || rc=1
         run_go_module fisherman/fisherman fisherman-core || rc=1

@@ -12,15 +12,15 @@ type Category struct {
 	Path string
 }
 
-// categories is the canonical list, in the order Scan reports them. The
-// order is part of the `fisherman scan` JSON contract.
+// categories is the canonical list, in the order the migration dashboard
+// shows them.
 var categories = []Category{
 	{"Documents", "Documents"},
-	{"Desktop", "Desktop"},
-	{"Downloads", "Downloads"},
 	{"Pictures", "Pictures"},
+	{"Downloads", "Downloads"},
 	{"Music", "Music"},
 	{"Videos", "Videos"},
+	{"Desktop", "Desktop"},
 	{"Wallpapers", "AppData/Roaming/Microsoft/Windows/Themes"},
 }
 
@@ -31,7 +31,7 @@ func Categories() []Category {
 }
 
 // UserFolders returns the names of the categories that are plain top-level
-// profile folders (Documents, Desktop, Downloads, Pictures, Music, Videos),
+// profile folders (Documents, Pictures, Downloads, Music, Videos, Desktop),
 // in canonical order: the folders a Linux home has a same-named
 // counterpart for.
 func UserFolders() []string {
