@@ -45,6 +45,12 @@ Never post account credentials or API keys in issues or pull requests.
 
 ## Get it
 
+<!-- Remove this note when the first release with the native setup is published. -->
+> **No published release has the native setup yet.** The files below come with
+> the first release after the native shell cutover (#661). The latest release,
+> `v0.1.0-alpha.1` (2026-08-22), is older. It has `wootc.exe`, the branded
+> `*-Installer.exe` files and `SHA256SUMS`.
+
 **[⬇ Download the latest release](https://github.com/tuna-os/wootc/releases/latest)**
 — run `wootc-Installer-Setup.exe` as Administrator. The Inno setup installs
 the native WinUI shell and protected engine, fetches boot artifacts, checks hashes, and verifies a signed manifest.

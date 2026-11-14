@@ -6,6 +6,12 @@ Their appearance and available choices depend on your Windows settings.
 
 ## 1. Download
 
+<!-- Remove this note when the first release with the native setup is published. -->
+> **No published release has the native setup yet.** The files on this page
+> come with the first release after the native shell cutover (#661). The latest
+> release, `v0.1.0-alpha.1` (2026-08-22), is older. It has `wootc.exe`, the
+> branded `*-Installer.exe` files and `SHA256SUMS`.
+
 Grab the latest `wootc-Installer-Setup.exe` from the
 [Releases page](https://github.com/tuna-os/wootc/releases/latest). Save it
 anywhere — Downloads is fine. Run the Inno setup as Administrator; it installs
