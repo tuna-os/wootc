@@ -420,11 +420,38 @@ bind_profile() {
 # folders make the common files invisible magic; anything else was reachable
 # only by typing /run/wootc/host, which no screen ever mentions (North Star
 # audit 2026-08-22). One line per GTK generation, never duplicated, owned by
-# the user (this unit runs as root). GTK bookmarks cover GNOME's Files and
+# the user. GTK bookmarks cover GNOME's Files and
 # every GTK file dialog; Dolphin (KDE — Bazzite's file manager) reads
 # user-places.xbel instead, so KDE gets its own entry below or the bookmark
 # simply does not exist on half the catalog.
+#
+# This unit runs as root, and everything below $home is the user's to arrange,
+# symlinks included. Root must not write there itself: the append, and the
+# chown that used to follow it, landed on whatever a planted link pointed at,
+# so the user ended up owning that file. The writes run with the home owner's
+# credentials instead. The kernel then refuses anything the user could not
+# already do, and the files are created user-owned, so no chown is needed.
+# If the credentials cannot be dropped, nothing is written.
 add_host_bookmark() {
+    local home="$1" owner
+    local -a drop=()
+    if [[ "$(id -u)" == 0 ]]; then
+        owner=$(stat -c '%u:%g' -- "$home" 2>/dev/null) || return 0
+        if ! command -v setpriv >/dev/null 2>&1; then
+            warn "setpriv not available — no Windows-drive bookmark for $home"
+            return 0
+        fi
+        drop=(setpriv --reuid="${owner%:*}" --regid="${owner#*:}" --clear-groups --)
+    fi
+    # MUST end 0: bind_profile ends here, under `set -e`.
+    "${drop[@]}" bash -c "$(declare -f write_host_bookmarks add_host_bookmark_kde)"'
+write_host_bookmarks "$1"' bash "$home" \
+        || warn "could not add the Windows-drive bookmark for $home"
+    return 0
+}
+
+# Runs as the home's owner (see add_host_bookmark), never as root.
+write_host_bookmarks() {
     local home="$1" uri="file:///run/wootc/host Windows drive (read-only)" gen bm
     for gen in gtk-3.0 gtk-4.0; do
         bm="$home/.config/$gen/bookmarks"
@@ -432,7 +459,6 @@ add_host_bookmark() {
         if ! grep -qsF "$uri" "$bm" 2>/dev/null; then
             echo "$uri" >> "$bm" 2>/dev/null || true
         fi
-        chown --reference="$home" "${bm%/*}" "$bm" 2>/dev/null || true
     done
     add_host_bookmark_kde "$home"
 }
@@ -475,7 +501,6 @@ add_host_bookmark_kde() {
             "$entry" \
             '</xbel>' > "$xbel" 2>/dev/null || true
     fi
-    chown --reference="$home" "${xbel%/*}" "$xbel" 2>/dev/null || true
 }
 
 # Attempt BitLocker unlock before scanning for profiles when the host

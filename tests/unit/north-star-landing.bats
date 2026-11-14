@@ -64,8 +64,12 @@ WELCOME="payload/migration/wootc-welcome"
     grep -q 'file:///run/wootc/host Windows drive' "$MOUNTDIRS"
     # Never duplicated across logins, and owned by the user (the unit runs
     # as root — a root-owned ~/.config/gtk-3.0 breaks the file manager).
+    # Owned because the user's own credentials create it: a chown from root
+    # follows a planted symlink to whatever it points at.
     grep -q 'grep -qsF' "$MOUNTDIRS"
-    grep -q -- '--reference="$home"' "$MOUNTDIRS"
+    grep -q -- 'setpriv --reuid=' "$MOUNTDIRS"
+    run grep -- 'chown --reference="$home"' "$MOUNTDIRS"
+    [ "$status" -ne 0 ]
     # Both GTK generations read their own path.
     grep -q 'gtk-3.0 gtk-4.0' "$MOUNTDIRS"
 }

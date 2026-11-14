@@ -136,6 +136,48 @@ SH
     [ ! -s "$CALLS" ]
 }
 
+@test "the Windows-drive bookmark is written with the home owner's credentials, never root's" {
+    # The unit runs as root and the user owns every path below the home, so a
+    # planted ~/.config/gtk-3.0/bookmarks symlink used to hand that user the
+    # ownership of its target (chown --reference follows links). Root now
+    # drops to the home's owner before the first write and never chowns.
+    mkdir -p "$T/home"
+    cat > "$T/bin/id" <<'SH'
+#!/bin/bash
+if [[ "$*" == -u ]]; then echo 0; exit 0; fi
+exec env -u PATH id "$@"
+SH
+    cat > "$T/bin/setpriv" <<'SH'
+#!/bin/bash
+printf 'setpriv %s\n' "$*" >> "$CALLS"
+[[ ${FAIL_DROP:-} == 1 ]] && exit 1
+while [[ $# -gt 0 && "$1" != -- ]]; do shift; done
+shift
+exec "$@"
+SH
+    printf '#!/bin/bash\nprintf "chown %%s\\n" "$*" >> "$CALLS"\n' > "$T/bin/chown"
+    chmod +x "$T/bin/"*
+    fns=$(sed -n -e '/^add_host_bookmark()/,/^}/p' -e '/^write_host_bookmarks()/,/^}/p' \
+        -e '/^add_host_bookmark_kde()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")
+    owner=$(stat -c '--reuid=%u --regid=%g' "$T/home")
+
+    # A drop that fails writes nothing, and still does not end the bridge.
+    run env FAIL_DROP=1 bash -c "$fns"'
+        warn() { echo "$*" >&2; }; add_host_bookmark "$1"' bash "$T/home"
+    [ "$status" -eq 0 ]
+    [ ! -e "$T/home/.config" ]
+    [ ! -e "$T/home/.local" ]
+
+    run bash -c "$fns"'
+        warn() { echo "$*" >&2; }; add_host_bookmark "$1"' bash "$T/home"
+    [ "$status" -eq 0 ]
+    grep -q "^setpriv $owner --clear-groups -- bash -c " "$CALLS"
+    ! grep -q '^chown ' "$CALLS"
+    grep -q 'file:///run/wootc/host Windows drive' "$T/home/.config/gtk-3.0/bookmarks"
+    grep -q 'file:///run/wootc/host Windows drive' "$T/home/.config/gtk-4.0/bookmarks"
+    grep -q 'href="file:///run/wootc/host"' "$T/home/.local/share/user-places.xbel"
+}
+
 @test "a case-sensitive uppercase installer directory is also masked" {
     run env STATE_NAME=WOOTC bash "$T/view" start
     [ "$status" -eq 0 ]
