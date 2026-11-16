@@ -21,6 +21,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
+    INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
     MODSETUP="$REPO_ROOT/payload/deployer/module-setup.sh"
 }
 
@@ -42,7 +43,7 @@ minimal_path() {
 }
 
 @test "find_ldso locates the dynamic loader this deployer runs on" {
-    run bash -c "set -euo pipefail; $(extract_fn find_ldso); find_ldso"
+    run bash -c "set -euo pipefail; source '$INITRAMFS_LIB'; find_ldso"
     [ "$status" -eq 0 ]
     [ -x "$output" ]
 }
@@ -55,8 +56,7 @@ minimal_path() {
 
     run env -i PATH="$mp" bash -c "
         set -euo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         dso_closure '$(type -P bash)'
     "
     [ "$status" -eq 0 ]
@@ -73,8 +73,7 @@ minimal_path() {
     chmod +x "$shim/ldd"
     run env PATH="$shim:$PATH" bash -c "
         set -euo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         dso_closure '$(type -P bash)'
     "
     [ "$status" -eq 0 ]
@@ -90,8 +89,7 @@ minimal_path() {
     chmod +x "$scr"
     run bash -c "
         set -uo pipefail
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         dso_closure '$scr'
     "
     [ "$status" -ne 0 ]
@@ -111,8 +109,7 @@ minimal_path() {
         set -euo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "
@@ -127,9 +124,28 @@ minimal_path() {
 @test "no call site pipes ldd into awk any more" {
     run grep -nE '^[^#]*ldd .*\| *awk' "$DEPLOY"
     [ "$status" -ne 0 ]
-    # And every closure builder goes through the one resolver.
-    [ "$(grep -c '^dso_closure() {' "$DEPLOY")" -eq 1 ]
+    # And every closure builder goes through the one resolver, which lives in
+    # initramfs-lib.sh and nowhere else.
+    [ "$(grep -c '^dso_closure() {' "$INITRAMFS_LIB")" -eq 1 ]
+    [ "$(grep -c '^dso_closure() {' "$DEPLOY")" -eq 0 ]
     [ "$(grep -c '^[^#]*dso_closure "' "$DEPLOY")" -ge 3 ]
+}
+
+@test "initramfs-lib.sh is shipped into the deployer initramfs and sourced by deploy.sh" {
+    # deploy.sh sources the module at its installed path. If the Containerfile
+    # or module-setup.sh stops shipping it, the deployer dies on its first line.
+    grep -qF 'source "${WOOTC_INITRAMFS_LIB_FILE:-/usr/libexec/wootc-initramfs-lib.sh}"' "$DEPLOY"
+    grep -qF 'COPY payload/deployer/initramfs-lib.sh /usr/libexec/wootc-initramfs-lib.sh' \
+        "$REPO_ROOT/payload/deployer/Containerfile"
+    grep -qE '^[[:space:]]*inst_simple /usr/libexec/wootc-initramfs-lib.sh$' "$MODSETUP"
+    # The module is a library: sourcing it defines functions and runs nothing.
+    run env -i PATH=/nonexistent "$(type -P bash)" -c "set -euo pipefail; source '$INITRAMFS_LIB'; declare -F find_ldso dso_closure list_initrd_members"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 3 ]
+    # No deployer function is defined twice.
+    for fn in find_ldso dso_closure _initrd_segment_end _initrd_skip_padding list_initrd_members; do
+        [ "$(grep -c "^$fn() {" "$DEPLOY")" -eq 0 ]
+    done
 }
 
 @test "best-effort stagers warn, they do not [FAIL]" {

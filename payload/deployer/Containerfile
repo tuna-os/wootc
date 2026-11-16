@@ -54,6 +54,7 @@ COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
 COPY payload/deployer/offline-bundle.sh /usr/libexec/wootc-offline-bundle.sh
+COPY payload/deployer/initramfs-lib.sh /usr/libexec/wootc-initramfs-lib.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
