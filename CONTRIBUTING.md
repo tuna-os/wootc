@@ -69,6 +69,17 @@ commit that changes a job's inputs still gets its own run of that job (#363).
 A manual dispatch and a nightly schedule run all jobs. `winui-preview.yml`
 also packages all brands each night.
 
+Two other workflows can fail a pull request:
+
+- `actions-security.yml` runs on every PR. It verifies
+  `.github/workflows/actions.lock` (`gh actions-lock`) and scans the workflows
+  with zizmor. If you change a `uses:` line in a workflow, update
+  `actions.lock` in the same pull request.
+- `ste.yml` (Prose) runs when a PR changes Markdown. It checks the prose
+  against Simplified Technical English and fails when the problem count is
+  more than the number in `.ste-budget`. That budget only goes down: do not
+  raise it to make a PR pass.
+
 ## Before opening a PR
 
 - Run `just test` (fast tier) locally — it's fast enough to run on every
