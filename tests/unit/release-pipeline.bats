@@ -377,7 +377,9 @@ STUB
     # swap. SHA-1 F40042E2... is in Microsoft's authroot CTL; SHA-256 below.
     command -v openssl >/dev/null || skip "openssl not installed"
     pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
-    run openssl x509 -in "$pinned" -noout -subject -fingerprint -sha256
+    # -nameopt oneline pins the "CN = value" spelling; the default subject
+    # format differs between OpenSSL releases (3.0 vs 3.5).
+    run openssl x509 -in "$pinned" -noout -subject -nameopt oneline -fingerprint -sha256
     [ "$status" -eq 0 ]
     [[ "$output" == *"CN = Microsoft Identity Verification Root Certificate Authority 2020"* ]]
     [[ "$output" == *"53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"* ]]
