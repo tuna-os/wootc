@@ -37,7 +37,7 @@ concurrency:
 
 jobs:
   e2e:
-    uses: ./.github/workflows/e2e-hosted.yml
+    uses: $/.github/workflows/e2e-hosted.yml
     with:
       image:       ${{ inputs.image       || 'ghcr.io/tuna-os/yellowfin:gnome' }}
       win_version: ${{ inputs.win_version || '11' }}

@@ -22,9 +22,9 @@ set -Eeuo pipefail
 
 # shellcheck source=payload/steps.sh
 source "${WOOTC_STEPS_FILE:-/usr/libexec/wootc-steps.sh}"
+# shellcheck source=payload/deployer/initramfs-lib.sh
+source "${WOOTC_INITRAMFS_LIB_FILE:-/usr/libexec/wootc-initramfs-lib.sh}"
 # Source only definitions; orchestration and mount lifetime remain here.
-# shellcheck source=payload/deployer/dso-closure.sh
-source /usr/libexec/wootc-dso-closure.sh
 # shellcheck source=payload/deployer/lifecycle.sh
 source /usr/libexec/wootc-lifecycle.sh
 # shellcheck source=payload/deployer/migration-diagnostics.sh
@@ -1618,7 +1618,6 @@ stage_wootc_overlay() {
         "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
 }
 
-
 # stage_ntfs3g_closure <ovl-dir>
 # Stage a userspace NTFS driver into the overlay for kernels without ntfs3.
 # Source order matters (agent-lessons §8 — never mix libraries across images):
@@ -1834,85 +1833,6 @@ QGAUNIT
         return 1
     fi
     log "  [PASS] fallback qemu-ga staged (loader=$ldso, exec-verified) at /var/usrlocal/bin/qemu-ga, enabled as wootc-qemu-ga.service"
-    return 0
-}
-
-# ── initramfs introspection ────────────────────────────────────────────────
-# An initramfs image is a CONCATENATION, not one archive: zero or more
-# UNCOMPRESSED early-cpio segments (CPU microcode, ACPI overrides) followed by
-# the compressed main archive. `cpio -it` stops at the first TRAILER!!!, so on
-# a Fedora/bootc image it lists the microcode segment — a handful of paths
-# under kernel/x86/microcode — and exits 0. That non-empty listing was then
-# read as proof that the initrd shipped no bash/losetup/udevadm/mount, and it
-# killed every dakota run at the Phase-2 gate (run 30700616717) on an initrd
-# that ships all four. Missing ALL FOUR is not a thing a bootable initrd does;
-# the listing was of the wrong segment. Walk the chain instead.
-
-# _initrd_segment_end <image> <offset>
-# Echo the offset just past the newc cpio archive that starts at <offset>
-# (i.e. past its TRAILER!!! member). Fails if no archive starts there.
-_initrd_segment_end() {
-    local img="$1" off="$2" hdr namesize filesize name
-    while :; do
-        hdr=$(dd if="$img" bs=1 skip="$off" count=110 status=none 2>/dev/null || true)
-        # 6-byte magic + 13 eight-digit hex fields = 110 ASCII bytes.
-        [[ "$hdr" =~ ^070701[0-9a-fA-F]{104}$ ]] || return 1
-        filesize=$((16#${hdr:54:8}))
-        namesize=$((16#${hdr:94:8}))
-        name=$(dd if="$img" bs=1 skip=$((off + 110)) count="$namesize" status=none 2>/dev/null | tr -d '\0')
-        # Header+name and then the file data are each padded to 4 bytes.
-        off=$(( (off + 110 + namesize + 3) / 4 * 4 ))
-        off=$(( (off + filesize + 3) / 4 * 4 ))
-        if [[ "$name" == "TRAILER!!!" ]]; then
-            printf '%s' "$off"
-            return 0
-        fi
-    done
-}
-
-# _initrd_skip_padding <image> <offset> <size>
-# Early-cpio segments are zero-padded (to 4 or to 512 bytes) before the next
-# segment begins. Echo the first non-padding offset, bounded so a corrupt
-# image cannot spin here.
-_initrd_skip_padding() {
-    local img="$1" off="$2" size="$3" limit nonzero
-    limit=$(( off + 4096 ))
-    (( limit > size )) && limit=$size
-    while (( off < limit )); do
-        nonzero=$(dd if="$img" bs=1 skip="$off" count=4 status=none 2>/dev/null | tr -d '\0' | wc -c)
-        if (( nonzero > 0 )); then
-            break
-        fi
-        off=$(( off + 4 ))
-    done
-    printf '%s' "$off"
-}
-
-# list_initrd_members <image>
-# Echo the member names of EVERY segment of an initramfs image. Empty output
-# means "unlistable here" (unknown compression), never "the initrd is empty".
-list_initrd_members() {
-    local img="$1" size off=0 seg dec end
-    size=$(wc -c < "$img" 2>/dev/null || echo 0)
-    while (( off < size )); do
-        if [[ $(dd if="$img" bs=1 skip="$off" count=6 status=none 2>/dev/null || true) == 070701 ]]; then
-            # An uncompressed segment: list it, then step over it.
-            seg=$(tail -c +$((off + 1)) "$img" 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
-            [[ -n "$seg" ]] && printf '%s\n' "$seg"
-            end=$(_initrd_segment_end "$img" "$off") || break
-            off=$(_initrd_skip_padding "$img" "$end" "$size")
-            continue
-        fi
-        # Anything else is the compressed main archive, and it is last.
-        for dec in "zstd -qdc" "gzip -dc" "xz -dc" "lz4 -dc" "bzip2 -dc" "lzop -dc"; do
-            seg=$(tail -c +$((off + 1)) "$img" 2>/dev/null | $dec 2>/dev/null | cpio -it --quiet 2>/dev/null || true)
-            if [[ -n "$seg" ]]; then
-                printf '%s\n' "$seg"
-                break
-            fi
-        done
-        break
-    done
     return 0
 }
 

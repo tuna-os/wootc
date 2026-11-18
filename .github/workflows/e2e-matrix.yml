@@ -38,7 +38,9 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - id: plan
         name: Validate and parse matrix.tsv into a job matrix
         run: |
@@ -109,7 +111,7 @@ jobs:
       max-parallel: 8
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     name: ${{ matrix.name }}
-    uses: ./.github/workflows/e2e-hosted.yml
+    uses: $/.github/workflows/e2e-hosted.yml
     with:
       image: ${{ matrix.image }}
       win_version: ${{ matrix.win_version }}

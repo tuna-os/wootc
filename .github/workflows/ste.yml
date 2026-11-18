@@ -43,4 +43,4 @@ concurrency:
 
 jobs:
   ste:
-    uses: tuna-os/.github/.github/workflows/ste-lint.yml@7c0708158bc2dae611750fceed2c98d2ca7f52f4 # main
+    uses: tuna-os/.github/.github/workflows/ste-lint.yml@4078f531ac74703f203bde835ef6c25e9321b97b # main # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead

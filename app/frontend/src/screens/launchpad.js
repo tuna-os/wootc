@@ -681,7 +681,7 @@ async function startInstall() {
   const reviewedPrimary = state.config.username.trim();
   const reviewedAccounts = state.config.profileAccounts.map(account => ({ ...account }));
   state.screen = 'progress';
-  state.progress = { step: '', message: '', percent: 0, completedSteps: [], error: null };
+  state.progress = { step: '', message: '', percent: 0, completedSteps: [], warnings: [], error: null };
   render();
 
   try {

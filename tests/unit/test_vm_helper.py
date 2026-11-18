@@ -18,13 +18,16 @@ class HelperContract(unittest.TestCase):
     def test_pid1_restores_administrator_tool_path(self):
         # Ubuntu keeps chroot in /usr/sbin, like Yellowfin's useradd. Stop at
         # the first mount so this exercises PID 1 setup without mount writes.
+        # Assert on PATH, not on where chroot resolves: images that merge
+        # /usr/sbin into /usr/bin report /usr/bin/chroot for the same file.
         result = self.run_helper('''
-mount() { command -v chroot; trap - EXIT; exit 0; }
+mount() { echo "$PATH"; command -v chroot >&2; trap - EXIT; exit 0; }
 PATH=/usr/bin:/bin
 builder_main
 ''')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(result.stdout.strip().endswith('/sbin/chroot'), result.stdout)
+        self.assertEqual(result.stdout.strip(), '/usr/sbin:/usr/bin:/sbin:/bin')
+        self.assertTrue(result.stderr.strip().endswith('/chroot'), result.stderr)
 
     def test_pinned_image_and_ids(self):
         base = 'RUN_ID=run_123456 INSTALL_ID=install_123456; '

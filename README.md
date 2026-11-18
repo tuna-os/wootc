@@ -47,6 +47,12 @@ Never post account credentials or API keys in issues or pull requests.
 
 ## Get it
 
+<!-- Remove this note when the first release with the native setup is published. -->
+> **No published release has the native setup yet.** The files below come with
+> the first release after the native shell cutover (#661). The latest release,
+> `v0.1.0-alpha.1` (2026-08-22), is older. It has `wootc.exe`, the branded
+> `*-Installer.exe` files and `SHA256SUMS`.
+
 **[⬇ Download the latest release](https://github.com/tuna-os/wootc/releases/latest)**
 — the latest full release is `v0.1.0-alpha.1`. Download `wootc.exe`, keep it
 beside its downloaded boot artifacts, and run it as Administrator. This
@@ -169,6 +175,7 @@ on the [task boards](https://github.com/tuna-os/wootc/issues/210).
 Installer components for Windows derive from
 [WubiUEFI](https://github.com/hakuna-m/wubiuefi) and use **GPL-2.0**
 ([LICENSE-GPL-2.0](LICENSE-GPL-2.0)); the deployer initramfs and GRUB
-configuration are **MIT** ([LICENSE-MIT](LICENSE-MIT)). fisherman, bootc,
+configuration are **MIT** ([LICENSE-MIT](LICENSE-MIT)). The `slurp` Go
+module is also MIT ([slurp/LICENSE](slurp/LICENSE)). fisherman, bootc,
 bootupd, podman, and skopeo are separate binaries under their own
 (Apache-2.0) licenses, invoked over a process boundary.

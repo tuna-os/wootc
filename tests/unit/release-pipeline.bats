@@ -382,7 +382,9 @@ STUB
     # swap. SHA-1 F40042E2... is in Microsoft's authroot CTL; SHA-256 below.
     command -v openssl >/dev/null || skip "openssl not installed"
     pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
-    run openssl x509 -in "$pinned" -noout -subject -fingerprint -sha256
+    # -nameopt oneline pins the "CN = value" spelling; the default subject
+    # format differs between OpenSSL releases (3.0 vs 3.5).
+    run openssl x509 -in "$pinned" -noout -subject -nameopt oneline -fingerprint -sha256
     [ "$status" -eq 0 ]
     [[ "$output" == *"53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"* ]]
 }
@@ -426,8 +428,10 @@ STUB
 }
 
 @test "release.yml logs in to Azure with OIDC, in the publish job only, right before signing (#229)" {
-    # Pinned by full SHA with a version comment, like every other action.
-    grep -qE 'uses: azure/login@[0-9a-f]{40} # v[0-9.]+$' "$RELEASE"
+    # Pinned to an exact release tag, locked to its commit in actions.lock,
+    # like every other action.
+    grep -qE 'uses: azure/login@v[0-9]+\.[0-9]+\.[0-9]+$' "$RELEASE"
+    grep -qE "^    'azure/login@v[0-9]+\.[0-9]+\.[0-9]+':$" .github/workflows/actions.lock
     grep -q 'client-id: ${{ vars.AZURE_CLIENT_ID }}' "$RELEASE"
     grep -q 'tenant-id: ${{ vars.AZURE_TENANT_ID }}' "$RELEASE"
     grep -q 'subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}' "$RELEASE"
@@ -452,8 +456,8 @@ STUB
 }
 
 @test "release.yml passes actionlint and yamllint" {
-    command -v actionlint >/dev/null || skip "actionlint not installed (lint.yml runs it in CI)"
-    command -v yamllint >/dev/null || skip "yamllint not installed (lint.yml runs it in CI)"
+    command -v actionlint >/dev/null || skip "actionlint not installed (the lint job in ci.yml runs it in CI)"
+    command -v yamllint >/dev/null || skip "yamllint not installed (the lint job in ci.yml runs it in CI)"
     SHELLCHECK_OPTS=--severity=warning run actionlint "$RELEASE"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     run yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$RELEASE"

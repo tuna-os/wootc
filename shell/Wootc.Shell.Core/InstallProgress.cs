@@ -21,6 +21,8 @@ public sealed class InstallProgress
     public string Message { get; private set; } = "";
     public double Percent { get; private set; }
     public string? Error { get; private set; }
+    private readonly List<string> warnings = [];
+    public IReadOnlyList<string> Warnings => warnings;
     public bool Done { get; private set; }
 
     public InstallProgress(IEnumerable<StepDefinition> catalogue)
@@ -42,6 +44,9 @@ public sealed class InstallProgress
             hardwareWarnings.Add(update.Message);
         Percent = double.IsFinite(update.Percent) ? Math.Clamp(update.Percent, 0, 100) : Percent;
         if (!string.IsNullOrEmpty(update.Error)) Error = update.Error;
+        if (update.Warnings is not null)
+            foreach (string warning in update.Warnings)
+                if (warning.Length != 0 && !warnings.Contains(warning, StringComparer.Ordinal)) warnings.Add(warning);
         if (update.Done) { Done = true; return; }
         int index = IndexOf(Step);
         for (int earlier = 0; earlier < index; earlier++) completed.Add(steps[earlier].Id);
@@ -96,6 +101,7 @@ public static class InstallProgressText
     {
         var lines = new List<string>();
         if (progress.Error is { } error) { lines.Add(ErrorLine(error)); lines.Add(ErrorCalm(progress.PastArm)); }
+        foreach (string warning in progress.Warnings) lines.Add("Hardware compatibility warning: " + warning);
         if (progress.Step == InstallProgress.BitLockerStep) lines.Add(BitLockerKeyCopy(storageDrive, brand));
         lines.AddRange(progress.HardwareWarnings);
         lines.Add(Calm(progress.PastArm, brand));

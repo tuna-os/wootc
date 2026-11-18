@@ -82,7 +82,7 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 		{StepInstallerCheckingYourPC, 2, func() error { return checkSystem() }},
 		// The image must be inspected before any power-state, disk or boot
 		// changes. This also owns offline preloading, once, on Windows.
-		{StepInstallerDownloadingYourLinuxSystem, 3, func() error { return checkImageHardware(ctx, cfg.ImageRef, emit) }},
+		{StepInstallerDownloadingYourLinuxSystem, 3, func() error { return preloadAndCheckImageHardware(ctx, cfg.ImageRef, emit) }},
 		{StepInstallerPreparingWindows, 5, func() error { return disableFastStartup() }},
 		{StepInstallerSettingThingsUp, 8, func() error { return createDirectories() }},
 		// Resolve where the user's files ACTUALLY live while Windows is still

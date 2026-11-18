@@ -37,7 +37,7 @@ WORKDIR /src/fisherman/fisherman
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /fisherman ./cmd/fisherman/
 
 # The verifier uses its own ELF closure. Target images need not share this ABI.
-FROM docker.io/library/ubuntu@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c AS verifierbuilder
+FROM docker.io/library/ubuntu@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db AS verifierbuilder
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     autoconf automake gcc make binutils-dev libssl-dev uuid-dev gnu-efi \
     pkg-config git help2man ca-certificates && rm -rf /var/lib/apt/lists/*
@@ -54,7 +54,7 @@ COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 # ── Deployer script ─────────────────────────────────────────────────────────
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
 COPY payload/deployer/offline-bundle.sh /usr/libexec/wootc-offline-bundle.sh
-COPY payload/deployer/dso-closure.sh /usr/libexec/wootc-dso-closure.sh
+COPY payload/deployer/initramfs-lib.sh /usr/libexec/wootc-initramfs-lib.sh
 COPY payload/deployer/lifecycle.sh /usr/libexec/wootc-lifecycle.sh
 COPY payload/deployer/migration-diagnostics.sh /usr/libexec/wootc-migration-diagnostics.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
@@ -114,7 +114,7 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
-    for module in wootc-dso-closure.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
+    for module in wootc-initramfs-lib.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "usr/libexec/${module}$" || \
             { echo "FATAL: deployer module ${module} missing from initramfs"; exit 1; }; \
     done && \

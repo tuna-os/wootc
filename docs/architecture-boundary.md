@@ -95,7 +95,7 @@ excludes configuration in raw form, passwords, paths, subprocess errors and sess
 material; the protected journal/lifecycle records remain the recovery authority.
 A diagnostic sink failure must not change the privileged operation's outcome.
 
-The deployer packages sourceable `/usr/libexec/wootc-dso-closure.sh`
+The deployer packages sourceable `/usr/libexec/wootc-initramfs-lib.sh`
 (`find_ldso`, `dso_closure`) and `/usr/libexec/wootc-lifecycle.sh`
 (`write_ntfs_state`, `write_deployer_started`, with explicit image identity).
 Container and initramfs packages must carry these modules.

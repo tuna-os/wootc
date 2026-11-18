@@ -1,74 +1,256 @@
 package main
 
-// Compatibility policy and glob vectors originate in tuna-os/bootc-migrate
-// crates/bootc-migrate-core/src/hardware.rs, revision
-// b2564052279b7075c5c2e082413300e208ce98be (MIT/Apache-2.0).
-// Windows has no running Linux module inventory: devices are matched by PnP
-// modalias instead. Missing identity fields remain unknown, never zero-filled.
-
 import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
-type hardwareDevice struct {
-	ID        string `json:"id"`
-	Modalias  string `json:"modalias"`
-	Class     uint32 `json:"class"`
-	NVIDIA    bool   `json:"nvidia"`
-	Uncertain bool   `json:"uncertain,omitempty"`
+// HardwareSeverity is the impact of a target-image compatibility finding.
+type HardwareSeverity string
+
+const (
+	HardwareNote     HardwareSeverity = "note"
+	HardwareWarning  HardwareSeverity = "warning"
+	HardwareBlocking HardwareSeverity = "blocking"
+)
+
+// HardwareFinding describes one device or firmware compatibility result.
+type HardwareFinding struct {
+	Severity HardwareSeverity `json:"severity"`
+	Subject  string           `json:"subject"`
+	Detail   string           `json:"detail"`
 }
 
-type hardwareAlias struct{ pattern, module string }
-
-type hardwareKernel struct {
-	version         string
-	modules         map[string]string // normalized module name -> final overlay path
-	builtin         map[string]bool
-	aliases         []hardwareAlias
-	firmware        map[string]bool
-	moduleFirmware  map[string][]string
-	firmwareUnknown map[string]bool
-	partial         bool
-}
-
-type hardwareFinding struct {
-	Severity string `json:"severity"`
-	Subject  string `json:"subject"`
-	Detail   string `json:"detail"`
-}
-
-type hardwareReport struct {
-	Image          string            `json:"image"`
+// HardwareReport is the pure result of comparing the current PC with a target kernel.
+type HardwareReport struct {
 	TargetKernel   string            `json:"targetKernel,omitempty"`
 	DevicesChecked int               `json:"devicesChecked"`
-	Findings       []hardwareFinding `json:"findings"`
+	Findings       []HardwareFinding `json:"findings"`
 }
 
-func hardwareModuleName(name string) string {
+func (r HardwareReport) hasBlocking() bool {
+	for _, finding := range r.Findings {
+		if finding.Severity == HardwareBlocking {
+			return true
+		}
+	}
+	return false
+}
+
+const (
+	maxHardwareWarningCount = 32
+	maxHardwareMessageRunes = 1800 // safely below the native protocol's 4096 UTF-16-unit limit
+)
+
+func (r HardwareReport) warningMessages() []string {
+	var messages []string
+	for _, finding := range r.Findings {
+		if finding.Severity == HardwareWarning {
+			messages = append(messages, truncateHardwareMessage(finding.Subject+": "+finding.Detail))
+		}
+	}
+	if len(messages) > maxHardwareWarningCount {
+		remaining := len(messages) - (maxHardwareWarningCount - 1)
+		messages = append(messages[:maxHardwareWarningCount-1], fmt.Sprintf("%d additional hardware warnings were omitted.", remaining))
+	}
+	return messages
+}
+
+func (r HardwareReport) blockingError() error {
+	var messages []string
+	for _, finding := range r.Findings {
+		if finding.Severity == HardwareBlocking {
+			messages = append(messages, finding.Subject+": "+finding.Detail)
+		}
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	return fmt.Errorf("the selected Linux image is not compatible with this PC: %s Choose an image that includes this hardware support and try again", truncateHardwareMessage(strings.Join(messages, " ")))
+}
+
+func truncateHardwareMessage(message string) string {
+	if utf8.RuneCountInString(message) <= maxHardwareMessageRunes {
+		return message
+	}
+	runes := 0
+	for index := range message {
+		if runes == maxHardwareMessageRunes-1 {
+			return message[:index] + "…"
+		}
+		runes++
+	}
+	return message
+}
+
+// TargetKernel is the driver and firmware inventory merged from the target OCI layers.
+type TargetKernel struct {
+	KVersion      string
+	Modules       map[string]struct{}
+	Builtin       map[string]struct{}
+	Aliases       []moduleAlias
+	Firmware      map[string]struct{}
+	LayersSkipped int
+}
+
+type moduleAlias struct {
+	Pattern string
+	Module  string
+}
+
+func (k TargetKernel) hasModule(module string) bool {
+	module = normalizeModule(module)
+	_, loadable := k.Modules[module]
+	_, builtin := k.Builtin[module]
+	return loadable || builtin
+}
+
+func (k TargetKernel) aliasDrivers(modalias string) []string {
+	seen := make(map[string]struct{})
+	var drivers []string
+	for _, alias := range k.Aliases {
+		if globMatch(alias.Pattern, modalias) {
+			if _, ok := seen[alias.Module]; !ok {
+				seen[alias.Module] = struct{}{}
+				drivers = append(drivers, alias.Module)
+			}
+		}
+	}
+	sort.Strings(drivers)
+	return drivers
+}
+
+func (k TargetKernel) hasFirmware(name string) bool {
+	name = normalizeFirmware(name)
+	if strings.ContainsAny(name, "*?[") {
+		for candidate := range k.Firmware {
+			if globMatch(name, candidate) {
+				return true
+			}
+		}
+		return false
+	}
+	_, ok := k.Firmware[name]
+	return ok
+}
+
+// HostDevice is a Windows PnP device translated to a Linux modalias. Module is
+// present only when Windows identifies a driver with a meaningful Linux peer
+// (notably the proprietary NVIDIA stack). ModuleKnown distinguishes a known
+// built-in host driver (empty Module, ignored like bootc-migrate) from Windows'
+// normal case where the Linux host module is unknown.
+type HostDevice struct {
+	Bus         string  `json:"bus"`
+	ID          string  `json:"id"`
+	Modalias    string  `json:"modalias,omitempty"`
+	Driver      string  `json:"driver,omitempty"`
+	Module      string  `json:"module,omitempty"`
+	ModuleKnown bool    `json:"moduleKnown,omitempty"`
+	PCIClass    *uint32 `json:"pciClass,omitempty"`
+	OutOfTree   bool    `json:"outOfTree,omitempty"`
+}
+
+type HostModule struct {
+	OutOfTree       bool     `json:"outOfTree"`
+	FirmwarePresent []string `json:"firmwarePresent,omitempty"`
+}
+
+type HostHardware struct {
+	Devices         []HostDevice          `json:"devices"`
+	Modules         map[string]HostModule `json:"modules,omitempty"`
+	CPUVendor       string                `json:"cpuVendor,omitempty"`
+	HasCPUMicrocode bool                  `json:"hasCpuMicrocode,omitempty"`
+	Complete        bool                  `json:"complete"`
+	IncompleteWhy   string                `json:"incompleteWhy,omitempty"`
+}
+
+func normalizeModule(name string) string {
 	return strings.ReplaceAll(strings.TrimSpace(name), "-", "_")
 }
 
-func hardwareFirmwareName(name string) string {
-	name = strings.TrimLeft(strings.TrimSpace(name), "./")
+func moduleNameFromPath(path string) (string, bool) {
+	base := path
+	if slash := strings.LastIndexByte(base, '/'); slash >= 0 {
+		base = base[slash+1:]
+	}
+	for _, suffix := range []string{".ko.xz", ".ko.zst", ".ko.gz", ".ko"} {
+		if stem, ok := strings.CutSuffix(strings.TrimSpace(base), suffix); ok && stem != "" {
+			return normalizeModule(stem), true
+		}
+	}
+	return "", false
+}
+
+func normalizeFirmware(name string) string {
+	name = strings.TrimSpace(name)
+	name = strings.TrimPrefix(name, "./")
+	name = strings.TrimLeft(name, "/")
 	for _, suffix := range []string{".xz", ".zst", ".gz"} {
-		if strings.HasSuffix(name, suffix) {
-			return strings.TrimSuffix(name, suffix)
+		if stem, ok := strings.CutSuffix(name, suffix); ok {
+			return stem
 		}
 	}
 	return name
 }
 
-// Kernel globs differ from filepath.Match: '*' also matches '/' and negated
-// classes use '!' as well as '^'. Backtracking is bounded to the last star.
-func hardwareGlob(pattern, text string) bool {
-	pi, ti, star, match := 0, 0, -1, 0
-	for ti < len(text) {
-		if pi < len(pattern) {
-			switch pattern[pi] {
+func parseModuleList(content string) map[string]struct{} {
+	modules := make(map[string]struct{})
+	for _, line := range strings.Split(content, "\n") {
+		path, _, _ := strings.Cut(line, ":")
+		if module, ok := moduleNameFromPath(path); ok {
+			modules[module] = struct{}{}
+		}
+	}
+	return modules
+}
+
+func parseModuleAliases(content string) []moduleAlias {
+	var aliases []moduleAlias
+	for _, line := range strings.Split(content, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 3 && fields[0] == "alias" {
+			aliases = append(aliases, moduleAlias{Pattern: fields[1], Module: normalizeModule(fields[2])})
+		}
+	}
+	return aliases
+}
+
+// parseBuiltinModinfo reads the NUL-separated modules.builtin.modinfo format.
+// Entries use <module>.alias=<pattern>; accept :alias too for older generators.
+func parseBuiltinModinfo(content string) []moduleAlias {
+	var aliases []moduleAlias
+	for _, record := range strings.FieldsFunc(content, func(character rune) bool {
+		return character == 0 || character == '\n'
+	}) {
+		key, pattern, ok := strings.Cut(record, "=")
+		if !ok || pattern == "" {
+			continue
+		}
+		module, alias := strings.CutSuffix(key, ".alias")
+		if !alias {
+			module, alias = strings.CutSuffix(key, ":alias")
+		}
+		if alias && module != "" {
+			aliases = append(aliases, moduleAlias{Pattern: pattern, Module: normalizeModule(module)})
+		}
+	}
+	return aliases
+}
+
+// globMatch implements the *, ?, [...], [!...] syntax used by kernel aliases
+// and module firmware declarations. It deliberately does not use path.Match:
+// modaliases are not paths, and malformed classes are matched literally.
+func globMatch(pattern, text string) bool {
+	p, t := []rune(pattern), []rune(text)
+	pi, ti := 0, 0
+	starPattern, starText := -1, -1
+	for ti < len(t) {
+		if pi < len(p) {
+			switch p[pi] {
 			case '*':
-				star, match = pi+1, ti
+				starPattern, starText = pi+1, ti
 				pi++
 				continue
 			case '?':
@@ -76,179 +258,366 @@ func hardwareGlob(pattern, text string) bool {
 				ti++
 				continue
 			case '[':
-				if ok, n := hardwareGlobClass(pattern[pi:], text[ti]); ok {
-					pi += n
+				matched, width, ok := globClassMatch(p[pi:], t[ti])
+				if ok && matched {
+					pi += width
+					ti++
+					continue
+				}
+				if !ok && p[pi] == t[ti] {
+					pi++
 					ti++
 					continue
 				}
 			default:
-				if pattern[pi] == text[ti] {
+				if p[pi] == t[ti] {
 					pi++
 					ti++
 					continue
 				}
 			}
 		}
-		if star < 0 {
+		if starPattern < 0 {
 			return false
 		}
-		match++
-		pi, ti = star, match
+		starText++
+		pi, ti = starPattern, starText
 	}
-	for pi < len(pattern) && pattern[pi] == '*' {
+	for pi < len(p) && p[pi] == '*' {
 		pi++
 	}
-	return pi == len(pattern)
+	return pi == len(p)
 }
 
-func hardwareGlobClass(p string, c byte) (bool, int) {
-	i, negate, matched, first := 1, false, false, true
-	if i < len(p) && (p[i] == '!' || p[i] == '^') {
-		negate = true
-		i++
+func globClassMatch(pattern []rune, character rune) (matched bool, width int, ok bool) {
+	index := 1
+	negate := index < len(pattern) && (pattern[index] == '!' || pattern[index] == '^')
+	if negate {
+		index++
 	}
-	for i < len(p) {
-		if p[i] == ']' && !first {
-			return matched != negate, i + 1
+	first := true
+	for index < len(pattern) {
+		if pattern[index] == ']' && !first {
+			return matched != negate, index + 1, true
 		}
-		if i+2 < len(p) && p[i+1] == '-' && p[i+2] != ']' {
-			matched = matched || (p[i] <= c && c <= p[i+2])
-			i += 3
+		if index+2 < len(pattern) && pattern[index+1] == '-' && pattern[index+2] != ']' {
+			if pattern[index] <= character && character <= pattern[index+2] {
+				matched = true
+			}
+			index += 3
 		} else {
-			matched = matched || p[i] == c
-			i++
+			if pattern[index] == character {
+				matched = true
+			}
+			index++
 		}
 		first = false
 	}
-	return false, 0
+	return false, 0, false
 }
 
-func hardwareCritical(class uint32) bool {
+func pciKind(class uint32) (string, bool) {
 	switch class >> 16 {
-	case 0x01, 0x02, 0x03, 0x0d:
-		return true
+	case 0x01:
+		return "storage controller", true
+	case 0x02:
+		return "network controller", true
+	case 0x03:
+		return "display controller", true
+	case 0x04:
+		return "multimedia device", false
 	case 0x0c:
-		return (class>>8)&0xff == 3
+		if (class>>8)&0xff == 0x03 {
+			return "USB controller", true
+		}
+		return "serial bus controller", false
+	case 0x0d:
+		return "wireless controller", true
+	case 0x06:
+		return "bridge", false
+	case 0x08:
+		return "system peripheral", false
+	case 0x11:
+		return "signal processing controller", false
+	default:
+		return "device", false
 	}
-	return false
 }
 
-func (k hardwareKernel) hasModule(m string) bool {
-	return k.modules[hardwareModuleName(m)] != "" || k.builtin[hardwareModuleName(m)]
+var firmwareFramebufferDrivers = []string{"simpledrm", "efifb", "simplefb", "vesafb", "ofdrm"}
+
+func driverFirmwarePatterns(module string) []string {
+	module = normalizeModule(module)
+	switch {
+	case module == "iwlwifi":
+		return []string{"iwlwifi-*.ucode", "intel/iwlwifi/*"}
+	case module == "brcmfmac":
+		return []string{"brcm/brcmfmac*"}
+	case module == "ath10k_pci" || module == "ath10k_core":
+		return []string{"ath10k/*"}
+	case module == "ath11k_pci" || module == "ath11k_core":
+		return []string{"ath11k/*"}
+	case module == "ath12k_pci":
+		return []string{"ath12k/*"}
+	case strings.HasPrefix(module, "rtw88_"):
+		return []string{"rtw88/*"}
+	case strings.HasPrefix(module, "rtw89_"):
+		return []string{"rtw89/*"}
+	default:
+		return nil
+	}
 }
 
-func (k hardwareKernel) drivers(modalias string) []string {
-	seen := map[string]bool{}
-	for _, a := range k.aliases {
-		if k.hasModule(a.module) && hardwareGlob(a.pattern, modalias) {
-			seen[a.module] = true
+// allKnownDriverFirmwareMissing is intentionally conservative. It reports a
+// definite gap only when every alias-matched driver belongs to a kernel family
+// with a stable firmware namespace and none of those namespaces exists.
+func allKnownDriverFirmwareMissing(drivers []string, target TargetKernel) ([]string, bool) {
+	if len(drivers) == 0 {
+		return nil, false
+	}
+	for _, driver := range drivers {
+		patterns := driverFirmwarePatterns(driver)
+		if len(patterns) == 0 {
+			return nil, false
+		}
+		for _, pattern := range patterns {
+			if target.hasFirmware(pattern) {
+				return nil, false
+			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for m := range seen {
-		out = append(out, m)
-	}
-	sort.Strings(out)
-	return out
+	return drivers, true
 }
 
-func (k hardwareKernel) hasFirmware(name string) bool {
-	name = hardwareFirmwareName(name)
-	if !strings.ContainsAny(name, "*?[") {
-		return k.firmware[name]
-	}
-	for f := range k.firmware {
-		if hardwareGlob(name, f) {
-			return true
+func assessHardware(host HostHardware, target TargetKernel) HardwareReport {
+	report := HardwareReport{TargetKernel: target.KVersion}
+	var framebuffer []string
+	for _, driver := range firmwareFramebufferDrivers {
+		if target.hasModule(driver) {
+			framebuffer = append(framebuffer, driver)
 		}
 	}
-	return false
-}
 
-// assessHardware never turns incomplete evidence into a blocking absence.
-// Unlike the Linux source, Windows cannot identify the exact firmware variant
-// currently loaded. All declared variants missing is a warning, not proof that
-// this device requires firmware; verified Linux host firmware can only be
-// assessed by the upstream Linux inventory reader.
-func assessHardware(devices []hardwareDevice, k hardwareKernel) hardwareReport {
-	r := hardwareReport{TargetKernel: k.version, Findings: []hardwareFinding{}}
-	add := func(severity, subject, detail string) {
-		if k.partial && severity == "blocking" {
-			severity = "warning"
-		}
-		r.Findings = append(r.Findings, hardwareFinding{severity, subject, detail})
+	type lostKey struct {
+		Module   string
+		Fallback string
+		FBOnly   bool
+		Severity HardwareSeverity
 	}
-	fb := ""
-	for _, m := range []string{"simpledrm", "efifb", "simplefb", "vesafb", "ofdrm"} {
-		if k.hasModule(m) {
-			fb = m
-			break
-		}
+	type lostValue struct {
+		Devices []string
 	}
-	for _, dev := range devices {
-		if dev.Modalias == "" || dev.Uncertain {
-			add("warning", dev.ID, "Hardware identity is incomplete; Linux driver compatibility could not be checked.")
+	lost := make(map[lostKey]lostValue)
+	for _, device := range host.Devices {
+		if device.Modalias == "" || (device.ModuleKnown && device.Module == "") {
 			continue
 		}
-		r.DevicesChecked++
-		drivers := k.drivers(dev.Modalias)
-		if len(drivers) == 0 {
-			severity := "warning"
-			if hardwareCritical(dev.Class) {
-				severity = "blocking"
-			}
-			detail := "No target kernel driver claims this hardware. Choose an image that supports this device before installing."
-			if dev.Class>>16 == 3 && fb != "" {
-				severity = "warning"
-				detail = fmt.Sprintf("Only the firmware framebuffer (%s) is available: no graphics acceleration, firmware resolution, and one output only.", fb)
-			}
-			add(severity, dev.ID, detail)
+		report.DevicesChecked++
+		module := normalizeModule(device.Module)
+		if module != "" && target.hasModule(module) {
 			continue
 		}
-		if dev.NVIDIA {
-			proprietary, nouveau := false, false
-			for _, m := range drivers {
-				proprietary = proprietary || strings.HasPrefix(m, "nvidia")
-				nouveau = nouveau || m == "nouveau"
-			}
-			if nouveau && !proprietary {
-				add("warning", dev.ID, "The target uses nouveau rather than the NVIDIA driver; CUDA, proprietary graphics features and performance may be lost. Choose an NVIDIA image to retain them.")
-			}
+		fallback := target.aliasDrivers(device.Modalias)
+		kind, severe := "device", false
+		display := false
+		if device.PCIClass != nil {
+			kind, severe = pciKind(*device.PCIClass)
+			display = *device.PCIClass>>16 == 0x03
 		}
-		anyViable, unknownFirmware := false, false
-		for _, m := range drivers {
-			if k.firmwareUnknown[m] {
-				unknownFirmware = true
-				continue
-			}
-			fw := k.moduleFirmware[m]
-			if len(fw) == 0 {
-				anyViable = true
-				continue
-			}
-			for _, f := range fw {
-				if k.hasFirmware(f) {
-					anyViable = true
-					break
+		// Windows exposes the current Windows driver, not whether Linux binds a
+		// loadable module. An unclaimed non-critical chipset function is not
+		// evidence of loss; bootc-migrate would omit built-in/driverless devices.
+		if module == "" && len(fallback) == 0 && !severe {
+			continue
+		}
+		// Windows cannot run modinfo for the current Linux module. For driver
+		// families with stable upstream firmware namespaces, an alias match
+		// plus no matching target firmware is still decisive: every supported
+		// device in that family needs at least one file in that namespace.
+		if module == "" && len(fallback) > 0 {
+			if drivers, missing := allKnownDriverFirmwareMissing(fallback, target); missing {
+				severity := HardwareWarning
+				if severe {
+					severity = HardwareBlocking
 				}
+				report.Findings = append(report.Findings, HardwareFinding{
+					Severity: severity,
+					Subject:  fmt.Sprintf("%s %s (%s) firmware", strings.ToUpper(device.Bus), device.ID, kind),
+					Detail:   fmt.Sprintf("the target kernel claims this hardware with %s, but the image ships none of that driver family's firmware. It is expected to stop working after restart.", strings.Join(drivers, "/")),
+				})
+			}
+			continue
+		}
+		outOfTree := device.OutOfTree
+		if info, ok := host.Modules[module]; ok {
+			outOfTree = outOfTree || info.OutOfTree
+		}
+		fbOnly := len(fallback) == 0 && display && len(framebuffer) > 0
+		if fbOnly {
+			fallback = append([]string(nil), framebuffer...)
+		}
+		severity := HardwareNote
+		switch {
+		case fbOnly:
+			severity = HardwareWarning
+		case len(fallback) == 0 && (severe || outOfTree):
+			severity = HardwareBlocking
+		case len(fallback) == 0:
+			severity = HardwareWarning
+		case outOfTree:
+			severity = HardwareWarning
+		}
+		keyModule := module
+		if keyModule == "" {
+			keyModule = "no matching target driver"
+		}
+		key := lostKey{Module: keyModule, Fallback: strings.Join(fallback, ","), FBOnly: fbOnly, Severity: severity}
+		value := lost[key]
+		value.Devices = append(value.Devices, fmt.Sprintf("%s %s (%s)", strings.ToUpper(device.Bus), device.ID, kind))
+		lost[key] = value
+	}
+
+	for key, value := range lost {
+		fallback := strings.Split(key.Fallback, ",")
+		if key.Fallback == "" {
+			fallback = nil
+		}
+		var detail string
+		switch {
+		case key.FBOnly:
+			detail = fmt.Sprintf("no target driver supports this display controller. After restart it can use the firmware framebuffer (%s), without graphics acceleration and usually with one display at the firmware's resolution.", strings.Join(fallback, "/"))
+		case key.Module == "no matching target driver":
+			detail = fmt.Sprintf("no module in target kernel %s claims this hardware. It is expected to stop working after restart.", target.KVersion)
+		case len(fallback) == 0:
+			detail = fmt.Sprintf("uses driver %s, which target kernel %s does not ship, and no target driver claims this hardware. It is expected to stop working after restart.", key.Module, target.KVersion)
+		case key.Module == "nvidia":
+			detail = fmt.Sprintf("uses the proprietary NVIDIA driver, which the target does not ship. %s takes over after restart, without CUDA or the proprietary OpenGL/Vulkan stack and its performance.", strings.Join(fallback, "/"))
+		default:
+			detail = fmt.Sprintf("uses driver %s, which the target does not ship; %s supports the hardware after restart.", key.Module, strings.Join(fallback, "/"))
+		}
+		report.Findings = append(report.Findings, HardwareFinding{Severity: key.Severity, Subject: summarizeDevices(value.Devices), Detail: detail})
+	}
+
+	for module, info := range host.Modules {
+		if len(info.FirmwarePresent) == 0 || !target.hasModule(module) {
+			continue
+		}
+		var absent []string
+		for _, firmware := range info.FirmwarePresent {
+			if !target.hasFirmware(firmware) {
+				absent = append(absent, firmware)
 			}
 		}
-		if !anyViable {
-			if unknownFirmware {
-				add("warning", dev.ID, "Driver firmware requirements could not be read; firmware compatibility is unknown.")
-			} else {
-				add("warning", dev.ID, "The image contains none of the firmware declared by its matching drivers. Windows cannot establish which Linux firmware variant this hardware needs; verify support before rebooting.")
+		if len(absent) == 0 {
+			continue
+		}
+		severe := false
+		for _, device := range host.Devices {
+			if normalizeModule(device.Module) != normalizeModule(module) || device.PCIClass == nil {
+				continue
 			}
+			_, important := pciKind(*device.PCIClass)
+			displayWithFallback := *device.PCIClass>>16 == 0x03 && len(framebuffer) > 0
+			severe = severe || (important && !displayWithFallback)
+		}
+		if len(absent) == len(info.FirmwarePresent) {
+			severity := HardwareWarning
+			if severe {
+				severity = HardwareBlocking
+			}
+			report.Findings = append(report.Findings, HardwareFinding{Severity: severity, Subject: fmt.Sprintf("driver %s firmware", module), Detail: fmt.Sprintf("the target image ships none of the %d firmware files available for this device (%s). Hardware that needs firmware to start is expected to stop working after restart.", len(absent), sampleFirmware(absent))})
+		} else {
+			report.Findings = append(report.Findings, HardwareFinding{Severity: HardwareNote, Subject: fmt.Sprintf("driver %s firmware", module), Detail: fmt.Sprintf("the target image lacks %d of %d firmware variants (%s); the missing files are likely for other models.", len(absent), len(info.FirmwarePresent), sampleFirmware(absent))})
 		}
 	}
-	if k.partial {
-		add("warning", "Incomplete target inventory", "Some image layers or kernel metadata could not be read, or multiple kernels are present. Missing items are not proven absent and do not block installation.")
+
+	microcodeDir := ""
+	switch host.CPUVendor {
+	case "GenuineIntel":
+		microcodeDir = "intel-ucode/"
+	case "AuthenticAMD":
+		microcodeDir = "amd-ucode/"
 	}
-	if len(devices) == 0 {
-		add("warning", "Host inventory", "No PCI/USB devices were identified; hardware compatibility is unknown.")
+	if microcodeDir != "" && host.HasCPUMicrocode {
+		found := false
+		for firmware := range target.Firmware {
+			if strings.HasPrefix(firmware, microcodeDir) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			report.Findings = append(report.Findings, HardwareFinding{Severity: HardwareWarning, Subject: "CPU microcode (" + host.CPUVendor + ")", Detail: "the target image has no CPU microcode updates; the CPU will rely on the firmware-loaded revision without the image's security and stability fixes."})
+		}
 	}
-	sort.SliceStable(r.Findings, func(i, j int) bool {
-		return r.Findings[i].Severity == "blocking" && r.Findings[j].Severity != "blocking"
+
+	if target.LayersSkipped > 0 || !host.Complete {
+		for index := range report.Findings {
+			if report.Findings[index].Severity == HardwareBlocking {
+				report.Findings[index].Severity = HardwareWarning
+			}
+		}
+		var reasons []string
+		if target.LayersSkipped > 0 {
+			reasons = append(reasons, fmt.Sprintf("%d target image layer(s) could not be read", target.LayersSkipped))
+		}
+		if !host.Complete {
+			reason := host.IncompleteWhy
+			if reason == "" {
+				reason = "the Windows device inventory could not be read completely"
+			}
+			reasons = append(reasons, reason)
+		}
+		report.Findings = append(report.Findings, HardwareFinding{Severity: HardwareWarning, Subject: "incomplete hardware check", Detail: strings.Join(reasons, "; ") + ". Missing items are not proof of incompatibility, so this check does not block installation."})
+	}
+
+	sort.Slice(report.Findings, func(i, j int) bool {
+		left, right := report.Findings[i], report.Findings[j]
+		if severityRank(left.Severity) != severityRank(right.Severity) {
+			return severityRank(left.Severity) > severityRank(right.Severity)
+		}
+		if left.Subject != right.Subject {
+			return left.Subject < right.Subject
+		}
+		return left.Detail < right.Detail
 	})
-	return r
+	return report
+}
+
+func severityRank(severity HardwareSeverity) int {
+	switch severity {
+	case HardwareBlocking:
+		return 3
+	case HardwareWarning:
+		return 2
+	case HardwareNote:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func summarizeDevices(devices []string) string {
+	sort.Strings(devices)
+	limit := len(devices)
+	if limit > 4 {
+		limit = 4
+	}
+	summary := strings.Join(devices[:limit], ", ")
+	if len(devices) > limit {
+		summary += fmt.Sprintf(", and %d more", len(devices)-limit)
+	}
+	return summary
+}
+
+func sampleFirmware(names []string) string {
+	limit := len(names)
+	if limit > 4 {
+		limit = 4
+	}
+	sample := strings.Join(names[:limit], ", ")
+	if len(names) > limit {
+		sample += fmt.Sprintf(" and %d more", len(names)-limit)
+	}
+	return sample
 }

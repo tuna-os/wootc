@@ -39,7 +39,7 @@ install() {
     inst /usr/bin/wootc-deploy
     inst_simple /usr/libexec/wootc-steps.sh
     inst_simple /usr/libexec/wootc-offline-bundle.sh
-    inst_simple /usr/libexec/wootc-dso-closure.sh
+    inst_simple /usr/libexec/wootc-initramfs-lib.sh
     inst_simple /usr/libexec/wootc-lifecycle.sh
     inst_simple /usr/libexec/wootc-migration-diagnostics.sh
     # dracut defines moddir before invoking module install hooks.
@@ -114,7 +114,7 @@ install() {
     # ldd is a glibc-common shell script, not a binary pulled in by any
     # library dependency — without naming it here the initramfs has no ldd at
     # all, which is how the qemu-ga closure builder aborted with exit 127
-    # (bluefin-dakota-win11pro, run 30707067821). deploy.sh's dso_closure()
+    # (bluefin-dakota-win11pro, run 30707067821). initramfs-lib.sh's dso_closure()
     # no longer needs it (it drives the loader directly), so this is the
     # belt-and-braces second path, hence -o.
     inst_multiple -o restorecon ldd

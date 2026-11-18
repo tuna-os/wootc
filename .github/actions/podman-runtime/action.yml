@@ -46,9 +46,11 @@ runs:
     - name: Select the podman arm (#71 triage; no-op unless requested)
       if: ${{ inputs.require-podman-major != '' && runner.environment == 'github-hosted' }}
       shell: bash
+      env:
+        REQUIRE_PODMAN_MAJOR: ${{ inputs.require-podman-major }}
       run: |
         set -euo pipefail
-        want='${{ inputs.require-podman-major }}'
+        want="$REQUIRE_PODMAN_MAJOR"
         got=$(podman version --format '{{.Client.Version}}' 2>/dev/null | cut -d. -f1)
         echo "podman major: got=${got:-unknown} want=$want"
         if [ "$got" != "$want" ]; then
@@ -60,6 +62,8 @@ runs:
     - name: Install a podman-compatible crun (hosted runners only)
       if: runner.environment == 'github-hosted'
       shell: bash
+      env:
+        CRUN_VERSION: ${{ inputs.crun-version }}
       run: |
         set -euo pipefail
 
@@ -76,7 +80,7 @@ runs:
         done
         echo "::endgroup::"
 
-        ver='${{ inputs.crun-version }}'
+        ver="$CRUN_VERSION"
         url="https://github.com/containers/crun/releases/download/${ver}/crun-${ver}-linux-amd64"
         tmp=$(mktemp -d)
         curl -fsSL --retry 3 --retry-delay 2 -o "$tmp/crun" "$url"

@@ -13,7 +13,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
-    CLOSURE="$REPO_ROOT/payload/deployer/dso-closure.sh"
+    INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
 }
 
 # Extract a top-level function from deploy.sh so it can be exercised for real.
@@ -56,7 +56,8 @@ extract_fn() {
 }
 
 @test "the built Phase-2 initrd is verified by listing, not by size" {
-    grep -q 'cpio -it' "$DEPLOY"
+    grep -qF 'listing=$(list_initrd_members "$base")' "$DEPLOY"
+    grep -q 'cpio -it' "$INITRAMFS_LIB"
     grep -q 'the target.s base initrd lacks' "$DEPLOY"
     # Overlay completeness is asserted BEFORE packing (dangling wants was a
     # proven silent no-op).
@@ -92,11 +93,8 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
         set -e
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
-        source '$CLOSURE'
+        source '$INITRAMFS_LIB'
         $(extract_fn stage_ntfs3g_closure)
-        $(extract_fn _initrd_segment_end)
-        $(extract_fn _initrd_skip_padding)
-        $(extract_fn list_initrd_members)
         $(extract_fn build_phase2_initrd)
         $1
     "

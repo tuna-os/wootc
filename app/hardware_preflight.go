@@ -2,96 +2,66 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
-// checkImageHardware runs before any Windows configuration, root disk or boot
-// changes. Image download and inspection only create ordinary bundle files.
-func checkImageHardware(ctx context.Context, imageRef string, emit func(ProgressEvent)) error {
-	notify := func(message string) {
-		fmt.Fprintln(os.Stderr, "[wootc] "+message)
-		if emit != nil {
-			emit(ProgressEvent{Step: StepInstallerCheckingYourPC, PhaseID: StepInstallerCheckingYourPC, Message: message, Percent: 4})
-		}
-	}
-	unknown := func(why string) hardwareReport {
-		return hardwareReport{Image: imageRef, Findings: []hardwareFinding{{"warning", "Hardware compatibility could NOT be checked", why + ". Before rebooting, verify that the target supports your storage, graphics and network hardware."}}}
-	}
-	var report hardwareReport
+// preloadAndCheckImageHardware runs before any power-state, disk or boot
+// change. Offline-first (docs/branding-and-distribution.md §3): it pulls the
+// selected image to C:\wootc\bundle\oci while the user's working Windows
+// network still exists, because the deployer initramfs has no Wi-Fi. A
+// failed pull is fatal on purpose, so the user sees an error while Windows
+// can still show one. It then compares this PC's hardware with the staged
+// image. WOOTC_PRELOAD=0 (and an unbranded build) skips the pull; a shipped
+// offline bundle for the same image is still checked.
+func preloadAndCheckImageHardware(ctx context.Context, imageRef string, emit func(ProgressEvent)) error {
 	if !shouldPreloadImage(effectiveBranding()) {
-		// Shipped offline bundles are inspectable even if network preload is off.
-		bundle := readBundleInfo()
-		if bundle == nil || bundle.Image != imageRef {
-			report = unknown("No local target image is available (image preload is disabled)")
-			return finishHardwarePreflight(report, "", notify)
+		if bundle := readBundleInfo(); bundle == nil || bundle.Image != imageRef {
+			return nil
 		}
-	} else {
-		if err := stageImageBundle(ctx, imageRef, func(done, total int64) {
-			pct := 2.0
-			message := displayStepLabel(StepInstallerDownloadingYourLinuxSystem) + "…"
-			if total > 0 {
-				pct += 2 * float64(done) / float64(total)
-				message = fmt.Sprintf("%s… %.1f of %.1f GB", displayStepLabel(StepInstallerDownloadingYourLinuxSystem), float64(done)/1e9, float64(total)/1e9)
-			}
-			if emit != nil {
-				emit(ProgressEvent{Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem, Message: message, Percent: pct})
-			}
-		}); err != nil {
-			return err
+	} else if err := stageImageBundle(ctx, imageRef, func(done, total int64) {
+		pct := 2.0
+		msg := displayStepLabel(StepInstallerDownloadingYourLinuxSystem) + "…"
+		if total > 0 {
+			pct += 2 * float64(done) / float64(total)
+			msg = fmt.Sprintf("%s… %.1f of %.1f GB", displayStepLabel(StepInstallerDownloadingYourLinuxSystem),
+				float64(done)/1e9, float64(total)/1e9)
 		}
+		emit(ProgressEvent{Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem, Message: msg, Percent: pct})
+	}); err != nil {
+		return err
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	devices, err := collectHardwareDevices(ctx)
-	if err != nil {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		report = unknown(err.Error())
-	} else {
-		kernel, err := readHardwareInventory(ctx, filepath.Join(bundleDir(), "oci"), devices)
-		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			report = unknown(err.Error())
-		} else {
-			report = assessHardware(devices, kernel)
-			report.Image = imageRef
-		}
-	}
-	return finishHardwarePreflight(report, filepath.Join(bundleDir(), "hardware-report.json"), notify)
+	emit(ProgressEvent{
+		Step: StepInstallerDownloadingYourLinuxSystem, PhaseID: StepInstallerDownloadingYourLinuxSystem,
+		Message: "Checking the Linux image for this PC's hardware support…", Percent: 4,
+	})
+	return enforceHardwareCompatibility(assessStagedHardware(), StepInstallerDownloadingYourLinuxSystem, 4, emit)
 }
 
-func finishHardwarePreflight(report hardwareReport, reportPath string, notify func(string)) error {
-	// This is an observation, not support-policy or release-green evidence.
-	if reportPath != "" {
-		data, err := json.MarshalIndent(report, "", "  ")
-		if err == nil {
-			err = os.WriteFile(reportPath, append(data, '\n'), 0600)
-		}
-		if err != nil {
-			return fmt.Errorf("record hardware compatibility report: %w", err)
-		}
+// assessStagedHardware compares Windows' active PnP devices with the image
+// already downloaded for offline installation. Failure to inventory either
+// side is an explicit warning, never a false compatibility pass or refusal.
+func assessStagedHardware() HardwareReport {
+	target, err := inspectOCIBundle(filepath.Join(bundleDir(), "oci"))
+	if err != nil {
+		return HardwareReport{Findings: []HardwareFinding{{
+			Severity: HardwareWarning,
+			Subject:  "hardware compatibility could not be checked",
+			Detail:   fmt.Sprintf("%v. Installation may continue, but confirm that the image supports this PC's storage, network and graphics hardware before restarting.", err),
+		}}}
 	}
-	blocked := []string{}
-	for _, f := range report.Findings {
-		message := fmt.Sprintf("Hardware compatibility %s — %s: %s", strings.ToUpper(f.Severity), f.Subject, f.Detail)
-		notify(message)
-		if f.Severity == "blocking" {
-			blocked = append(blocked, f.Subject+": "+f.Detail)
-		}
+	return assessHardware(readHostHardware(), *target)
+}
+
+func enforceHardwareCompatibility(report HardwareReport, step string, percent float64, emit func(ProgressEvent)) error {
+	if warnings := report.warningMessages(); len(warnings) > 0 {
+		emit(ProgressEvent{
+			Step: step, PhaseID: step, Message: "The hardware compatibility check found items to review.",
+			Percent: percent, Warnings: warnings,
+		})
 	}
-	if len(blocked) > 0 {
-		return fmt.Errorf("installation refused before disk or boot changes: %s", strings.Join(blocked, "; "))
-	}
-	if len(report.Findings) == 0 {
-		notify(fmt.Sprintf("Hardware driver check: %d PCI devices matched kernel %s. This does not prove runtime hardware or firmware support.", report.DevicesChecked, report.TargetKernel))
-	}
-	return nil
+	return report.blockingError()
 }

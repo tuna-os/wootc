@@ -11,12 +11,11 @@
 #   tests/ci-gate.sh report          print a human-readable summary
 #   tests/ci-gate.sh gate            check + report (default)
 #
-# Required jobs (keep in sync with .github/workflows/ci.yml + ci-tests.yml):
-#   ci-tests / fast tier (bats + go)
-#   ci-tests / migration integration (container)
-#   ci-tests / lint (shellcheck + yamllint)
-#   ci-tests / GUI screenshots render
-#   CI / lint
+# Required jobs (keep in sync with .github/workflows/ci.yml):
+#   CI / fast tier (bats + go)
+#   CI / migration integration (container)
+#   CI / lint (shellcheck + yamllint)
+#   CI / GUI screenshots render
 #   CI / build-deployer
 #   CI / build-app
 #   CI / validate-recipe

@@ -69,6 +69,28 @@ test('installer — progress screen', async ({ page }) => {
   await shot(page, '03-progress');
 });
 
+test('hardware warnings remain visible after progress advances', async ({ page }) => {
+  const warning = '<img src=x onerror=window.hardwareWarningInjected=true> NVIDIA will use nouveau after restart.';
+  const steps = [
+    { ...INSTALL_STEPS[0], warnings: [warning] },
+    INSTALL_STEPS[1],
+    { step: 'done', message: 'Installation complete.', percent: 100, done: true },
+  ];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps, stepDelay: 20 });
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2');
+  await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.hardware-warning')).toContainText('NVIDIA will use nouveau after restart.');
+  await expect(page.locator('.hardware-warning img')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.hardwareWarningInjected === true)).toBe(false);
+  await expect(page.locator('.progress-step')).toContainText('Making room for Linux');
+  await expect(page.locator('.hardware-warning')).toBeVisible();
+  await expect(page.locator('.done-title')).toBeVisible();
+  await expect(page.locator('.hardware-warning')).toContainText('NVIDIA will use nouveau after restart.');
+});
+
 test('installer — done screen', async ({ page }) => {
   const steps = [...INSTALL_STEPS, { step: 'done', message: 'Installation complete.', percent: 100, done: true }];
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps, stepDelay: 10 });

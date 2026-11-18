@@ -122,9 +122,9 @@ CI runners are shared by all tuna-os repositories, so a PR runs only the
 jobs that its change can affect:
 
 - Lint and the fast tier run on every PR.
-- The other jobs in `ci.yml` and `ci-tests.yml` run only when the PR changes
+- The other jobs in `ci.yml` run only when the PR changes
   their inputs. `.github/scripts/ci-scope.sh` holds the path map. A change to
-  that script, to those two workflows, or to `.github/actions/` runs all jobs.
+  that script, to that workflow, or to `.github/actions/` runs all jobs.
 - `winui-preview.yml` packages one brand per PR. The brand changes with the
   run number. The PR also packages each brand whose `app/branding/<brand>/`
   it changes. Set the `WINUI_PREVIEW_BRANDS_PER_PR` repository variable to
@@ -134,6 +134,17 @@ A push to `main` uses the same path map on the pushed commits, so each
 commit that changes a job's inputs still gets its own run of that job (#363).
 A manual dispatch and a nightly schedule run all jobs. `winui-preview.yml`
 also packages all brands each night.
+
+Two other workflows can fail a pull request:
+
+- `actions-security.yml` runs on every PR. It verifies
+  `.github/workflows/actions.lock` (`gh actions-lock`) and scans the workflows
+  with zizmor. If you change a `uses:` line in a workflow, update
+  `actions.lock` in the same pull request.
+- `ste.yml` (Prose) runs when a PR changes Markdown. It checks the prose
+  against Simplified Technical English and fails when the problem count is
+  more than the number in `.ste-budget`. That budget only goes down: do not
+  raise it to make a PR pass.
 
 ## Before opening a PR
 

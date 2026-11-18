@@ -63,8 +63,8 @@ Linux modalias. Partial or unknown inventory gives a warning, not a fabricated
 match. Without a local/preloaded image the assessment may be unknown.
 Neither unknown nor warning means green.
 
-The installer keeps the detailed report under the install root's
-`bundle\hardware-report.json`; include it with a compatibility report.
+The installer shows each warning in its progress view; include them with a
+compatibility report.
 
 <a id="2-install-linux-phase-1"></a>
 
