@@ -354,7 +354,7 @@ compatible when presentation labels change.
 
 `just steps` regenerates checked-in Go constants and immutable lookups, product
 frontend ID constants, shell vocabulary and GUI fixture definitions.
-`just steps-check` rejects stale files. The Lint workflow runs the same check.
+`just steps-check` rejects stale files. The `lint` job in `ci.yml` runs the same check.
 Neither writes files. The generator validates IDs, owners and labels. It rejects
 duplicate IDs, invalid owners and missing labels.
 

@@ -1,15 +1,17 @@
 # winget packaging
 
 `*.yaml.in` are templates for the [winget-pkgs](https://github.com/microsoft/winget-pkgs)
-manifests of the generic installer, published as **`TunaOS.wootc`** (a
-portable package: winget places `wootc.exe` on PATH; running it elevates
-via UAC as usual).
+manifests of the generic native setup installer, published as
+**`TunaOS.wootc`** (`InstallerType: inno`). The setup package installs the
+WinUI shell and its protected Go engine; it does not put a portable
+`wootc.exe` on PATH.
 
-`.github/workflows/winget-publish.yml` renders them on every **full**
-release (pre-releases are skipped): it fills `{{VERSION}}` / `{{TAG}}` from
-the release tag, `{{URL}}` with the release's `wootc.exe` asset, computes
-`{{SHA256}}` from the actual bytes, and submits a PR to winget-pkgs with
-[wingetcreate](https://github.com/microsoft/winget-create).
+`.github/workflows/winget-publish.yml` renders them for every **full** release.
+It skips pre-releases. It fills `{{VERSION}}` and `{{TAG}}` from the release
+tag, then waits for the native package workflow. Next, it uses the release's
+`wootc-Installer-Setup.exe` asset and computes `{{SHA256}}` from the published
+bytes. Finally, [wingetcreate](https://github.com/microsoft/winget-create)
+submits a PR to winget-pkgs.
 
 Requirements, both one-time:
 

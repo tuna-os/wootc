@@ -6,7 +6,7 @@ import (
 )
 
 func TestProgressCatalogueMatchesActualPipelineOrder(t *testing.T) {
-	pipeline := installPipelineSteps(context.Background(), InstallConfig{}, func(ProgressEvent) {})
+	pipeline := newInstallEngine().platform.steps(context.Background(), InstallConfig{}, func(ProgressEvent) {})
 	catalogue := (&App{}).GetInstallSteps()
 	if len(pipeline) != len(catalogue) {
 		t.Fatalf("pipeline has %d steps, backend exposes %d", len(pipeline), len(catalogue))

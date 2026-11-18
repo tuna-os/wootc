@@ -95,17 +95,17 @@ json.dump(d, open(path, "w"), indent=2)
     [[ "$output" == *"docs/upstream-blessings.md"* ]]
 }
 
-@test "the release workflow selects brands through the gate, not a bare glob" {
-    run bash -c "grep -A28 'Build brand installers' $RELEASE"
+@test "the native release workflow selects brands through the gate, not a bare glob" {
+    local workflow=.github/workflows/winui-preview.yml
+    run bash -c "grep -A28 'Select brands and name the native release assets' $workflow"
     [ "$status" -eq 0 ]
     [[ "$output" == *"packaging/brands.sh list"* ]]
-    [[ "$output" == *"packaging/brands.sh explain"* ]]
-    # The old unconditional loop must be gone: it built whatever existed.
-    run bash -c "grep -c 'for dir in app/branding/\*/' $RELEASE"
+    # The old unconditional loop must stay gone: it built whatever existed.
+    run bash -c "grep -c 'for dir in app/branding/\*/' $workflow"
     [ "$output" = "0" ]
-    # And the selector's exit status must reach the step: a process
-    # substitution would drop it and half-build the matrix.
-    grep -q 'brands=$(bash packaging/brands.sh list)' "$RELEASE"
+    # The selector's exit status must reach the step. A process substitution
+    # would drop it and half-build the matrix.
+    grep -q 'brands=$(bash packaging/brands.sh list)' "$workflow"
 }
 
 @test "every brand renders a complete winget manifest set" {

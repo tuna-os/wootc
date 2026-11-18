@@ -24,24 +24,31 @@ masking that.
   the release is cut from the exact SHA the nightly proved. No green nightly,
   no auto release.
 
-**Assets.** Every release ships, for each brand (see §2):
+**Assets.** Every release ships the native setup packages for each eligible
+brand (see §2), plus the shared boot set:
 
 | Asset | Source |
 |---|---|
-| `<Product>-Setup.exe` (e.g. `wootc.exe`, `TunaOS-Installer.exe`) | per-brand app build |
+| `<Product>-Installer-Setup.exe` (e.g. `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`) | WinUI setup workflow, per-brand native package |
+| `wootc-legacy.exe` | one-release Wails compatibility build |
 | `deployer-vmlinuz`, `deployer-initramfs.img` | deployer image build (`payload/deployer/Containerfile`) |
 | `shimx64.efi`, `grubx64.efi` | signed Fedora chain (same extraction the E2E uses) |
 | `wubildr.efi` | wubildr build |
-| `SHA256SUMS` | sha256sum over every asset above |
+| `SHA256SUMS` | sha256sum over the boot and legacy assets |
+| `native-SHA256SUMS` | sha256sum over the attached setup assets |
 
-This closes the today-gap where `deployerBaseURL()` points at release assets
-that have never existed (documented on #196): after the first automated
-release, a plain online install works with zero pre-staging.
+The setup package embeds the native shell, its protected Go engine, and the
+public key for release verification. This cut-over release keeps the Wails
+executable only as a compatibility fallback, not a second branded installer.
 
-**Branded downloads.** Each branded exe embeds its own
-`deployerBaseURL`-compatible layout expectation; boot artifacts are shared
-across brands (the deployer is brand-neutral), so one artifact set + one
-SHA256SUMS serves all brand exes on the same release.
+`deployerBaseURL()` previously pointed at release assets that did not exist
+(documented on #196). The first automated release closes that gap. A plain
+online install then works without advance setup.
+
+**Branded downloads.** Each branded setup has its own layout expectation for
+`deployerBaseURL`. All brands share the boot artifacts because the deployer is
+brand-neutral. One artifact set serves all setup packages from the same release.
+A native manifest covers that set.
 
 ## 2. Branding
 

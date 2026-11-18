@@ -74,6 +74,10 @@ type ProgressEvent struct {
 	Percent float64 `json:"percent"`
 	Done    bool    `json:"done"`
 	Error   string  `json:"error,omitempty"`
+	// Warnings persist on the progress screen after the pipeline advances.
+	// They disclose degraded or incomplete compatibility checks without
+	// turning uncertainty into a refusal.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // InstallStatus is the current state of a running or completed install.

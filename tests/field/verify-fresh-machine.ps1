@@ -4,12 +4,12 @@
     The trust surface, checked on a Windows machine that has never seen wootc.
 
 .DESCRIPTION
-    v1.0 criterion 4 (#241): winget serves the release, the binaries are signed,
-    the download matches SHA256SUMS, and each branded exe carries its own
-    identity rather than ours. All four are about what a stranger's Windows
-    says about our files BEFORE anything runs — which is the one part of the
-    product no E2E run can observe, because the harness never asks Windows what
-    it thinks of the binary.
+    v1.0 criterion 4 (#241): winget serves the native setup, the published
+    setup and legacy assets match their manifests, and the native packages
+    carry their own brand names rather than ours.
+    The check is about what a stranger's Windows says about these files BEFORE
+    anything runs — the one part no E2E run can observe, because the harness
+    never asks Windows what it thinks of the binary.
 
     This grades all four from evidence and writes the checklist. It is expected
     to report ✘ today: code signing is not implemented yet (#229 is the spend
@@ -21,7 +21,7 @@
 
     Criterion 1 is "winget install resolves AND installs", so the script runs
     a real `winget install TunaOS.wootc` (no -SkipWinget) and checks that the
-    file winget put on disk is byte-for-byte this release's wootc.exe.
+    native setup installed the shell from this release's setup manifest.
 
     Run it on a clean Windows 11 VM that has never had wootc installed, and
     again on a real machine.
@@ -170,6 +170,20 @@ function Test-BrandIdentity {
         Detail = if (@($problems).Count -eq 0) { "identity: '$product'" } else { $problems -join '; ' }
     }
 }
+function Get-NativeSetupName {
+    param([string]$ExeName)
+    if ($ExeName -eq 'wootc') { return 'wootc-Installer-Setup.exe' }
+    return "$ExeName-Setup.exe"
+}
+
+function Test-NativeSetupIdentity {
+    param([string]$FileName, [string]$ExpectedExeName)
+    $expected = Get-NativeSetupName -ExeName $ExpectedExeName
+    if ($FileName -ne $expected) {
+        return [pscustomobject]@{ Pass = $false; Detail = "setup is '$FileName', expected '$expected'" }
+    }
+    return [pscustomobject]@{ Pass = $true; Detail = "native setup identity: '$FileName'" }
+}
 
 function Test-WingetPackage {
     <#
@@ -203,12 +217,13 @@ function Test-WingetPackage {
 function Test-WingetInstall {
     <#
         `winget install TunaOS.wootc` on a fresh machine. `winget show` only
-        proves the manifest resolves; the criterion is that the install
-        succeeds and lands THIS release's binary. The installed file is held to
-        the same SHA256SUMS line as the direct download, so a manifest pointing
-        at an old asset, or a wrong InstallerSha256 that winget refused, fails.
+        proves the manifest resolves; the criterion is that the Inno setup
+        succeeds, leaves the protected shell installed, and has this release's
+        native manifest hash. The setup itself is hashed from the direct
+        release download because Inno does not leave a portable copy in the
+        WinGet package cache.
     #>
-    param([int]$ExitCode, [string]$InstalledPath, [string]$ActualHash, [string]$Manifest, [string]$FileName = 'wootc.exe')
+    param([int]$ExitCode, [string]$InstalledPath, [string]$ActualHash, [string]$Manifest, [string]$FileName = 'wootc-Installer-Setup.exe')
 
     if ($ExitCode -ne 0) {
         $hex = '0x{0:X8}' -f $ExitCode
@@ -221,13 +236,13 @@ function Test-WingetInstall {
         return [pscustomobject]@{ Pass = $false; Detail = "winget install exited ${hex}: $why" }
     }
     if (-not $InstalledPath) {
-        return [pscustomobject]@{ Pass = $false; Detail = 'winget reported success but no installed exe was found under the WinGet package root' }
+        return [pscustomobject]@{ Pass = $false; Detail = 'winget reported success but no installed native shell was found under Program Files' }
     }
     $h = Test-Sha256Manifest -Manifest $Manifest -FileName $FileName -ActualHash $ActualHash
     if (-not $h.Pass) {
-        return [pscustomobject]@{ Pass = $false; Detail = "winget installed $InstalledPath, but it is not this release's ${FileName}: $($h.Detail)" }
+        return [pscustomobject]@{ Pass = $false; Detail = "the published ${FileName} does not match the native manifest: $($h.Detail)" }
     }
-    return [pscustomobject]@{ Pass = $true; Detail = "winget installed $InstalledPath, identical to this release's $FileName" }
+    return [pscustomobject]@{ Pass = $true; Detail = "winget installed $InstalledPath; the published ${FileName} matches its native manifest" }
 }
 
 function Format-Checklist {
@@ -250,7 +265,7 @@ function Format-Checklist {
     $lines += ''
     $lines += 'Screenshots still to attach by hand (nothing can capture these for you):'
     $lines += '- the UAC prompt as it appears on launch'
-    $lines += '- the exe Properties ▸ Details tab'
+    $lines += '- the setup/legacy executable Properties ▸ Details tab'
     $lines += '- the SmartScreen interstitial, or its absence'
     return ($lines -join "`n")
 }
@@ -287,21 +302,13 @@ function Get-ReleaseAsset {
     return $dest
 }
 
-function Find-WingetPortable {
-    # A portable package lands in the per-user package root, or the machine
-    # root when winget ran elevated. The folder is <id>_<source>.
-    param([string]$PackageId = 'TunaOS.wootc')
-    $roots = @(
-        (Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'),
-        (Join-Path $env:ProgramFiles 'WinGet\Packages')
-    )
-    foreach ($root in $roots) {
-        if (-not (Test-Path $root)) { continue }
-        $exe = Get-ChildItem -Path $root -Directory -Filter "${PackageId}_*" -ErrorAction SilentlyContinue |
-            ForEach-Object { Get-ChildItem -Path $_.FullName -Filter '*.exe' -File -ErrorAction SilentlyContinue } |
-            Select-Object -First 1
-        if ($exe) { return $exe.FullName }
-    }
+function Find-WingetInstalledShell {
+    # An Inno package installs the protected shell under Program Files; it
+    # does not leave a portable exe in WinGet's package cache.
+    param([string]$Brand = 'wootc')
+    $programFiles = if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }
+    $shell = Join-Path $programFiles "wootc Native\$Brand\bundle\Wootc.Shell.exe"
+    if (Test-Path -LiteralPath $shell -PathType Leaf) { return $shell }
     return $null
 }
 
@@ -340,6 +347,9 @@ function Invoke-Verification {
     $sumsPath = if (Test-Path (Join-Path $dl 'SHA256SUMS')) { Join-Path $dl 'SHA256SUMS' }
                 else { Get-ReleaseAsset -Tag $Tag -Name 'SHA256SUMS' -Destination $dl }
     $sums = Get-Content -Path $sumsPath -Raw
+    $nativeSumsPath = if (Test-Path (Join-Path $dl 'native-SHA256SUMS')) { Join-Path $dl 'native-SHA256SUMS' }
+                      else { Get-ReleaseAsset -Tag $Tag -Name 'native-SHA256SUMS' -Destination $dl }
+    $nativeSums = Get-Content -Path $nativeSumsPath -Raw
 
     # (1) winget resolves the release under test, then installs it.
     if ($SkipWinget) {
@@ -362,36 +372,47 @@ function Invoke-Verification {
             $instRc = $LASTEXITCODE
         } catch { $instOut = "$_"; $instRc = 1 }
         Set-Content -Path (Join-Path $Out 'winget-install.txt') -Value $instOut -Encoding UTF8
-        $installed = if ($instRc -eq 0) { Find-WingetPortable } else { $null }
-        $instHash = if ($installed) { (Get-FileHash -Path $installed -Algorithm SHA256).Hash } else { '' }
-        $i = Test-WingetInstall -ExitCode $instRc -InstalledPath $installed -ActualHash $instHash -Manifest $sums
+        $installed = if ($instRc -eq 0) { Find-WingetInstalledShell } else { $null }
+        $setupName = 'wootc-Installer-Setup.exe'
+        $setupPath = if (Test-Path (Join-Path $dl $setupName)) { Join-Path $dl $setupName }
+                     else { Get-ReleaseAsset -Tag $Tag -Name $setupName -Destination $dl }
+        $setupHash = Get-FileHash -Path $setupPath -Algorithm SHA256
+        $i = Test-WingetInstall -ExitCode $instRc -InstalledPath $installed -ActualHash $setupHash.Hash -Manifest $nativeSums -FileName $setupName
         $results += [pscustomobject]@{ Name = 'winget installs the release'; Pass = $i.Pass; Detail = $i.Detail }
     }
 
-    # (2)+(3) direct download: SHA256SUMS and Authenticode on the generic exe.
+    # (2)+(3) direct download: verify the Wails compatibility asset against
+    # SHA256SUMS and every native setup against native-SHA256SUMS.
+    $assets = @([pscustomobject]@{ Name = 'wootc-legacy.exe'; Manifest = $sums; Brand = $null })
+    $assets += @($brands | ForEach-Object {
+        [pscustomobject]@{
+            Name = Get-NativeSetupName -ExeName $_.ExeName
+            Manifest = $nativeSums
+            Brand = $_
+        }
+    })
 
-    $exeNames = @('wootc.exe') + @($brands | Where-Object { $_.ExeName -and $_.ExeName -ne 'wootc' } |
-        ForEach-Object { "$($_.ExeName).exe" })
-
-    foreach ($name in ($exeNames | Select-Object -Unique)) {
+    foreach ($asset in $assets) {
+        $name = $asset.Name
         $path = if (Test-Path (Join-Path $dl $name)) { Join-Path $dl $name }
                 else { Get-ReleaseAsset -Tag $Tag -Name $name -Destination $dl }
 
         $hash = (Get-FileHash -Path $path -Algorithm SHA256).Hash
-        $h = Test-Sha256Manifest -Manifest $sums -FileName $name -ActualHash $hash
-        $results += [pscustomobject]@{ Name = "$name matches SHA256SUMS"; Pass = $h.Pass; Detail = $h.Detail }
+        $manifestName = if ($asset.Manifest -eq $nativeSums) { 'native-SHA256SUMS' } else { 'SHA256SUMS' }
+        $h = Test-Sha256Manifest -Manifest $asset.Manifest -FileName $name -ActualHash $hash
+        $results += [pscustomobject]@{ Name = "$name matches $manifestName"; Pass = $h.Pass; Detail = $h.Detail }
 
         $sig = Get-AuthenticodeSignature -FilePath $path
         $subject = if ($sig.SignerCertificate) { "$($sig.SignerCertificate.Subject)" } else { '' }
         $s = Test-AuthenticodeResult -Status "$($sig.Status)" -SignerSubject $subject
         $results += [pscustomobject]@{ Name = "$name is Authenticode-signed"; Pass = $s.Pass; Detail = $s.Detail }
 
-        # (4) each branded exe carries its own identity.
-        $brand = $brands | Where-Object { "$($_.ExeName).exe" -eq $name } | Select-Object -First 1
-        if ($brand) {
+        if ($asset.Brand) {
+            $b = Test-NativeSetupIdentity -FileName $name -ExpectedExeName $asset.Brand.ExeName
+            $results += [pscustomobject]@{ Name = "$name carries its brand name"; Pass = $b.Pass; Detail = $b.Detail }
+        } else {
             $vi = Get-ExeVersionInfo -Path $path
-            $isBranded = ($brand.Id -ne 'wootc')
-            $b = Test-BrandIdentity -VersionInfo $vi -ExpectedProduct $brand.ProductName -ExpectedVersion $Tag -Branded:$isBranded
+            $b = Test-BrandIdentity -VersionInfo $vi -ExpectedProduct 'wootc' -ExpectedVersion $Tag
             $results += [pscustomobject]@{ Name = "$name shows its own identity"; Pass = $b.Pass; Detail = $b.Detail }
         }
     }

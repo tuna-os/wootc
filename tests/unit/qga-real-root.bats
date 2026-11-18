@@ -18,6 +18,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
+    INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
 }
 
 extract_fn() {
@@ -37,8 +38,7 @@ run_stager() {
         set -euo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "
@@ -108,8 +108,7 @@ run_stager() {
         set -uo pipefail
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
-        $(extract_fn find_ldso)
-        $(extract_fn dso_closure)
+        source '$INITRAMFS_LIB'
         $(extract_fn stage_qemu_ga_into_target)
         stage_qemu_ga_into_target
     "

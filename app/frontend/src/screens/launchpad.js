@@ -598,7 +598,7 @@ export function applyImageDefaults(image) {
 async function startInstall() {
   if (!state.selected) return;
   state.screen = 'progress';
-  state.progress = { step: '', message: '', percent: 0, completedSteps: [], error: null };
+  state.progress = { step: '', message: '', percent: 0, completedSteps: [], warnings: [], error: null };
   render();
 
   try {

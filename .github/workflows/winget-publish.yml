@@ -26,25 +26,37 @@ jobs:
     outputs:
       manifest_dir: ${{ steps.manifests.outputs.manifest_dir }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Render manifests from the release
         id: manifests
         shell: pwsh
         env:
           RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           $tag = $env:RELEASE_TAG
           if ($tag -cnotmatch '\Av?[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\z') {
             throw 'Expected a release tag such as v1.2.3 or v1.2.3-rc.1'
           }
           $version = $tag -replace '^v',''
-          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/wootc.exe"
+          $asset = 'wootc-Installer-Setup.exe'
+          $assetReady = $false
+          for ($attempt = 1; $attempt -le 60; $attempt++) {
+            $names = @(gh release view $tag --repo "${{ github.repository }}" --json assets --jq '.assets[].name' 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $names -contains $asset) { $assetReady = $true; break }
+            Write-Host "waiting for native release asset $asset ($attempt/60)"
+            Start-Sleep -Seconds 30
+          }
+          if (-not $assetReady) { throw "Release $tag never received $asset from the native packaging workflow" }
+          $url = "https://github.com/${{ github.repository }}/releases/download/$tag/$asset"
           Write-Host "tag=$tag version=$version"
           Write-Host "url=$url"
-          # Hash the ACTUAL published bytes — never trust a locally rebuilt exe.
-          Invoke-WebRequest -Uri $url -OutFile wootc.exe
-          $sha = (Get-FileHash wootc.exe -Algorithm SHA256).Hash
+          # Hash the ACTUAL native setup bytes — never trust a locally rebuilt exe.
+          Invoke-WebRequest -Uri $url -OutFile $asset
+          $sha = (Get-FileHash $asset -Algorithm SHA256).Hash
           Write-Host "sha256=$sha"
           $out = "rendered/manifests/t/TunaOS/wootc/$version"
           New-Item -ItemType Directory -Force -Path $out | Out-Null
@@ -61,7 +73,7 @@ jobs:
           Get-ChildItem $out | ForEach-Object { Write-Host "--- $($_.Name)"; Get-Content $_.FullName }
           echo "manifest_dir=$out" >> $env:GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: winget-manifests
           path: rendered/
@@ -72,8 +84,10 @@ jobs:
     needs: render
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: winget-manifests
           path: rendered/

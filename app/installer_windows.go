@@ -441,12 +441,17 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 
 	var errs []string
 
-	// 0. Put back what install changed outside its folder: hibernation /
-	// Fast Startup (read the marker / registry BEFORE the install dir and
+	// 0. Recovery tasks are the last executable path into the install. Refuse
+	// to delete their target when ownership or removal cannot be confirmed.
+	if err := unregisterRecoveryTasks(); err != nil {
+		return fmt.Errorf("uninstall refused before deleting install state: %w", err)
+	}
+
+	// Restore what install changed outside its folder: hibernation / Fast
+	// Startup (read the marker / registry BEFORE the install dir and
 	// Add/Remove key are removed). "Windows is unchanged" must be true.
 	restorePriorPowerState()
 	unregisterUninstallEntry()
-	_ = unregisterRecoveryTasks()
 
 	// 1. Remove all wootc BCD entries and disarm one-shot bootsequence.
 	deleteWootcBCDEntries()

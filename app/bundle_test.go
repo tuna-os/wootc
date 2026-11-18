@@ -73,6 +73,50 @@ func TestReadBundleInfo(t *testing.T) {
 	})
 }
 
+// A completed bundle can be reused without a network pull, but an earlier
+// interrupted pull may have left unverified pieces beside its verified blobs.
+// The fast path must clean those pieces too.
+func TestReuseStagedBundleCleansOrphanedParts(t *testing.T) {
+	dir := t.TempDir()
+	image := "ghcr.io/tuna-os/dakota:latest"
+	blobDir := filepath.Join(dir, "oci", "blobs", "sha256")
+	if err := os.MkdirAll(blobDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "bundle.json"), []byte(`{"image":"`+image+`"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "oci", "index.json"), []byte(`{}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	verified := filepath.Join(blobDir, "verified")
+	if err := os.WriteFile(verified, []byte("verified"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	partial := filepath.Join(blobDir, "old-layer.part")
+	if err := os.WriteFile(partial, []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	reused, err := reuseStagedBundleAt(dir, image)
+	if err != nil {
+		t.Fatalf("reuseStagedBundleAt: %v", err)
+	}
+	if !reused {
+		t.Fatal("reuseStagedBundleAt = false, want true")
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatalf("partial blob still exists: %v", err)
+	}
+	got, err := os.ReadFile(verified)
+	if err != nil {
+		t.Fatalf("read verified blob: %v", err)
+	}
+	if string(got) != "verified" {
+		t.Fatalf("verified blob changed to %q", got)
+	}
+}
+
 // A bundled build must pin the installer to the image it actually shipped.
 // Offering the rest of the catalog there is a trap: every other entry needs
 // the multi-gigabyte download the bundle exists to avoid, so picking one

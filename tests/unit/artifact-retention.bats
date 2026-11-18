@@ -271,7 +271,7 @@ SH
     # TestBazziteBuild_PreloadsTheImageOnWindows holds its behaviour, this
     # holds that the install pipeline still asks it.
     grep -q 'case "0":' app/branding_policy.go
-    grep -q 'shouldPreloadImage(effectiveBranding())' app/app.go
+    grep -q 'shouldPreloadImage(effectiveBranding())' app/install_engine.go
     # An image without a brand directory of its own can still belong to a
     # brand's CATALOG — dakota ships inside the Bluefin installer, and a
     # real Dakota user downloads Bluefin's exe, so that is the installer the

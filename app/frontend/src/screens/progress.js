@@ -98,6 +98,14 @@ function renderProgressInner() {
   const pastArm = state.progress.completedSteps.includes(bcdStep) ||
     (state.progress.step === bcdStep && !state.progress.error);
 
+  if (Array.isArray(state.progress.warnings)) {
+    for (const warning of state.progress.warnings) {
+      const warningDiv = el('div', 'warning-banner hardware-warning');
+      warningDiv.textContent = 'Hardware compatibility warning: ' + warning;
+      pw.appendChild(warningDiv);
+    }
+  }
+
   if (state.progress.error) {
     const errDiv = el('div');
     errDiv.style.cssText = 'color:var(--danger);font-size:12.5px;background:rgba(248,113,113,0.08);border:1px solid rgba(248,113,113,0.25);border-radius:6px;padding:10px 14px;margin-top:8px';

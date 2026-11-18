@@ -370,6 +370,28 @@ func pullImageToOCILayout(ctx context.Context, imageRef, destDir string, progres
 	return digest, total, nil
 }
 
+// reuseStagedBundleAt checks the completed OCI fast path and cleans any
+// unverified download pieces before reusing it. A previous process can have
+// reached the layout commit point with an orphaned .part from an older pull;
+// skipping the network must not preserve that unfinished artifact.
+func reuseStagedBundleAt(dir, imageRef string) (bool, error) {
+	b := readBundleInfoAt(dir)
+	if b == nil || b.Image != imageRef {
+		return false, nil
+	}
+	blobDir := filepath.Join(dir, "oci", "blobs", "sha256")
+	if _, err := os.Stat(blobDir); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if err := discardIncompleteBlobs(blobDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // stageImageBundle is the "Downloading your Linux system" pipeline step: pull
 // cfg's image into C:\wootc\bundle\oci and record bundle.json so the deployer
 // finds and verifies it. A bundle already staged for this exact ref is reused
@@ -378,10 +400,12 @@ func pullImageToOCILayout(ctx context.Context, imageRef, destDir string, progres
 func stageImageBundle(ctx context.Context, imageRef string, progress func(done, total int64)) error {
 	dir := bundleDir()
 	ociDir := filepath.Join(dir, "oci")
-	if b := readBundleInfo(); b != nil && b.Image == imageRef {
-		if _, err := os.Stat(filepath.Join(ociDir, "index.json")); err == nil {
-			return nil
-		}
+	reused, err := reuseStagedBundleAt(dir, imageRef)
+	if err != nil {
+		return fmt.Errorf("cleaning incomplete image download: %w", err)
+	}
+	if reused {
+		return nil
 	}
 	digest, size, err := pullImageToOCILayout(ctx, imageRef, ociDir, progress)
 	if err != nil {

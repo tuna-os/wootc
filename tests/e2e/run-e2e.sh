@@ -1484,6 +1484,21 @@ export WOOTC_E2E_OEM_VOL="$OEM_DIR"
 OEM_PAYLOAD="$OEM_DIR/payload"
 mkdir -p "$OEM_PAYLOAD/grub"
 cp "$SCRIPT_DIR/wootc-files/wootc.exe" "$SCRIPT_DIR/wootc-files/wootc.exe.sha256" "$OEM_PAYLOAD/"
+NATIVE_SETUP_ASSET="${WOOTC_E2E_SETUP_EXE:-}"
+NATIVE_SETUP_BRAND="${WOOTC_E2E_SETUP_BRAND:-wootc}"
+if [ -n "$NATIVE_SETUP_ASSET" ]; then
+    case "$NATIVE_SETUP_ASSET" in
+        */*|*\\*) fail "WOOTC_E2E_SETUP_EXE must be a filename in wootc-files/" ; exit 1 ;;
+    esac
+    case "$NATIVE_SETUP_BRAND" in
+        wootc|tunaos|aurora|bazzite|bluefin) ;;
+        *) fail "WOOTC_E2E_SETUP_BRAND must name a supported brand"; exit 1 ;;
+    esac
+    setup_source="$SCRIPT_DIR/wootc-files/$NATIVE_SETUP_ASSET"
+    [ -s "$setup_source" ] || { fail "Native setup asset missing: $setup_source"; exit 1; }
+    cp "$setup_source" "$OEM_PAYLOAD/$NATIVE_SETUP_ASSET"
+    info "Native setup asset staged for OEM setup: $NATIVE_SETUP_ASSET ($NATIVE_SETUP_BRAND)"
+fi
 # Convert to CRLF line endings: PowerShell 5.1 on Windows misparses LF-only
 # files (Get-Content -Raw and the internal script parser both corrupt them).
 printf '\xEF\xBB\xBF' > "$OEM_DIR/setup-wootc.ps1"
@@ -1596,6 +1611,8 @@ E2E_MOK_ENROLL="$(mok_catalog_enroll "$REPO_ROOT/app/data/images.json" "$IMAGE_R
     printf 'Bootloader=%s\n' "$E2E_BOOTLOADER"
     printf 'ComposeFs=%s\n'  "$E2E_COMPOSEFS"
     printf 'Filesystem=%s\n' "$E2E_FILESYSTEM"
+    [ -n "$NATIVE_SETUP_ASSET" ] && printf 'SetupAsset=%s\n' "$NATIVE_SETUP_ASSET"
+    [ -n "$NATIVE_SETUP_ASSET" ] && printf 'SetupBrand=%s\n' "$NATIVE_SETUP_BRAND"
     [ -n "$FAULT_INJECT" ] && printf 'FaultInject=%s\n' "$FAULT_INJECT"
     # RunId lets the OEM barrier prove the completion marker came from THIS run.
     # Without it the barrier passes on a stale marker left by a previous run —
@@ -4485,6 +4502,28 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     pass "Phase 3: Linux guest agent reachable inside Phase 2"
 
+    # Capture the generic health baseline before graduation. /etc/wootc is
+    # copied into the fresh native install, so the final probe can distinguish
+    # label drift and a lost display-manager configuration from pre-existing
+    # image state.
+    if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
+        infra_fail "Could not read Phase 3 health script"
+        exit 1
+    fi
+    P3_HEALTH_BASELINE_STATUS=0
+    P3_HEALTH_BASELINE=$(WOOTC_QGA_CALL_TIMEOUT=180 qga_call exec /bin/sh -c \
+        "$P3_HEALTH_SCRIPT" wootc-phase3-health baseline 2>&1) \
+        || P3_HEALTH_BASELINE_STATUS=$?
+    printf '%s\n' "$P3_HEALTH_BASELINE"
+    if ! printf '%s\n' "$P3_HEALTH_BASELINE" > "$ARTIFACT_DIR/phase3-health-baseline.log"; then
+        infra_fail "Could not retain the Phase 3 health baseline"
+        exit 1
+    fi
+    if [ "$P3_HEALTH_BASELINE_STATUS" -ne 0 ]; then
+        infra_fail "Could not capture the Phase 3 pre-graduation health baseline"
+        exit 1
+    fi
+
     info "Phase 3: go-native status"
     # QGA starts commands with a minimal service-manager PATH that does not
     # include /usr/local/bin. Invoke the installed Phase-3 tool by its runtime
@@ -4961,6 +5000,33 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         exit 1
     fi
     product_pass native-boot "Phase 3 native system booted from the graduated install (non-loopback)"
+    # Phase 3 generic post-boot health gate. The script reports every observed
+    # product finding before it exits. Gate on both channels: any explicit
+    # FAIL line is a product failure even if a future script bug returns zero;
+    # a non-zero guest command without a finding is infrastructure-unknown.
+    if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
+        infra_fail "Could not read Phase 3 health script"
+        exit 1
+    fi
+    P3_HEALTH_STATUS=0
+    P3_HEALTH_OUTPUT=$(WOOTC_QGA_CALL_TIMEOUT=360 qga_call exec /bin/sh -c \
+        "$P3_HEALTH_SCRIPT" wootc-phase3-health check "$P3_HEALTH_BASELINE" 2>&1) \
+        || P3_HEALTH_STATUS=$?
+    printf '%s\n' "$P3_HEALTH_OUTPUT"
+    if ! printf '%s\n' "$P3_HEALTH_OUTPUT" > "$ARTIFACT_DIR/phase3-health.log"; then
+        infra_fail "Could not retain the Phase 3 health observations"
+        exit 1
+    fi
+    if printf '%s\n' "$P3_HEALTH_OUTPUT" | grep -q '^FAIL:'; then
+        product_fail "Phase 3 native system failed the generic post-boot health gate"
+        exit 1
+    fi
+    if [ "$P3_HEALTH_STATUS" -ne 0 ]; then
+        infra_fail "Phase 3 post-boot health command failed without a product finding"
+        exit 1
+    fi
+    product_pass native-health "Phase 3 native system passed the generic post-boot health gate"
+
     # The point of it all: the file seeded in Windows before the deployer ever
     # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
     # the chain (the natively-booted system has no /run/wootc/host at all). Content must

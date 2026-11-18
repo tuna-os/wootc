@@ -28,12 +28,12 @@ wifi_precedes_look_gate() {
 
 @test "Wi-Fi collection runs outside the WindowsLook gate" {
     # Wi-Fi migrates unconditionally: call presence alone is insufficient.
-    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/app.go")"
+    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/install_engine.go")"
     wifi_precedes_look_gate "$body"
 }
 
 @test "Wi-Fi ordering assertion rejects collection moved inside the look gate" {
-    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/app.go")"
+    body="$(awk '/^[[:space:]]*\{StepInstallerCollectingYourLookAndWiFi,/,/^\t\t\}\},$/' "$REPO_ROOT/app/install_engine.go")"
     # Keep the call present but move it after the gate in a disposable copy.
     mutated="$(printf '%s\n' "$body" | sed '/if err := collectWifi()/d; /if cfg.WindowsLook {/a\                if err := collectWifi(); err != nil {' )"
     run wifi_precedes_look_gate "$mutated"

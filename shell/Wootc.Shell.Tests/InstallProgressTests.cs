@@ -98,6 +98,20 @@ public sealed class InstallProgressTests
     }
 
     [Fact]
+    public void HardwareWarningsPersistAfterThePipelineAdvances()
+    {
+        var progress = new InstallProgress(Catalogue());
+        progress.Apply(new ProgressEvent
+        {
+            Step = "Downloading your Linux system",
+            Warnings = ["NVIDIA will use nouveau after restart."]
+        });
+        progress.Apply(new ProgressEvent { Step = "Preparing the startup menu" });
+        Assert.Contains("Hardware compatibility warning: NVIDIA will use nouveau after restart.",
+            InstallProgressText.Notes(progress, "", Brand));
+    }
+
+    [Fact]
     public void PercentIsBoundedAndADoneRunIgnoresLaterEvents()
     {
         var progress = new InstallProgress(Catalogue());

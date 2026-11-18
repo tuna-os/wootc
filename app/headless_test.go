@@ -5,7 +5,7 @@ package main
 // depend on (wootc install/status over QGA), and previously had 0% coverage.
 //
 // None of these tests trigger the real install pipeline: every headlessInstall
-// case exits in flag parsing / argument validation before runPipeline is
+// case exits in flag parsing / argument validation before the install engine is
 // reached, and the state tests operate on the dev-mode wootcDir (/tmp/wootc).
 
 import (
@@ -48,7 +48,7 @@ func TestRunHeadlessUnknownSubcommandExits2(t *testing.T) {
 	}
 }
 
-// ── headlessInstall argument validation (never reaches runPipeline) ─────────
+// ── headlessInstall argument validation (never reaches the install engine) ───
 
 func TestHeadlessInstallRequiresAllCredentials(t *testing.T) {
 	cases := [][]string{

@@ -3,6 +3,7 @@
 
 RELEASE=.github/workflows/release.yml
 WINGET=.github/workflows/winget-publish.yml
+WINUI=.github/workflows/winui-preview.yml
 
 @test "full releases hand the tag to winget-publish themselves" {
     # winget-publish.yml listens on release:published, but every release this
@@ -19,6 +20,34 @@ WINGET=.github/workflows/winget-publish.yml
     # hand-off dispatches into a workflow that cannot use it.
     grep -q 'workflow_dispatch' "$WINGET"
     grep -q "inputs.tag" "$WINGET"
+}
+
+@test "phase D publishes native setup assets and one Wails fallback" {
+    grep -q 'gui_frontend: native' "$RELEASE"
+    grep -q 'wootc-legacy.exe' "$RELEASE"
+    grep -q 'gh workflow run winui-preview.yml' "$RELEASE"
+    grep -q '<Product>-Installer-Setup.exe' "$RELEASE"
+    grep -q 'native-SHA256SUMS' "$RELEASE"
+    grep -q -- '-Mode release' "$WINUI"
+    grep -q "'setup.iss'" shell/packaging/compile-preview.ps1
+    grep -q 'artifact-public-key.hex' "$WINUI"
+    grep -q 'Install and remove the production setup smoke package' "$WINUI"
+    grep -q 'wootc-Installer-Setup.exe' "$WINGET"
+    grep -q 'InstallerType: inno' packaging/winget/TunaOS.wootc.installer.yaml.in
+    grep -q 'InstallerType: inno' packaging/winget/brand/installer.yaml.in
+    ! grep -q 'releases/download/\$tag/wootc.exe' "$WINGET"
+}
+
+@test "Phase D removes the obsolete CDP GUI job and stages setup E2E" {
+    ! grep -q 'gui-cdp-windows' .github/workflows/ci.yml
+    ! grep -q 'gui-cdp-windows' tests/ci-gate.sh
+    grep -q 'SetupExe' tests/e2e/setup-wootc.ps1
+    grep -q '/VERYSILENT' tests/e2e/setup-wootc.ps1
+    grep -q 'wootc Native' tests/e2e/setup-wootc.ps1
+    grep -q 'SetupAsset' tests/e2e/run-e2e.sh
+    grep -q 'WOOTC_E2E_SETUP_EXE' .github/workflows/e2e-hosted.yml
+    grep -q 'wootc-Installer-Setup.exe' tests/e2e/setup-wootc.ps1
+    grep -q -- '-Mode release' .github/workflows/e2e-hosted.yml
 }
 
 # ── narrative release notes gate (#242) ─────────────────────────────────────
@@ -348,7 +377,9 @@ STUB
     # swap. SHA-1 F40042E2... is in Microsoft's authroot CTL; SHA-256 below.
     command -v openssl >/dev/null || skip "openssl not installed"
     pinned=packaging/authenticode-roots/microsoft-identity-verification-root-2020.pem
-    run openssl x509 -in "$pinned" -noout -subject -fingerprint -sha256
+    # -nameopt oneline pins the "CN = value" spelling; the default subject
+    # format differs between OpenSSL releases (3.0 vs 3.5).
+    run openssl x509 -in "$pinned" -noout -subject -nameopt oneline -fingerprint -sha256
     [ "$status" -eq 0 ]
     [[ "$output" == *"CN = Microsoft Identity Verification Root Certificate Authority 2020"* ]]
     [[ "$output" == *"53:67:F2:0C:7A:DE:0E:2B:CA:79:09:15:05:6D:08:6B:72:0C:33:C1:FA:2A:26:61:AC:F7:87:E3:29:2E:12:70"* ]]
@@ -393,8 +424,10 @@ STUB
 }
 
 @test "release.yml logs in to Azure with OIDC, in the publish job only, right before signing (#229)" {
-    # Pinned by full SHA with a version comment, like every other action.
-    grep -qE 'uses: azure/login@[0-9a-f]{40} # v[0-9.]+$' "$RELEASE"
+    # Pinned to an exact release tag, locked to its commit in actions.lock,
+    # like every other action.
+    grep -qE 'uses: azure/login@v[0-9]+\.[0-9]+\.[0-9]+$' "$RELEASE"
+    grep -qE "^    'azure/login@v[0-9]+\.[0-9]+\.[0-9]+':$" .github/workflows/actions.lock
     grep -q 'client-id: ${{ vars.AZURE_CLIENT_ID }}' "$RELEASE"
     grep -q 'tenant-id: ${{ vars.AZURE_TENANT_ID }}' "$RELEASE"
     grep -q 'subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}' "$RELEASE"
@@ -419,8 +452,8 @@ STUB
 }
 
 @test "release.yml passes actionlint and yamllint" {
-    command -v actionlint >/dev/null || skip "actionlint not installed (lint.yml runs it in CI)"
-    command -v yamllint >/dev/null || skip "yamllint not installed (lint.yml runs it in CI)"
+    command -v actionlint >/dev/null || skip "actionlint not installed (the lint job in ci.yml runs it in CI)"
+    command -v yamllint >/dev/null || skip "yamllint not installed (the lint job in ci.yml runs it in CI)"
     SHELLCHECK_OPTS=--severity=warning run actionlint "$RELEASE"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     run yamllint -d '{extends: relaxed, rules: {line-length: disable}}' "$RELEASE"

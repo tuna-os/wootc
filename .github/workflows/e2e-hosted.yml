@@ -46,22 +46,22 @@ on:
       # Empty/auto = the deployer's own default (xfs unsealed, ext4 sealed).
       # The btrfs matrix cell uses this to prove #35.
       filesystem: { type: string, default: '' }
-      # Arm Phase 1 through the REAL wootc.exe GUI (drive mode) instead of the
-      # OEM setup-wootc.ps1 script. Needs no host GUI — the app is staged +
-      # driven over QGA via a directive file (CDP is impossible in stock
-      # wails). Works on either the base-image restore or a full install
-      # (both boot to the autologged desktop; drive mode never touches
-      # C:\OEM). The walkthrough timelapse from a GUI-driven run is the one
-      # the README publishes.
+      # The GUI arm of Phase 1 uses the shipped Windows shell (drive mode);
+      # setup-wootc.ps1 still owns the OEM boot-chain handoff and, on native
+      # runs, silently stages the production setup before reboot. The shell is
+      # staged + driven over QGA via a directive file, so its drive mode never
+      # touches C:\OEM. This works on either the base-image restore or a full
+      # install (both boot to the autologged desktop). The walkthrough timelapse
+      # from a GUI-driven run is the one the README publishes.
       gui_install: { type: boolean, default: false }
       # Ordinary-user editor acceptance, separate from the Windows installer GUI.
       gui_documents: { type: boolean, default: false }
-      # Which GUI gui_install drives: 'wails' (the shipped installer) or
-      # 'native' (the WinUI shell, #344). Native publishes the shell on a
-      # Windows runner (the XAML compiler needs Windows), then the E2E job
+      # Which GUI gui_install drives: 'native' (the shipped WinUI shell) or
+      # 'wails' (the one-release compatibility build). Native publishes the shell
+      # on a Windows runner (the XAML compiler needs Windows), then the E2E job
       # builds the engine beside it with this run's manifest-signing key and
       # installs the pair as a protected package in the guest.
-      gui_frontend: { type: string, default: 'wails' }
+      gui_frontend: { type: string, default: 'native' }
       # Native only: start the shell unelevated (a /RL LIMITED task) so the
       # engine's own runas elevation is what the run proves. false restores
       # the elevated-shell launch.
@@ -103,9 +103,9 @@ jobs:
   # this run's artifacts, because the handoff goes both ways: the shell goes
   # to e2e, which builds the engine with the run's manifest-signing key (its
   # seed never leaves that job) and writes native-package.json; the engine and
-  # manifest come back here, where the real Inno preview installer is
-  # compiled for the brand, as winui-preview.yml compiles it; the installer
-  # goes back to e2e, which installs it in the guest. Each side uploads a
+  # manifest come back here, where the real Inno production setup and
+  # preview installers are compiled for the brand, as winui-preview.yml
+  # compiles them; both go back to e2e for the OEM and GUI paths. Each side
   # status-only artifact under the name the other waits for if it fails
   # first, so neither waits out its budget for a job that has stopped.
   native-shell:
@@ -121,16 +121,18 @@ jobs:
       NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
       NATIVE_INSTALLER_ARTIFACT: e2e-native-installer-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
       - id: brand
         shell: bash
         env:
           WOOTC_TARGET_IMAGE: ${{ inputs.image }}
         run: echo "brand=$(bash tests/e2e/e2e-brand.sh "$WOOTC_TARGET_IMAGE")" | tee -a "$GITHUB_OUTPUT"
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@v6.1.0
         with:
           global-json-file: shell/global.json
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache@v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('shell/global.json', 'shell/Directory.Build.props', 'shell/**/*.csproj') }}
@@ -139,7 +141,7 @@ jobs:
         working-directory: shell
         env:
           BRAND: ${{ steps.brand.outputs.brand }}
-        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} -p:NativeBrandId=${{ env.BRAND }} --output ../out/native-shell
+        run: dotnet publish Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} "-p:NativeBrandId=$env:BRAND" --output ../out/native-shell
       - name: Refuse a gallery build
         shell: bash
         run: |
@@ -148,7 +150,7 @@ jobs:
             echo "::error::the published shell is the screen gallery build; E2E never drives it"; exit 1
           fi
           ls -l out/native-shell/Wootc.Shell.exe out/native-shell/Branding/brand.json
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ env.NATIVE_SHELL_ARTIFACT }}
           path: out/native-shell/
@@ -162,7 +164,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/wait-run-artifact.sh 14400 "$NATIVE_ENGINE_ARTIFACT"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+      - uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ env.NATIVE_ENGINE_ARTIFACT }}
           path: out/native-engine
@@ -181,7 +183,7 @@ jobs:
           identity=$(python tests/e2e/native-package.py check out/native-shell)
           echo "$identity"
           [ "${identity%% files=*}" = "buildId=${{ github.sha }} brandId=$BRAND" ] || { echo "::error::the package identity is not this run's build and brand"; exit 1; }
-      - name: Compile the preview installer for the brand (pinned Inno Setup)
+      - name: Compile the preview and production setup installers for the brand (pinned Inno Setup)
         shell: pwsh
         env:
           BRAND: ${{ steps.brand.outputs.brand }}
@@ -189,9 +191,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           New-Item -ItemType Directory -Force out/native-installer | Out-Null
           $scratch = Join-Path $env:RUNNER_TEMP 'wootc-native-inno'
+          $previewScratch = Join-Path $scratch 'preview'
+          $releaseScratch = Join-Path $scratch 'release'
           try {
-            $compiled = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $scratch
-            Get-Item -LiteralPath $compiled.Installer | Format-List FullName, Length
+            $preview = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $previewScratch
+            Get-Item -LiteralPath $preview.Installer | Format-List FullName, Length
+            $releaseTag = 'e2e-${{ github.sha }}'
+            $production = ./shell/packaging/compile-preview.ps1 -BrandId $env:BRAND -BuildId '${{ github.sha }}' -PackageDirectory out/native-shell -OutputDirectory out/native-installer -ScratchDirectory $releaseScratch -Mode release -ReleaseTag $releaseTag
+            Get-Item -LiteralPath $production.Installer | Format-List FullName, Length
             Set-Content -LiteralPath out/native-installer/status.txt -Value 'inno' -Encoding ascii
           } catch {
             if ($_.Exception.Message -notlike 'INNO-UNAVAILABLE:*') { throw }
@@ -202,7 +209,7 @@ jobs:
             Set-Content -LiteralPath out/native-installer/status.txt -Value 'inno-unavailable' -Encoding ascii
           }
       - id: installer
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ env.NATIVE_INSTALLER_ARTIFACT }}
           path: out/native-installer/
@@ -213,7 +220,7 @@ jobs:
         shell: bash
         run: mkdir -p out/native-failed && echo failed > out/native-failed/status.txt
       - if: ${{ failure() && steps.installer.outcome != 'success' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ env.NATIVE_INSTALLER_ARTIFACT }}
           path: out/native-failed/
@@ -232,8 +239,8 @@ jobs:
     outputs:
       flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with: { submodules: recursive }
+      - uses: actions/checkout@v7.0.1
+        with: { submodules: recursive, persist-credentials: false }
 
       - name: Confirm KVM is available
         run: |
@@ -290,7 +297,7 @@ jobs:
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
       - name: Restore the QEMU guest agent MSI
         id: qga-cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@v6.1.0
         with:
           path: tests/e2e/qga-cache
           key: qga-msi-${{ runner.os }}-${{ steps.qga-week.outputs.week }}
@@ -315,14 +322,14 @@ jobs:
           fi
       - name: Save the QEMU guest agent MSI
         if: steps.qga-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/save@v6.1.0
         with:
           path: tests/e2e/qga-cache
           key: qga-msi-${{ runner.os }}-${{ steps.qga-week.outputs.week }}
 
       # Ahead of every podman call: the runner's podman is newer than its crun,
       # which makes container CREATE fail (see the action for the full story).
-      - uses: ./.github/actions/podman-runtime
+      - uses: $/.github/actions/podman-runtime
         with:
           require-podman-major: ${{ inputs.require_podman_major }}
 
@@ -331,15 +338,15 @@ jobs:
       # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
       # loader tag, so this is a stock production build.
       - name: Set up Node for lifecycle CLI
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        uses: actions/setup-node@v7.1.0
         with:
           # Disk reclaim removes the runner's preinstalled global Node modules.
           # GUI runs build the real Wails frontend, so explicitly restore a
           # supported Node toolchain before invoking npm.
-          node-version: '24'
+          node-version: '26'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        uses: actions/setup-go@v7.0.0
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
@@ -384,7 +391,7 @@ jobs:
 
       - name: Download the native shell
         if: ${{ env.NATIVE == 'true' }}
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ env.NATIVE_SHELL_ARTIFACT }}
           path: tests/e2e/wootc-files/native-shell
@@ -415,7 +422,7 @@ jobs:
 
       - id: native_engine
         if: ${{ env.NATIVE == 'true' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ env.NATIVE_ENGINE_ARTIFACT }}
           path: ${{ runner.temp }}/native-engine/
@@ -452,7 +459,7 @@ jobs:
           # snapshot can never serve a home cell (it would be silently rejected).
           TAG="${WOOTC_E2E_WIN_VERSION_TAG}-${WOOTC_E2E_WIN_EDITION_TAG}-bl-${WOOTC_E2E_BITLOCKER_TAG}"
           echo "$GITHUB_TOKEN" | \
-            oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+            oras login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           sudo mkdir -p /mnt/wootc-snapshot && sudo chown "$USER" /mnt/wootc-snapshot
           if oras pull "${PKG}:${TAG}" -o /mnt/wootc-snapshot; then
             echo "WOOTC_E2E_SNAPSHOT_IN=/mnt/wootc-snapshot" >> "$GITHUB_ENV"
@@ -461,23 +468,24 @@ jobs:
             echo "No base image ${PKG}:${TAG}; run-e2e.sh will do a full install"
           fi
 
-      - name: Wait for the native preview installer
+      - name: Wait for the native installers
         if: ${{ env.NATIVE == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/wait-run-artifact.sh 3600 "$NATIVE_INSTALLER_ARTIFACT"
 
-      - name: Download the native preview installer
+      - name: Download the native installers
         if: ${{ env.NATIVE == 'true' }}
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: ${{ env.NATIVE_INSTALLER_ARTIFACT }}
           path: ${{ runner.temp }}/native-installer
 
-      # inno: the guest runs the real installer. inno-unavailable: the runner
-      # could not download the pinned compiler, so the guest gets a robocopy
-      # of the package, loudly. Anything else stops the run.
-      - name: Stage the native preview installer
+      # inno: the guest runs the production setup silently from the OEM payload
+      # and the preview installer from the native GUI path. inno-unavailable:
+      # the runner gets a robocopy of the package, loudly. Anything else stops
+      # the run.
+      - name: Stage the native setup and preview installers
         if: ${{ env.NATIVE == 'true' }}
         run: |
           set -euo pipefail
@@ -485,16 +493,21 @@ jobs:
           status=$(tr -d '\r\n' < "$got/status.txt")
           case "$status" in
             inno)
+              setup_name="$(jq -er 'if .exeName == "wootc" then "wootc-Installer-Setup.exe" else (.exeName + "-Setup.exe") end' "app/branding/$WOOTC_E2E_BRAND/brand.json")"
+              [ -s "$got/$setup_name" ] || { echo "::error::native-shell job did not produce $setup_name"; exit 1; }
               mkdir -p tests/e2e/wootc-files/native-installer
+              cp "$got/$setup_name" tests/e2e/wootc-files/
               cp "$got/$WOOTC_E2E_BRAND-native-preview-${{ github.sha }}.exe" tests/e2e/wootc-files/native-installer/
-              ls -l tests/e2e/wootc-files/native-installer
+              ls -l tests/e2e/wootc-files/"$setup_name" tests/e2e/wootc-files/native-installer
               cat "$got/compiler-observations.json" || true
+              echo "WOOTC_E2E_SETUP_EXE=$setup_name" >> "$GITHUB_ENV"
+              echo "WOOTC_E2E_SETUP_BRAND=$WOOTC_E2E_BRAND" >> "$GITHUB_ENV"
               echo "WOOTC_E2E_NATIVE_INSTALLER=inno" >> "$GITHUB_ENV" ;;
             inno-unavailable)
-              echo "::warning::the pinned Inno compiler was unavailable; this run copies the package with robocopy and does NOT prove the preview installer"
+              echo "::warning::the pinned Inno compiler was unavailable; this run copies the package with robocopy and does NOT prove the setup or preview installers"
               echo "WOOTC_E2E_NATIVE_INSTALLER=robocopy" >> "$GITHUB_ENV" ;;
             *)
-              echo "::error::the native-shell job did not produce the preview installer (status: $status)"; exit 1 ;;
+              echo "::error::the native-shell job did not produce the preview installer or production setup (status: $status)"; exit 1 ;;
           esac
 
       - name: Run the E2E (restores base image if pulled, else full install)
@@ -586,7 +599,7 @@ jobs:
         if: ${{ failure() && env.NATIVE == 'true' && steps.native_engine.outcome != 'success' }}
         run: mkdir -p "$RUNNER_TEMP/native-failed" && echo failed > "$RUNNER_TEMP/native-failed/status.txt"
       - if: ${{ failure() && env.NATIVE == 'true' && steps.native_engine.outcome != 'success' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ env.NATIVE_ENGINE_ARTIFACT }}
           path: ${{ runner.temp }}/native-failed/
@@ -664,7 +677,7 @@ jobs:
         if: always()
         run: python3 tests/e2e/safe-log.py --tree /tmp/evidence
 
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+      - uses: actions/upload-artifact@v7.0.2
         if: always() && steps.safe_logs.outcome == 'success'
         with:
           # Per-CASE name. Every cell used to upload "e2e-nightly-<run_id>", so

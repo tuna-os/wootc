@@ -60,8 +60,9 @@ class CoverageGate(unittest.TestCase):
         (self.directory / (module['name'] + '.out')).write_text(
             f"mode: atomic\n{module['module']}/file.go:1.1,1.10 100 0\n")
         evidence = reporter.generate(self.directory, self.config)
-        self.assertEqual(evidence['covered'], 20)
-        self.assertEqual(evidence['statements'], 120)
+        others = len(self.config['modules']) - 1
+        self.assertEqual(evidence['covered'], 10 * others)
+        self.assertEqual(evidence['statements'], 100 + 10 * others)
         self.assertFalse(evidence['thresholdPassed'])
 
     def test_exact_threshold_is_enforced(self):
@@ -86,8 +87,8 @@ class CoverageGate(unittest.TestCase):
         with (self.directory / (module['name'] + '.out')).open('a') as stream:
             stream.write(f"{module['module']}/empty.go:2.1,2.1 0 1\n")
         evidence = reporter.generate(self.directory, self.config)
-        self.assertEqual(evidence['statements'], 30)
-        self.assertEqual(evidence['covered'], 30)
+        self.assertEqual(evidence['statements'], 10 * len(self.config['modules']))
+        self.assertEqual(evidence['covered'], 10 * len(self.config['modules']))
 
     def test_actual_fast_entry_point_rejects_success_without_new_profiles(self):
         fixture = self.directory / 'repo'
@@ -95,7 +96,7 @@ class CoverageGate(unittest.TestCase):
         for name in ('run.sh', 'coverage-report.py'):
             shutil.copy(ROOT / 'tests' / name, fixture / 'tests' / name)
         shutil.copy(ROOT / '.coverage-thresholds.json', fixture)
-        for directory in ('app', 'fisherman/tui', 'fisherman/fisherman'):
+        for directory in ('app', 'slurp', 'fisherman/tui', 'fisherman/fisherman'):
             (fixture / directory).mkdir(parents=True)
         commands = fixture / 'commands'
         commands.mkdir()
