@@ -101,7 +101,7 @@ ref='<frozen-candidate-branch>'
 sha='<full-candidate-sha>'
 test "$(gh api "repos/$repo/commits/$ref" --jq .sha)" = "$sha" || exit 1
 
-for workflow in ci-tests.yml ci.yml native-configuration.yml lint.yml ste.yml \
+for workflow in ci.yml native-configuration.yml ste.yml \
   native-original-user.yml readonly-cli-status.yml offline-image-bundle.yml \
   vm-qmp-controls.yml vm-guest-observer-controls.yml; do
   gh workflow run "$workflow" --repo "$repo" --ref "$ref" || exit 1
