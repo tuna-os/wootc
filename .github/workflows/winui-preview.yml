@@ -126,6 +126,8 @@ jobs:
       engine_ldflags: ${{ steps.release.outputs.engine_ldflags }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - id: release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -391,12 +393,12 @@ jobs:
           foreach ($file in @('bundle\Wootc.Shell.exe', 'bundle\wootc-engine.exe', 'bundle\native-package.json')) {
             if (-not (Test-Path -LiteralPath (Join-Path $installRoot $file) -PathType Leaf)) { throw "Production setup omitted $file" }
           }
-          $identityJson = & python packaging/brand.py identity --brand '${{ matrix.brand }}'
+          $identityJson = & python packaging/brand.py identity --brand $env:BRAND
           if ($LASTEXITCODE -ne 0) { throw 'Effective publisher policy refused' }
           $identity = $identityJson | ConvertFrom-Json
-          $appsEntry = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\wootc-native-${{ matrix.brand }}_is1'
+          $appsEntry = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\wootc-native-$($env:BRAND)_is1"
           if ($appsEntry.Publisher -cne $identity.publisher) { throw 'Installed setup publisher bypassed effective identity' }
-          [ordered]@{brand='${{ matrix.brand }}';publisher=$appsEntry.Publisher;expectedPublisher=$identity.publisher} | ConvertTo-Json | Set-Content -LiteralPath out/release-installer/publisher-observations.json -Encoding utf8
+          [ordered]@{brand=$env:BRAND;publisher=$appsEntry.Publisher;expectedPublisher=$identity.publisher} | ConvertTo-Json | Set-Content -LiteralPath out/release-installer/publisher-observations.json -Encoding utf8
           $uninstaller = Get-ChildItem -LiteralPath $installRoot -Filter 'unins*.exe' -File | Select-Object -First 1
           if (-not $uninstaller) { throw "Production setup registered no uninstaller in $installRoot" }
           $u = Start-Process -FilePath $uninstaller.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-') -Wait -PassThru

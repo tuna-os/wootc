@@ -77,7 +77,7 @@ jobs:
   # Windows return without replacing the existing graduation journey.
   native-proof:
     if: ${{ (inputs.gui_frontend || 'native') == 'native' }}
-    uses: ./.github/workflows/e2e-hosted.yml
+    uses: $/.github/workflows/e2e-hosted.yml
     with:
       image: ${{ inputs.image || 'ghcr.io/projectbluefin/bluefin:stable' }}
       case_name: native-proof
