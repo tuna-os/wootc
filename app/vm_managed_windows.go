@@ -29,6 +29,9 @@ func (a *App) GetVMState() VMState {
 			if cleanupErr == nil {
 				cleanupErr = cleanupVMRuntimeStaging(wootcDir())
 			}
+			if cleanupErr == nil {
+				cleanupErr = cleanupVMPromotionStaging(previewDir())
+			}
 			release()
 			if cleanupErr != nil {
 				return VMState{SchemaVersion: 1, Phase: vmRecovery, Error: cleanupErr.Error()}

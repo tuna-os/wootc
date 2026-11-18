@@ -136,6 +136,29 @@ json.dump(d, open(path, "w"), indent=2)
     [[ "$output" != *"PackageIdentifier: TunaOS.Bazzite"* ]]
 }
 
+@test "native setup publisher for a pending brand is the distributor (#688)" {
+    local root="$BATS_TEST_TMPDIR/root"
+    mkdir -p "$root/app"
+    cp -r "$FIXTURE" "$root/app/branding"
+    # Deliberately keep the upstream publisher in brand.json: only the
+    # effective-identity policy may decide whether the setup can name it.
+    run python3 packaging/brand.py --root "$root" identity --brand bazzite
+    [ "$status" -eq 0 ]
+    [ "$output" = '{"publisher": "TunaOS", "copyright": ""}' ]
+    [[ "$output" != *"Universal Blue"* ]]
+}
+
+@test "native setup publisher names the owner only after blessing" {
+    fixture_set bazzite 'd["status"]="blessed"'
+    local root="$BATS_TEST_TMPDIR/root"
+    mkdir -p "$root/app"
+    cp -r "$FIXTURE" "$root/app/branding"
+    run python3 packaging/brand.py --root "$root" identity --brand bazzite
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'"publisher": "Universal Blue"'* ]]
+}
+
+
 @test "the renderer refuses a brand with no record to offer" {
     run bash "$RENDER" nosuchbrand
     [ "$status" -ne 0 ]

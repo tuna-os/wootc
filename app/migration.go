@@ -57,11 +57,12 @@ func (a *App) ImportBrowserData() (string, error) {
 type AppMigration struct {
 	App              string `json:"app"`
 	Flatpak          string `json:"flatpak"`
-	Session          string `json:"session"` // portable | signin | relink | none
+	Session          string `json:"session"` // portable | staged | rewritten | imported | failed | signin | relink | none
 	Copied           bool   `json:"copied"`
 	Note             string `json:"note"`
 	ConsentAvailable bool   `json:"consentAvailable"`
 	Consent          bool   `json:"consent"`
+	Verified         bool   `json:"verified"` // true only for a verified imported result
 }
 
 // GetAppMigrations returns the per-app migration outcomes recorded by

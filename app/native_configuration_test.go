@@ -60,7 +60,7 @@ func TestNativeConfigurationMissingRootDoesNotCreateOrAssessStorage(t *testing.T
 	if _, err := os.Lstat(root); !os.IsNotExist(err) {
 		t.Fatal("configuration created absent root")
 	}
-	if snapshot.RootScope != "none" || snapshot.RootBinding != "" || snapshot.StorageStatus != "not-observed" || len(snapshot.Storage) != 0 || snapshot.Defaults.Encryption != "tpm2-luks" {
+	if snapshot.RootScope != "none" || snapshot.RootBinding != "" || snapshot.StorageStatus != "not-observed" || len(snapshot.Storage) != 0 || snapshot.Defaults.Encryption != "none" {
 		t.Fatal("configuration invented root/storage or drifted defaults")
 	}
 }

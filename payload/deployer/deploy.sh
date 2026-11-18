@@ -24,6 +24,11 @@ set -Eeuo pipefail
 source "${WOOTC_STEPS_FILE:-/usr/libexec/wootc-steps.sh}"
 # shellcheck source=payload/deployer/initramfs-lib.sh
 source "${WOOTC_INITRAMFS_LIB_FILE:-/usr/libexec/wootc-initramfs-lib.sh}"
+# Source only definitions; orchestration and mount lifetime remain here.
+# shellcheck source=payload/deployer/lifecycle.sh
+source /usr/libexec/wootc-lifecycle.sh
+# shellcheck source=payload/deployer/migration-diagnostics.sh
+source /usr/libexec/wootc-migration-diagnostics.sh
 
 # Set once the Windows NTFS volume is mounted. Keep this log append-only so a
 # failed reboot or a later deployment attempt cannot erase the evidence from
@@ -84,6 +89,7 @@ phase() {
     owner=$(wootc_step_owner "$1") || return 1
     [[ "$owner" == deployer ]] || return 1
     label=$(wootc_step_label "$1") || return 1
+    wootc_diagnostic_phase "$1"
     splash_set "$label"
 }
 
@@ -156,6 +162,7 @@ JOURNAL_STREAM_PID=""
 HEARTBEAT_PID=""
 cleanup() {
     local _rc=$? mount
+    wootc_diagnostic_finish "$_rc"
     [[ -n "$JOURNAL_STREAM_PID" ]] && kill "$JOURNAL_STREAM_PID" 2>/dev/null || true
     [[ -n "$HEARTBEAT_PID" ]] && kill "$HEARTBEAT_PID" 2>/dev/null || true
 
@@ -248,48 +255,6 @@ read_cmdline() {
     echo "$default"
 }
 
-write_ntfs_state() {
-    local state="$1" phase="${2:-}" err_msg="${3:-}"
-    mountpoint -q /mnt/ntfs 2>/dev/null || return 0
-    mkdir -p /mnt/ntfs/wootc /mnt/ntfs/wootc/install 2>/dev/null || true
-    local now
-    now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local final="/mnt/ntfs/wootc/state.json"
-    if [ -n "$phase" ] || [ -n "$err_msg" ]; then
-        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "state": "$state",
-  "phase": "$phase",
-  "error": "$err_msg",
-  "updatedAt": "$now",
-  "updatedBy": "wootc-deployer"
-}
-EOF
-    else
-        wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "state": "$state",
-  "updatedAt": "$now",
-  "updatedBy": "wootc-deployer"
-}
-EOF
-    fi
-}
-
-write_deployer_started() {
-    mountpoint -q /mnt/ntfs 2>/dev/null || return 0
-    mkdir -p /mnt/ntfs/wootc/install 2>/dev/null || true
-    local now
-    now=$(date -u +%FT%TZ 2>/dev/null || date)
-    local final="/mnt/ntfs/wootc/install/deployer-started.json"
-    wootc-ntfs-state-write /mnt/ntfs/wootc/state.json "$final" <<EOF
-{
-  "startedAt": "$now",
-  "image": "${IMAGE:-}",
-  "version": "0.1.0"
-}
-EOF
-}
 
 check_fault_injection() {
     local stage="$1"
@@ -659,7 +624,7 @@ JOURNAL_STREAM_PID=$!
 ) &
 HEARTBEAT_PID=$!
 phase "ntfs-mounted"
-write_deployer_started
+write_deployer_started "$IMAGE"
 write_ntfs_state "deploying" "ntfs-mounted"
 
 if [[ "$FAULT" == "deploy-failure" || "$FAULT" == "deploy" ]]; then
@@ -680,8 +645,7 @@ fi
 # the worse ratio; +4 GiB covers ext4 metadata/journal, per-layer tar-split
 # files, the committed ntfs-3g layer and fisherman's own scratch files.
 # app/install_space.go applies the same formula on Windows, BEFORE the reboot,
-# so the installer refuses a drive this would refuse here;
-# TestScratchNeedMatchesDeployer runs this function to pin the two together.
+# so the installer refuses a drive this would refuse here.
 SCRATCH_MIN_GIB=20
 scratch_need_gib() {  # <compressed layer bytes> -> GiB the scratch must hold
     local bytes=$1 gib=$((1 << 30)) need
@@ -2697,6 +2661,9 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-browser"
     install -m755 /usr/lib/wootc/migration/wootc-convert-dir \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-convert-dir"
+    # Required by file/Steam/office importers even if optional ESP tooling fails.
+    install -D -m644 /usr/lib/wootc/migration/lib/wootc_import_safety.py \
+        "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_import_safety.py"
     install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
@@ -2901,21 +2868,17 @@ QGAEOF
     mig_opt 644 wootc-welcome.desktop "$DEPLOY_ROOT/etc/xdg/autostart/wootc-welcome.desktop"
     # Slurped Windows look (wallpaper/theme/timezone), if the installer
     # collected it. Timezone applies system-wide right here.
-    # Session envelopes (install/slurp/session/*.enc — re-wrapped browser
-    # master keys) are deliberately NOT copied: the target-side importer
-    # does not exist yet (docs/session-migration.md), so shipping them only
-    # leaves dead credential artifacts on the installed system
-    # (tuna-os/wootc#281). slurp.json (look/identity) is still carried.
+    # Session envelopes remain encrypted on the NTFS source for the explicit
+    # per-user unlock/import flow (#1). Never install them into /usr/share:
+    # only non-secret look/identity data belongs in the immutable target.
     if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/share/wootc"
-        cp -a /mnt/ntfs/wootc/install/slurp "$DEPLOY_ROOT/usr/share/wootc/slurp"
-        rm -rf "$DEPLOY_ROOT/usr/share/wootc/slurp/session"
-        # Nothing imports the envelopes yet (#294-#296), so the NTFS copies
-        # are dead credential artifacts on a volume the installed system
-        # mounts. Shred them; the status-only exports.json ledger stays
-        # (tuna-os/wootc#281).
-        find /mnt/ntfs/wootc/install/slurp/session -maxdepth 1 -type f -name '*.enc' \
-            -exec shred -u {} + 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        find /mnt/ntfs/wootc/install/slurp -mindepth 1 -maxdepth 1 ! -name session \
+            -exec cp -a {} "$DEPLOY_ROOT/usr/share/wootc/slurp/" \;
+        # Retain the encrypted .enc inputs and status-only exports.json on
+        # NTFS. An unlock or database rewrite is not verified authentication;
+        # neither is authority to erase the source. Cleanup requires explicit
+        # discard or a verified authenticated import, not deployment success.
         SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
         if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
             ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"

@@ -78,13 +78,7 @@ func TestNativeConfigurationActualPreparedStorageSnapshots(t *testing.T) {
 	if lastCost < 0 {
 		t.Fatal("child cost timeline absent")
 	}
-	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
-	if base == "" {
-		t.Fatal("private proof directory required")
-	}
-	if err = os.MkdirAll(base, 0700); err != nil {
-		t.Fatal(err)
-	}
+	base := nativeStorageProofDirectory(t)
 	if err = os.WriteFile(filepath.Join(base, t.Name()+".stderr.raw"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -210,18 +204,7 @@ if ($child.StandardOutput.ReadLine() -ne 'owned-descendant-ready') {throw 'Owned
 // its inherited stderr pipe.
 func prepareNativeHeldStderrAssembly(t *testing.T) (string, string) {
 	t.Helper()
-	directory := t.TempDir()
-	sd, err := windows.SecurityDescriptorFromString(stateDirectorySDDL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	acl, _, err := sd.DACL()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = windows.SetNamedSecurityInfo(directory, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, acl, nil); err != nil {
-		t.Fatal(err)
-	}
+	directory := trustedFixture(t)
 	path := filepath.Join(directory, "held-fixture.dll")
 	system, err := windows.GetSystemDirectory()
 	if err != nil {
@@ -256,10 +239,7 @@ func prepareNativeHeldStderrAssembly(t *testing.T) (string, string) {
 	}
 	sum := sha256.Sum256(raw)
 	digest := hex.EncodeToString(sum[:])
-	base := os.Getenv("WOOTC_NATIVE_QUERY_PROOF_DIR")
-	if base == "" {
-		t.Fatal("private proof directory required")
-	}
+	base := nativeStorageProofDirectory(t)
 	prefix := filepath.Join(base, t.Name())
 	if err = os.MkdirAll(filepath.Dir(prefix), 0700); err != nil {
 		t.Fatal(err)

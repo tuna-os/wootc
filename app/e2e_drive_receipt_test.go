@@ -14,13 +14,12 @@ const boundReport = `{"schemaVersion":1,"runId":"current","directiveId":"1234567
 
 func TestE2EDriveReportRefusesUnrelatedAndAmbiguousWrites(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(boundDirective), 0600); err != nil {
+	app := newE2EFixture(t)
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(boundDirective), 0600); err != nil {
 		t.Fatal(err)
 	}
-	(&App{}).E2EDriveReport(boundReport)
-	path := e2eDrivePath("e2e-drive-state.json")
+	app.E2EDriveReport(boundReport)
+	path := app.e2ePath("e2e-drive-state.json")
 	before, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -31,24 +30,24 @@ func TestE2EDriveReportRefusesUnrelatedAndAmbiguousWrites(t *testing.T) {
 		strings.Replace(boundReport, `"screen":"progress"`, `"screen":"progress","screen":"done"`, 1),
 		boundReport + boundReport, strings.Repeat("x", 16385)}
 	for _, report := range cases {
-		(&App{}).E2EDriveReport(report)
+		app.E2EDriveReport(report)
 		after, err := os.ReadFile(path)
 		if err != nil || string(after) != string(before) {
 			t.Fatal("unverified report replaced known report")
 		}
 	}
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(strings.Replace(boundDirective, `"runId":"current"`, `"runId":"old","runId":"current"`, 1)), 0600); err != nil {
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(strings.Replace(boundDirective, `"runId":"current"`, `"runId":"old","runId":"current"`, 1)), 0600); err != nil {
 		t.Fatal(err)
 	}
-	(&App{}).E2EDriveReport(strings.Replace(boundReport, `"progress"`, `"done"`, 1))
+	app.E2EDriveReport(strings.Replace(boundReport, `"progress"`, `"done"`, 1))
 	after, err := os.ReadFile(path)
 	if err != nil || string(after) != string(before) {
 		t.Fatal("ambiguous directive allowed report publication")
 	}
-	if err := os.Remove(e2eDrivePath("e2e-drive.json")); err != nil {
+	if err := os.Remove(app.e2ePath("e2e-drive.json")); err != nil {
 		t.Fatal(err)
 	}
-	(&App{}).E2EDriveReport(strings.Replace(boundReport, `"progress"`, `"done"`, 1))
+	app.E2EDriveReport(strings.Replace(boundReport, `"progress"`, `"done"`, 1))
 	after, err = os.ReadFile(path)
 	if err != nil || string(after) != string(before) {
 		t.Fatal("missing directive allowed report publication")
@@ -76,19 +75,18 @@ func TestE2EDriveInstalledBootReportCarriesExactlyItsReceipt(t *testing.T) {
 
 func TestE2EDriveToleratesBOMDirective(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
+	app := newE2EFixture(t)
 	// PowerShell 5.1 Set-Content -Encoding UTF8 prefixes a BOM; the drive
 	// loop must survive one (runs 36399679919/36413017019/36420437461).
 	bom := append([]byte("\xef\xbb\xbf"), []byte(boundDirective)...)
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), bom, 0600); err != nil {
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), bom, 0600); err != nil {
 		t.Fatal(err)
 	}
-	if got := (&App{}).E2EDriveDirective(); got != boundDirective {
+	if got := app.E2EDriveDirective(); got != boundDirective {
 		t.Fatalf("BOM directive unreadable, got %q", got)
 	}
-	(&App{}).E2EDriveReport(boundReport)
-	after, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json"))
+	app.E2EDriveReport(boundReport)
+	after, err := os.ReadFile(app.e2ePath("e2e-drive-state.json"))
 	if err != nil || string(after) != boundReport {
 		t.Fatal("BOM directive blocked bound report publication")
 	}
@@ -149,15 +147,14 @@ func TestE2EDriveNativeConfigurationSessionCarriesTheDriveChannel(t *testing.T) 
 	ready := `{"schemaVersion":1,"screen":"loading"}`
 	writer := &synchronizedWriter{out: &bytes.Buffer{}}
 	configurationReads := 0
-	native := newConfigurationAssessmentServer(&App{}, writer, func(context.Context) (NativeConfigurationSnapshot, error) {
+	app := newE2EFixture(t)
+	native := newConfigurationAssessmentServer(app, writer, func(context.Context) (NativeConfigurationSnapshot, error) {
 		configurationReads++
 		return NativeConfigurationSnapshot{}, nil
 	})
 
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	for _, other := range []*Server{NewAssessmentServer(&App{}, writer)} {
@@ -167,7 +164,7 @@ func TestE2EDriveNativeConfigurationSessionCarriesTheDriveChannel(t *testing.T) 
 			}
 		}
 	}
-	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(app.e2ePath("e2e-drive-state.json")); !os.IsNotExist(err) {
 		t.Fatal("a refused session wrote a drive report")
 	}
 	got, failure := native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveDirective"})
@@ -177,20 +174,20 @@ func TestE2EDriveNativeConfigurationSessionCarriesTheDriveChannel(t *testing.T) 
 	if _, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReport", Params: param(report)}); failure != nil {
 		t.Fatal(failure)
 	}
-	if state, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json")); err != nil || string(state) != report {
+	if state, err := os.ReadFile(app.e2ePath("e2e-drive-state.json")); err != nil || string(state) != report {
 		t.Fatalf("native session did not write the bound report: %v", err)
 	}
 	if _, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReady", Params: param(ready)}); failure != nil {
 		t.Fatal(failure)
 	}
-	if marker, err := os.ReadFile(e2eDrivePath("e2e-ready.json")); err != nil || string(marker) != ready {
+	if marker, err := os.ReadFile(app.e2ePath("e2e-ready.json")); err != nil || string(marker) != ready {
 		t.Fatalf("native session did not write the readiness marker: %v", err)
 	}
 
 	// Without drive mode in the engine's environment the channel is inert.
 	t.Setenv("WOOTC_E2E_DRIVE", "")
-	removeE2EFiles(t)
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+	removeE2EFiles(t, app)
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if got, failure = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveDirective"}); failure != nil || got != "" {
@@ -199,7 +196,7 @@ func TestE2EDriveNativeConfigurationSessionCarriesTheDriveChannel(t *testing.T) 
 	_, _ = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReport", Params: param(report)})
 	_, _ = native.dispatch(context.Background(), jsonrpcRequest{Method: "E2EDriveReady", Params: param(ready)})
 	for _, name := range []string{"e2e-drive-state.json", "e2e-ready.json"} {
-		if _, err := os.Stat(e2eDrivePath(name)); !os.IsNotExist(err) {
+		if _, err := os.Stat(app.e2ePath(name)); !os.IsNotExist(err) {
 			t.Fatalf("%s written while drive mode is off", name)
 		}
 	}

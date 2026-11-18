@@ -14,9 +14,9 @@
   Read before touching the E2E harness, the deployer, or the runners.
 - **`docs/docs-truth-pass.md`** — the dated record of each docs-vs-build pass
   (#233): what was checked, what was wrong, and what is still owed to an RC
-  walk. Every ✘ it found is pinned by `tests/unit/docs-truth.bats`, so change
-  a path, a default image, or a channel gate and that suite tells you which
-  doc you just falsified.
+  walk. Earlier source-wording checks were removed; validate changed paths,
+  defaults and channel claims against the actual build and runtime behavior.
+  A source-string match is not proof that a documented operation happened.
 - **`docs/phase2-debug-plan.md`** — *historical* (2026-07-18): its Phase-2
   hypotheses were resolved; the debugging story is in
   `docs/phase2-attach-postmortem.md`.

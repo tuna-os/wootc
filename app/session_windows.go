@@ -44,6 +44,7 @@ func dpapiUnprotect(blob []byte) ([]byte, error) {
 	defer windows.LocalFree(windows.Handle(unsafe.Pointer(out.Data))) //nolint:errcheck
 	res := make([]byte, out.Size)
 	copy(res, unsafe.Slice(out.Data, out.Size))
+	clear(unsafe.Slice(out.Data, out.Size))
 	return res, nil
 }
 
@@ -116,6 +117,7 @@ func exportSession(app, vaultSecret string, consent bool) error {
 	if err != nil {
 		return err
 	}
+	defer clear(key)
 	data, err := sealSessionPayload([]byte(vaultSecret), app, key)
 	if err != nil {
 		return err
@@ -176,6 +178,7 @@ func chromiumKeyDecryptable(userDataRoot string) bool {
 	if err := json.Unmarshal(raw, &parsed); err != nil || parsed.OSCrypt.EncryptedKey == "" {
 		return false
 	}
-	_, err = chromiumMasterKey(userDataRoot)
+	key, err := chromiumMasterKey(userDataRoot)
+	clear(key)
 	return err == nil
 }

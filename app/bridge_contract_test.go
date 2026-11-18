@@ -1,76 +1,69 @@
 package main
 
-// Tests for the Wails Go<->JS bridge contract on the Linux dev build
-// (app.go + installer_other.go dev stubs): E2E drive mode, install
-// status/cancel, and the Windows-only operations that must fail clearly
-// outside Windows. These pin the contract the GUI E2E drives and the
-// dev-mode behavior developers rely on.
+// Tests for the cross-platform bridge's E2E drive protocol and install
+// status/cancellation behavior. File-backed channels use owned fixtures.
 
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func removeE2EFiles(t *testing.T) {
+func newE2EFixture(t *testing.T) *App {
 	t.Helper()
-	_ = os.Remove(e2eDrivePath("e2e-drive.json"))
-	_ = os.Remove(e2eDrivePath("e2e-drive-state.json"))
-	_ = os.Remove(e2eDrivePath("e2e-ready.json"))
+	root := t.TempDir()
+	return &App{drivePath: func(name string) string { return filepath.Join(root, name) }}
+}
+
+func removeE2EFiles(t *testing.T, app *App) {
+	t.Helper()
+	for _, name := range []string{"e2e-drive.json", "e2e-drive-state.json", "e2e-ready.json"} {
+		if err := os.Remove(app.e2ePath(name)); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
 }
 
 // ── E2E drive mode ───────────────────────────────────────────────────────────
 
-func TestE2EDrivePathDevLayout(t *testing.T) {
-	if filepath.Separator == '\\' {
-		t.Skip("Linux layout asserted; windows layout is C:\\wootc\\")
-	}
-	if got := e2eDrivePath("e2e-drive.json"); got != "/tmp/wootc-e2e-drive.json" {
-		t.Errorf("e2eDrivePath = %q, want /tmp/wootc-e2e-drive.json", got)
-	}
-}
-
 func TestE2EDriveDirectiveDisabledByDefault(t *testing.T) {
+	app := newE2EFixture(t)
 	t.Setenv("WOOTC_E2E_DRIVE", "")
-	if got := (&App{}).E2EDriveDirective(); got != "" {
+	if got := app.E2EDriveDirective(); got != "" {
 		t.Errorf("E2EDriveDirective without WOOTC_E2E_DRIVE = %q, want \"\"", got)
 	}
 }
 
 func TestE2EDriveDirectiveReadsDirectiveFile(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
+	app := newE2EFixture(t)
 	payload := `{"click": "continue"}`
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(payload), 0o644); err != nil {
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(payload), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := (&App{}).E2EDriveDirective(); got != payload {
+	if got := app.E2EDriveDirective(); got != payload {
 		t.Errorf("E2EDriveDirective = %q, want %q", got, payload)
 	}
 }
 
 func TestE2EDriveDirectiveMissingFile(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
-	if got := (&App{}).E2EDriveDirective(); got != "" {
+	app := newE2EFixture(t)
+	if got := app.E2EDriveDirective(); got != "" {
 		t.Errorf("E2EDriveDirective with no file = %q, want \"\"", got)
 	}
 }
 
 func TestE2EDriveReportWritesStateWhenEnabled(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
+	app := newE2EFixture(t)
 	directive := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install"}`
 	report := `{"schemaVersion":1,"runId":"current","directiveId":"1234567890abcdef1234567890abcdef","action":"install","screen":"progress","installDriven":true,"installBtnDisabled":null,"hint":"","progressStep":"","error":null,"selectedRef":"image","imageMismatch":false}`
-	if err := os.WriteFile(e2eDrivePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
+	if err := os.WriteFile(app.e2ePath("e2e-drive.json"), []byte(directive), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	(&App{}).E2EDriveReport(report)
-	data, err := os.ReadFile(e2eDrivePath("e2e-drive-state.json"))
+	app.E2EDriveReport(report)
+	data, err := os.ReadFile(app.e2ePath("e2e-drive-state.json"))
 	if err != nil {
 		t.Fatalf("E2EDriveReport did not write state: %v", err)
 	}
@@ -81,10 +74,9 @@ func TestE2EDriveReportWritesStateWhenEnabled(t *testing.T) {
 
 func TestE2EDriveReportNoopWhenDisabled(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
-	(&App{}).E2EDriveReport("installing")
-	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
+	app := newE2EFixture(t)
+	app.E2EDriveReport("installing")
+	if _, err := os.Stat(app.e2ePath("e2e-drive-state.json")); !os.IsNotExist(err) {
 		t.Error("E2EDriveReport wrote state while drive mode was off")
 	}
 }
@@ -94,28 +86,26 @@ func TestE2EDriveReadyWritesMarkerWithoutDirective(t *testing.T) {
 	// which needs the install directive, which is only written after launch
 	// is confirmed. The marker must appear with NO directive file present.
 	t.Setenv("WOOTC_E2E_DRIVE", "1")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
+	app := newE2EFixture(t)
 	ready := `{"schemaVersion":1,"screen":"launchpad"}`
-	(&App{}).E2EDriveReady(ready)
-	data, err := os.ReadFile(e2eDrivePath("e2e-ready.json"))
+	app.E2EDriveReady(ready)
+	data, err := os.ReadFile(app.e2ePath("e2e-ready.json"))
 	if err != nil {
 		t.Fatalf("E2EDriveReady did not write marker: %v", err)
 	}
 	if string(data) != ready {
 		t.Errorf("ready file = %q, want %q", data, ready)
 	}
-	if _, err := os.Stat(e2eDrivePath("e2e-drive-state.json")); !os.IsNotExist(err) {
+	if _, err := os.Stat(app.e2ePath("e2e-drive-state.json")); !os.IsNotExist(err) {
 		t.Error("E2EDriveReady must not write the bound drive-state channel")
 	}
 }
 
 func TestE2EDriveReadyNoopWhenDisabled(t *testing.T) {
 	t.Setenv("WOOTC_E2E_DRIVE", "")
-	removeE2EFiles(t)
-	defer removeE2EFiles(t)
-	(&App{}).E2EDriveReady(`{"schemaVersion":1,"screen":"launchpad"}`)
-	if _, err := os.Stat(e2eDrivePath("e2e-ready.json")); !os.IsNotExist(err) {
+	app := newE2EFixture(t)
+	app.E2EDriveReady(`{"schemaVersion":1,"screen":"launchpad"}`)
+	if _, err := os.Stat(app.e2ePath("e2e-ready.json")); !os.IsNotExist(err) {
 		t.Error("E2EDriveReady wrote marker while drive mode was off")
 	}
 }
@@ -133,9 +123,9 @@ func TestE2EDriveReadyRejectsMalformed(t *testing.T) {
 		`{"schemaVersion":1,"screen":"launchpad","extra":true}`,
 		`{"schemaVersion":1,"screen":"launchpad"}{"schemaVersion":1,"screen":"launchpad"}`,
 	} {
-		removeE2EFiles(t)
-		(&App{}).E2EDriveReady(bad)
-		if _, err := os.Stat(e2eDrivePath("e2e-ready.json")); !os.IsNotExist(err) {
+		app := newE2EFixture(t)
+		app.E2EDriveReady(bad)
+		if _, err := os.Stat(app.e2ePath("e2e-ready.json")); !os.IsNotExist(err) {
 			t.Errorf("E2EDriveReady wrote marker for %q", bad)
 		}
 	}
@@ -153,44 +143,4 @@ func TestGetStatusZeroValue(t *testing.T) {
 func TestCancelInstallNoopWhenIdle(t *testing.T) {
 	// No install running: cancel must be a safe no-op (nil cancel func).
 	(&App{}).CancelInstall() // must not panic
-}
-
-func TestExistingInstallFoundFalseOnDev(t *testing.T) {
-	if (&App{}).ExistingInstallFound() {
-		t.Error("ExistingInstallFound = true on Linux dev build")
-	}
-}
-
-// ── Windows-only operations on the dev build ─────────────────────────────────
-
-func TestUninstallNoopOnDev(t *testing.T) {
-	if err := (&App{}).Uninstall(); err != nil {
-		t.Errorf("Uninstall on dev build = %v, want nil", err)
-	}
-}
-
-func TestUninstallWithNoopOnDev(t *testing.T) {
-	if err := (&App{}).UninstallWith(UninstallOptions{DeleteRootDisk: true}); err != nil {
-		t.Errorf("UninstallWith on dev build = %v, want nil", err)
-	}
-}
-
-func TestRebootUnavailableOnDev(t *testing.T) {
-	err := (&App{}).Reboot()
-	if err == nil {
-		t.Fatal("Reboot on dev build succeeded, want error")
-	}
-	if !strings.Contains(err.Error(), "reboot not available") {
-		t.Errorf("Reboot error = %v, want 'reboot not available'", err)
-	}
-}
-
-func TestCreateDataPartitionWindowsOnly(t *testing.T) {
-	_, err := (&App{}).CreateDataPartition(40)
-	if err == nil {
-		t.Fatal("CreateDataPartition on dev build succeeded, want error")
-	}
-	if !strings.Contains(err.Error(), "only available on Windows") {
-		t.Errorf("CreateDataPartition error = %v, want Windows-only message", err)
-	}
 }

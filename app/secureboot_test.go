@@ -307,7 +307,7 @@ func TestGateScenarioReadsTheSystemOnce(t *testing.T) {
 	a := NewApp()
 	reads := 0
 	info := func() SystemInfo { reads++; return SystemInfo{} }
-	_ = a.gateScenarioWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, info)
+	_ = a.installPolicy(info).gateScenario(InstallConfig{ImageRef: "ghcr.io/example/image:latest"})
 	if reads != 1 {
 		t.Fatalf("gateScenarioWith read the system %d times, want 1", reads)
 	}
@@ -325,9 +325,9 @@ func TestGateScenarioRefusesFromTheSuppliedRead(t *testing.T) {
 	t.Cleanup(func() { shimAuthorities = oldStamp })
 	shimAuthorities = "2011"
 	a := NewApp()
-	err := a.gateScenarioWith(InstallConfig{ImageRef: "ghcr.io/example/image:latest"}, func() SystemInfo {
+	err := a.installPolicy(func() SystemInfo {
 		return SystemInfo{SecureBootOn: true, SecureBootKnown: true, UefiDbRead: true, TrustedUefiAuthorities: []string{"2023"}}
-	})
+	}).gateScenario(InstallConfig{ImageRef: "ghcr.io/example/image:latest"})
 	if err == nil {
 		t.Fatal("a 2023-only firmware with a 2011 shim was not refused")
 	}

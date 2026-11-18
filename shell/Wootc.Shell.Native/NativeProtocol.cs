@@ -157,7 +157,7 @@ internal static class NativeProtocol
             throw new InvalidDataException("An interrupted install needs engine text and a safe action");
     }
 
-    private static readonly string[] InstallGrantFields = ["schemaVersion", "session", "brandId", "intentId", "imageRef", "storageDrive", "diskSizeGB", "encryption", "bitLockerOn", "bitLockerRecoveryKeyWarning", "fastStartupOn", "secureBootChainWarning"];
+    private static readonly string[] InstallGrantFields = ["schemaVersion", "session", "brandId", "intentId", "imageRef", "storageDrive", "diskSizeGB", "encryption", "bitLockerOn", "bitLockerRecoveryKeyWarning", "fastStartupOn", "secureBootChainWarning", "profileAccounts", "profileWarnings"];
 
     internal static T DecodeResult<T>(string method, JsonElement result, string? expectedBrand)
     {
@@ -239,6 +239,28 @@ internal static class NativeProtocol
             Text("imageRef").Length is 0 or > 512 || Text("storageDrive").Length != 1 || Text("storageDrive")[0] is < 'A' or > 'Z' ||
             Text("encryption") is not ("none" or "luks-passphrase") || Text("secureBootChainWarning").Length > 1024)
             throw new InvalidDataException("Install grant is invalid");
+        Require(result, "profileAccounts", JsonValueKind.Array);
+        Require(result, "profileWarnings", JsonValueKind.Array);
+        var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var users = new HashSet<string>(StringComparer.Ordinal);
+        var accounts = result.GetProperty("profileAccounts");
+        var warnings = result.GetProperty("profileWarnings");
+        if (accounts.GetArrayLength() > 128 || warnings.GetArrayLength() > 128)
+            throw new InvalidDataException("Install profile mapping is too large");
+        foreach (var account in accounts.EnumerateArray())
+        {
+            Exactly(account, "Profile account", ["windowsDir", "linuxUser"], []);
+            Require(account, "windowsDir", JsonValueKind.String);
+            Require(account, "linuxUser", JsonValueKind.String);
+            string directory = account.GetProperty("windowsDir").GetString()!;
+            string user = account.GetProperty("linuxUser").GetString()!;
+            if (directory.Length is 0 or > 255 || directory is "." or ".." || directory.IndexOfAny(['/', '\\', ':', '\0', '\t', '\r', '\n']) >= 0 ||
+                !System.Text.RegularExpressions.Regex.IsMatch(user, "^[a-z_][a-z0-9_-]{0,31}$") || !directories.Add(directory) || !users.Add(user))
+                throw new InvalidDataException("Install profile mapping is invalid");
+        }
+        foreach (var warning in warnings.EnumerateArray())
+            if (warning.ValueKind != JsonValueKind.String || warning.GetString()!.Length is 0 or > 1024)
+                throw new InvalidDataException("Install profile warning is invalid");
         return result.Deserialize<NativeInstallGrant>() ?? throw new InvalidDataException("Install grant is missing");
     }
 

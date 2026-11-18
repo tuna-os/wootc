@@ -200,83 +200,65 @@ cmd_import() {
     done
     [[ -n "$target" ]] || die "no target Linux user (pass --target)"
     getent passwd "$target" >/dev/null || die "no such Linux user: $target"
-    [[ -d "$mnt/Users/$winuser" ]] || die "no Windows profile $winuser under $mnt"
+    [[ "$winuser" != */* && "$winuser" != "." && "$winuser" != ".." ]] || die "invalid Windows profile name"
+    [[ -d "$mnt/Users/$winuser" && ! -L "$mnt/Users/$winuser" ]] || die "no real Windows profile $winuser under $mnt"
     [[ ${#cats[@]} -gt 0 ]] || cats=(files apps browsers steam office look wsl)
 
-    # Bind the external volume to /run/wootc/host so the existing bridge scripts (which
-    # expect /run/wootc/host) work unchanged. Undone on eject.
-    mkdir -p /run/wootc/host
-    if ! mountpoint -q /run/wootc/host; then
-        mount --bind "$mnt" /run/wootc/host
-        log "bound $mnt -> /run/wootc/host"
-    fi
-
-    local ran=()
-    for c in "${cats[@]}"; do
-        case "$c" in
-            apps)     _run wootc-detect-apps "$winuser" "$target" && ran+=(apps) ;;
-            browsers) _run wootc-import-browser "$winuser" "$target" && ran+=(browsers) ;;
-            steam)    _run wootc-steam-bridge && ran+=(steam) ;;
-            office)   _run wootc-office-bridge "$winuser" "$target" && ran+=(office) ;;
-            wsl)      _run wootc-wsl-bridge "$winuser" "$target" && ran+=(wsl) ;;
-            # An external/backup disk is removable, so COPY the profile media
-            # folders (never bind-mount — the drive gets unplugged).
-            files)    _import_files "$winuser" "$target" && ran+=(files) ;;
-            look)     ran+=(look) ;;  # look applies on next login via autostart
-        esac
-    done
-    log "imported: ${ran[*]:-nothing}"
-    printf '{"imported": [%s]}\n' "$(printf '"%s",' "${ran[@]}" | sed 's/,$//')"
-}
-
-# _import_files <winuser> <linuxuser> — copy the standard profile media folders
-# from the mounted Windows profile (via /run/wootc/host) into the Linux user's home.
-# Read-only source; merges into existing folders without clobbering newer files.
-_import_files() {
-    local winuser="$1" target="$2"
-    local src="/run/wootc/host/Users/$winuser" home
-    home=$(getent passwd "$target" | cut -d: -f6)
-    [[ -d "$src" && -d "$home" ]] || { log "files: missing profile or home"; return 1; }
-    local copied=0 f
-    for f in Desktop Documents Downloads Pictures Music Videos; do
-        [[ -d "$src/$f" ]] || continue
-        mkdir -p "$home/$f"
-        # -a preserve, --update keep newer dest files, ignore per-file errors.
-        if command -v rsync >/dev/null; then
-            rsync -a --update --chown="$target:$target" "$src/$f/" "$home/$f/" 2>/dev/null || true
-        else
-            cp -an "$src/$f/." "$home/$f/" 2>/dev/null || true
-            chown -R "$target:" "$home/$f" 2>/dev/null || true
-        fi
-        copied=$((copied + 1))
-    done
-    log "files: copied $copied folder(s) for $winuser -> $target"
-    [[ $copied -gt 0 ]]
-}
-
-# _run <script> <args...> — run a bridge script if it exists; tolerate absence
-# so a partial deployment still imports what it can.
-_run() {
-    local s="$1"; shift
-    if command -v "$s" >/dev/null; then
-        log "run: $s $*"
-        "$s" "$@" || { log "non-fatal: $s failed"; return 1; }
+    # Never silently import from a different already-bound host. Compare the
+    # selected root's actual identity, not a textual findmnt source string.
+    local host="${WOOTC_HOST:-/run/wootc/host}"
+    mkdir -p "$host"
+    if mountpoint -q "$host"; then
+        python3 - "$mnt" "$host" <<'PYEOF' || die "another Windows volume is already bound; eject it first"
+import os, sys
+a, b = (os.stat(path) for path in sys.argv[1:])
+sys.exit(0 if (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino) else 1)
+PYEOF
+        local options
+        options=$(findmnt -n -o OPTIONS --mountpoint "$host") || die "could not observe source mount options"
+        [[ ",$options," == *,ro,* ]] || die "existing host bind is not read-only; eject it before external import"
     else
-        log "skip: $s not installed"; return 1
+        mount --bind "$mnt" "$host" || die "could not bind the selected Windows volume"
+        if ! mount -o remount,bind,ro "$host"; then
+            umount "$host" || log "could not release failed source bind"
+            die "could not make the source bind read-only"
+        fi
     fi
+    local base library
+    base="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    for library in "$base/lib/wootc_import_safety.py" \
+        "$base/../lib/wootc/wootc_import_safety.py" \
+        /usr/lib/wootc/migration/lib/wootc_import_safety.py; do
+        if [[ -f "$library" ]]; then
+            python3 "$library" external "$winuser" "$target" "${cats[@]}"
+            return $?
+        fi
+    done
+    die "safe import library is not installed"
 }
+
 
 # ── eject ───────────────────────────────────────────────────────────────────
 # Unbind /run/wootc/host, unmount the volume, and close any BitLocker mapper.
 cmd_eject() {
     need_root eject
-    local mnt="${1:-$MNT_BASE/mnt}"
-    mountpoint -q /run/wootc/host && umount /run/wootc/host 2>/dev/null || true
+    local mnt="${1:-$MNT_BASE/mnt}" host="${WOOTC_HOST:-/run/wootc/host}"
+    if mountpoint -q "$host"; then
+        python3 - "$mnt" "$host" <<'PYEOF' || die "refusing to eject a different host volume"
+import os, sys
+a, b = (os.stat(path) for path in sys.argv[1:])
+sys.exit(0 if (a.st_dev, a.st_ino) == (b.st_dev, b.st_ino) else 1)
+PYEOF
+        umount "$host" || die "source bind is busy; keep the drive connected"
+        mountpoint -q "$host" && die "source bind remained mounted"
+    fi
     if mountpoint -q "$mnt"; then
-        local src; src=$(findmnt -no SOURCE "$mnt" 2>/dev/null || true)
-        umount "$mnt" 2>/dev/null || umount -l "$mnt" 2>/dev/null || true
+        local src
+        src=$(findmnt -no SOURCE --mountpoint "$mnt") || die "could not observe mounted source"
+        umount "$mnt" || die "source volume is busy; keep the drive connected"
+        mountpoint -q "$mnt" && die "source volume remained mounted"
         if [[ "$src" == /dev/mapper/${MAPPER_PREFIX}-* ]]; then
-            cryptsetup close "$(basename "$src")" 2>/dev/null || true
+            cryptsetup close "$(basename "$src")" || die "could not close BitLocker mapper"
         fi
     fi
     log "ejected"

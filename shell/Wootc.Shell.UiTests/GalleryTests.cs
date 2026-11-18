@@ -145,7 +145,7 @@ public sealed class GalleryTests
                 await Capture(fresh, "configuration", "ImageChoice", reached);
                 var images = fresh.Find("ImageChoice").AsComboBox(); images.Expand(); images.Select(0); images.Collapse();
                 var storage = fresh.Find("StorageChoice").AsComboBox(); storage.Expand(); storage.Select(0); storage.Collapse();
-                var encryption = fresh.Find("LinuxEncryption").AsComboBox(); encryption.Expand(); encryption.Select(2); encryption.Collapse();
+                var encryption = fresh.Find("LinuxEncryption").AsComboBox(); encryption.Expand(); encryption.Select(1); encryption.Collapse();
                 foreach (var (id, text) in new[] { ("LinuxUsername", "gallery_user"), ("LinuxPassword", "public gallery password"), ("LinuxPasswordConfirmation", "public gallery password"), ("LinuxHostname", "gallery-pc") })
                 {
                     await fresh.TabTo(id);

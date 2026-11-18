@@ -27,7 +27,20 @@ export interface InstallConfig {
   luksPassphrase: string;
   windowsLook?: boolean;
   sessionConsent?: Record<string, boolean>;
+  profileAccounts?: ProfileAccount[];
 }
+
+export interface ProfileAccount {
+  windowsDir: string;
+  linuxUser: string;
+}
+
+export interface ProfileAccountPlan {
+  accounts: ProfileAccount[];
+  warnings: string[];
+}
+
+export function GetProfileAccountPlan(primary: string): Promise<ProfileAccountPlan>;
 
 export interface SessionCandidate {
   app: string;
@@ -87,11 +100,12 @@ export interface BridgeCategory {
 export interface AppMigration {
   app: string;
   flatpak: string;
-  session: 'portable' | 'signin' | 'relink' | 'none';
+  session: 'portable' | 'staged' | 'rewritten' | 'imported' | 'failed' | 'signin' | 'relink' | 'none';
   copied: boolean;
   note: string;
   consentAvailable: boolean;
   consent: boolean;
+  verified: boolean;
 }
 
 export interface MigrationProfile {
@@ -116,6 +130,14 @@ export function GetSessionCandidates(): Promise<SessionCandidate[]>;
 export function GetAppMigrations(): Promise<AppMigration[]>;
 export function GetOfficeMigration(): Promise<any>;
 export function SetSessionConsent(app: string, consent: boolean): Promise<void>;
+export function ImportAppSession(request: {
+  app: string; consent: boolean; password: string;
+  backend: 'secret-service' | 'kwallet5' | 'kwallet6';
+  packaging: 'flatpak' | 'native'; sourceProfile: string; targetProfile: string;
+}): Promise<{
+  app: string; state: string; verified: boolean; reason: string;
+  cookiesWritten: number; localRecordsWritten: number; recordsPreserved: number; backups?: string[];
+}>;
 export function ReinstallApps(): Promise<void>;
 export function GetMigrationProfile(): Promise<MigrationProfile>;
 export function SetMigrationProfile(profile: string): Promise<void>;

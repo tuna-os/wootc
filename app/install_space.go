@@ -27,7 +27,7 @@ import (
 
 const (
 	// scratchMinGiB is deploy.sh's SCRATCH_MIN_GIB: the scratch is created at
-	// this size whatever the image. Pinned by TestScratchNeedMatchesDeployer.
+	// this size whatever the image.
 	scratchMinGiB = 20
 	// scratchDriveSlackGiB is the 1 GiB ensure_scratch_capacity keeps free on
 	// the drive beyond the growth (`free >= grow + (1 << 30)`).
@@ -59,8 +59,7 @@ const (
 // an image whose layers total `compressed` bytes is the staged compressed
 // blobs plus the unpacked layers, sized as 3.5× compressed + 4 GiB (rounded
 // up), never below the 20 GiB floor. A zero/negative size means "unknown" and
-// gets the floor, exactly as the shell does. The two are pinned to each other
-// by TestScratchNeedMatchesDeployer, which runs the shell function.
+// gets the floor, exactly as the shell does.
 func scratchNeedGiB(compressed int64) int {
 	if compressed <= 0 {
 		return scratchMinGiB

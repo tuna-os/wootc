@@ -1,31 +1,32 @@
 # Branding, releases, and offline-first distribution
 
-Status: SPEC + phase-1 implementation (2026-08-22). Owner intent (maintainer,
-verbatim requirements): automated GitHub releases; an un-branded **wootc**
-build plus branded builds for **TunaOS**, the **Bluefin family**
-(bluefin / dakota), **Aurora**, and **Bazzite**; branding via a
-per-brand config + assets override; branded installers do not use the wootc
-name (wootc is the generic project name only); branded distributions
-pre-bundle or pre-download the bootc image **on Windows**, because the
-deployer stage must never rely on the internet — laptops on Wi-Fi have no
-networking in the initramfs, and the E2E VM's virtio ethernet has been
-masking that.
+Scope updated 2026-11-02: package source and design requirements. This scope
+does not prove that a publisher released or qualified a native package.
+The observed latest non-prerelease remains `v0.1.0-alpha.1` with Wails executables;
+see the [start guide](getting-started.md).
+
+The owner's original intent was to automate GitHub releases with an un-branded
+**wootc** build and branded builds. Brands include **TunaOS**, the **Bluefin
+family** (bluefin / dakota), **Aurora**, and **Bazzite**.
+Each brand uses its own config and asset overrides.
+Branded installers do not use the wootc name; wootc is only the generic project name.
+
+Branded distributions pre-bundle or pre-download the bootc image **on Windows**.
+The deployer stage must never rely on the internet.
+Laptops on Wi-Fi have no network in the initramfs.
+The E2E VM's virtio ethernet has hidden that limitation.
 
 ---
 
 ## 1. Automated releases
 
-**Trigger.** Two channels, one pipeline (`release.yml`):
+**Triggers and gates.** Main defines tagged and automatic release paths in
+`release.yml`. Consult [release instructions](RELEASING.md) for the exact
+stages selected for E2E, how they bind the SHA, and any documented emergency waiver.
+A workflow's existence is not a passed run or a published release.
 
-- **Tagged** (`v*`): unchanged — the human-blessed channel, E2E-gated.
-- **Auto** (`workflow_run` after a green E2E nightly on `main`, or
-  `workflow_dispatch`): tags `auto-vYYYYMMDD-<sha>` and publishes a
-  **pre-release**. The E2E gate is satisfied by the run that triggered it —
-  the release is cut from the exact SHA the nightly proved. No green nightly,
-  no auto release.
-
-**Assets.** Every release ships the native setup packages for each eligible
-brand (see §2), plus the shared boot set:
+**Native assets on main.** The first native cutover plans to publish
+setup packages for each eligible brand (see §2), plus the shared boot set:
 
 | Asset | Source |
 |---|---|
@@ -37,13 +38,15 @@ brand (see §2), plus the shared boot set:
 | `SHA256SUMS` | sha256sum over the boot and legacy assets |
 | `native-SHA256SUMS` | sha256sum over the attached setup assets |
 
-The setup package embeds the native shell, its protected Go engine, and the
-public key for release verification. This cut-over release keeps the Wails
-executable only as a compatibility fallback, not a second branded installer.
+The setup package in source embeds the native shell, protected Go engine and
+public key for artifact verification. The first native cutover will also retain a
+single compatibility executable for Wails. Older `v0.1.0-alpha.1` instead provides
+`wootc.exe`, branded `*-Installer.exe` files and `SHA256SUMS`, not this native
+asset set. Download only an asset listed on the selected tag.
 
-`deployerBaseURL()` previously pointed at release assets that did not exist
-(documented on #196). The first automated release closes that gap. A plain
-online install then works without advance setup.
+A release URL alone does not establish a plain online or offline install.
+Boot artifacts, signed metadata, image inputs, Windows runtime and frontend
+must match the tested build. See [native release gates](winui-shell.md#packaging-and-offline-proof).
 
 **Branded downloads.** Each branded setup has its own layout expectation for
 `deployerBaseURL`. All brands share the boot artifacts because the deployer is
@@ -138,13 +141,16 @@ falls out of the answers: any `no` → `declined`, all four `yes` → `blessed`,
 anything else → `pending`. A mark this project does not own cannot be marked
 `blessed` without a link to the yes.
 
-**Release matrix.** The publish job asks `packaging/brands.sh` which brands
-may ship, builds each surviving exe with its ldflag, names it `exeName`.exe,
-and adds all to the release + SHA256SUMS. The decision is load-bearing
-there: a **declined** project's exe drops out of the matrix, a brand with no
-record at all is a hard error rather than a default yes, and a **pending**
-one still builds (shipping predates the ask) but is named as unblessed in
-the release log. `WOOTC_REQUIRE_BLESSING=1` drops pending brands too.
+**Release matrix.** `packaging/brands.sh` decides which brands may build.
+For native packages, the process maps each selected brand to its setup name and checksums.
+Names of older Wails assets do not prove publication of native setup.
+
+A **declined** project's build drops out of the matrix; an absent permission
+record is an error, not an implicit yes. A project without a final decision
+can still build but must retain unblessed/distributor identity.
+`WOOTC_REQUIRE_BLESSING=1` also excludes brands without a final decision.
+These source rules do not establish upstream
+approval, namespace ownership, installation success or a published download.
 
 ## 3. Offline-first deploys
 

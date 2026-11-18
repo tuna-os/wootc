@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+
+	"wootc/internal/privatefile"
 )
 
 // ── Shared helpers (both platforms) ──────────────────────────────────────────
@@ -24,7 +26,7 @@ func marshalJSONToFile(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o600)
+	return privatefile.WriteFile(path, data)
 }
 
 func copyFile(src, dst string) error {

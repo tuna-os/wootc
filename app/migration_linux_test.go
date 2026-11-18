@@ -105,14 +105,14 @@ func TestReadSessionExportsFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 	exports := readSessionExportsFrom(path)
-	if len(exports) != 2 {
-		t.Fatalf("expected 2 exports, got %d", len(exports))
+	if len(exports) != 1 {
+		t.Fatalf("expected only one staged export, got %d", len(exports))
 	}
 	if exports["chrome"].State != "staged" {
 		t.Errorf("chrome state = %q, want staged", exports["chrome"].State)
 	}
-	if exports["spotify"].State != "imported" {
-		t.Errorf("spotify state = %q, want imported", exports["spotify"].State)
+	if _, exists := exports["spotify"]; exists {
+		t.Error("Windows exporter must not supply Linux imported/authentication evidence")
 	}
 }
 
@@ -126,5 +126,28 @@ func TestReadSessionExportsFromFailClosed(t *testing.T) {
 	}
 	if got := readSessionExportsFrom(malformed); len(got) != 0 {
 		t.Errorf("malformed exports file = %#v, want empty map", got)
+	}
+}
+
+func TestBrowserImportRequiresCompletedNonemptyOutcome(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bridge-browser.json")
+	for _, payload := range []string{
+		`{}`, `{"imported":["firefox"]}`,
+		`{"state":"native","imported":[]}`,
+		`{"state":"failed","imported":["chrome-bookmarks"],"errors":["history failed"]}`,
+		`{"state":"native","imported":["firefox"],"errors":["manual registration required"]}`,
+	} {
+		if err := os.WriteFile(path, []byte(payload), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if browserImportComplete(path) {
+			t.Fatalf("incomplete import promoted: %s", payload)
+		}
+	}
+	if err := os.WriteFile(path, []byte(`{"state":"native","imported":["chrome-bookmarks"],"errors":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !browserImportComplete(path) {
+		t.Fatal("completed import not recognized")
 	}
 }

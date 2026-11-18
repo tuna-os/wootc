@@ -85,23 +85,6 @@ setup() {
     grep -q 'Microsoft (?:Corporation )?UEFI CA 2023' "$SA"
 }
 
-@test "the preflight gates BEFORE anything is written, and only on a known mismatch" {
-    local app="$REPO_ROOT/app/app.go"
-    # In gateScenario, which runs before the first byte of the install, and
-    # in the headless CLI, which never calls gateScenario.
-    grep -q 'secureBootChainVerdict(si)' "$app"
-    grep -q 'secureBootChainVerdict(headlessSystemInfo())' "$REPO_ROOT/app/headless.go"
-    grep -q 'TrustedUefiAuthorities' "$app"
-    # "Read and empty" is a refusal, "not read" only a warning (#322): the
-    # flag that tells them apart must reach the verdict.
-    grep -q 'si.UefiDbRead' "$REPO_ROOT/app/secureboot.go"
-    # An unreadable db must warn, not refuse: "bad shim signature" costs a
-    # reboot back into Windows, and refusing every PC whose SecureBoot module
-    # is unavailable would block machines that work today.
-    grep -q 'SecureBootChainWarning' "$app"
-    grep -q 'Warn:' "$REPO_ROOT/app/secureboot.go"
-    grep -q 'secureBootChainWarning' "$REPO_ROOT/app/frontend/src/screens/launchpad.js"
-}
 
 @test "the db read is Windows-only and the dev stub gates nothing" {
     grep -q 'func trustedUefiAuthorities' "$REPO_ROOT/app/secureboot_windows.go"

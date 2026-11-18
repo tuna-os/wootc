@@ -24,6 +24,7 @@ dnf install -y -q rsync python3 util-linux >/dev/null 2>&1 || true
 # calls resolve (mount-user-dirs invokes steam-bridge and detect-apps).
 install -m755 /scripts/wootc-* /usr/local/bin/ 2>/dev/null || \
     { cp /scripts/wootc-* /usr/local/bin/ && chmod +x /usr/local/bin/wootc-*; }
+install -D -m644 /scripts/lib/wootc_import_safety.py /usr/local/lib/wootc/wootc_import_safety.py
 if [ -d /scripts/plugins.d ]; then
     mkdir -p /usr/lib/wootc/plugins.d
     cp -a /scripts/plugins.d/* /usr/lib/wootc/plugins.d/ 2>/dev/null || true
@@ -56,6 +57,16 @@ mkdir -p "/run/wootc/host/Games/SteamLibrary/steamapps/common/Portal9"
 # Linux Steam already initialized (native path):
 mkdir -p "$H/.local/share/Steam/steamapps"
 printf '"libraryfolders"\n{\n}\n' > "$H/.local/share/Steam/steamapps/libraryfolders.vdf"
+STEAM_NATIVE_BEFORE=$(sha256sum "$H/.local/share/Steam/steamapps/libraryfolders.vdf")
+# A separate initialized Steam location has no metadata: test exclusive
+# publication there, without deleting the user's existing native VDF.
+STEAM_FLATPAK="$H/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps"
+mkdir -p "$STEAM_FLATPAK"
+chown alice:alice "$H/.local" "$H/.local/share" "$H/.local/share/Steam" \
+    "$H/.local/share/Steam/steamapps" "$H/.local/share/Steam/steamapps/libraryfolders.vdf" \
+    "$H/.var" "$H/.var/app" "$H/.var/app/com.valvesoftware.Steam" \
+    "$H/.var/app/com.valvesoftware.Steam/.local" "$H/.var/app/com.valvesoftware.Steam/.local/share" \
+    "$H/.var/app/com.valvesoftware.Steam/.local/share/Steam" "$STEAM_FLATPAK"
 
 # Browsers: Firefox profile + Chrome bookmarks
 FFW=/run/wootc/host/Users/alice/AppData/Roaming/Mozilla/Firefox
@@ -68,6 +79,9 @@ CHW="/run/wootc/host/Users/alice/AppData/Local/Google/Chrome/User Data/Default"
 mkdir -p "$CHW"
 echo '{"roots":{}}' > "$CHW/Bookmarks"
 mkdir -p "$H/.config/google-chrome/Default"
+# These are freshly seeded empty target directories, not foreign user trees.
+chown alice:alice "$H/.config" "$H/.config/google-chrome" "$H/.config/google-chrome/Default" \
+    "$H/.mozilla" "$H/.mozilla/firefox"
 
 # Mock mountpoint /run/wootc/host as a real mountpoint for the script's guard.
 mount --bind /run/wootc/host /run/wootc/host
@@ -83,7 +97,9 @@ check '! mountpoint -q /home/Public 2>/dev/null' "Public profile ignored"
 check '[ -f /home/alice/.config/wootc/bridge-steam.json ]' "steam bridge state recorded"
 check 'grep -q "Program Files" /home/alice/.config/wootc/bridge-steam.json' "default Windows library detected"
 check 'grep -q "Games/SteamLibrary" /home/alice/.config/wootc/bridge-steam.json' "extra C: library from libraryfolders.vdf detected"
-check 'grep -q "Program Files" /home/alice/.local/share/Steam/steamapps/libraryfolders.vdf' "Windows library registered with Linux Steam"
+check '[ "$(sha256sum /home/alice/.local/share/Steam/steamapps/libraryfolders.vdf)" = "$STEAM_NATIVE_BEFORE" ]' "Steam: existing native VDF preserved byte-for-byte"
+check 'python3 -c '"'"'import json; d=json.load(open("/home/alice/.config/wootc/bridge-steam.json")); assert d["status"]=="failed" and any("Add Library" in x["error"] for x in d["failed"])'"'" "Steam: missing native registration reports actionable refusal"
+check 'grep -q "Program Files" "$STEAM_FLATPAK/libraryfolders.vdf"' "Steam: absent Flatpak VDF receives a complete registration"
 
 # ── 3. Browser import ───────────────────────────────────────────────────────
 bash /scripts/wootc-import-browser alice >/dev/null 2>&1 || true
@@ -168,11 +184,14 @@ REGJSON
 
 bash /scripts/wootc-detect-apps alice >/dev/null 2>&1 || true
 check "[ -f /home/alice/.config/wootc/bridge-apps.json ]" "App detection: bridge-apps.json recorded"
-check "grep -q '\"app\":\"vscode\"' /home/alice/.config/wootc/bridge-apps.json" "App detection: VS Code detected"
-check "grep -q '\"app\":\"discord\"' /home/alice/.config/wootc/bridge-apps.json" "App detection: Discord detected"
-check "grep -q '\"app\":\"spotify\"' /home/alice/.config/wootc/bridge-apps.json" "App detection: Spotify detected"
-check "grep -q '\"app\":\"libreoffice\"' /home/alice/.config/wootc/bridge-apps.json" "App detection: LibreOffice detected from registry manifest"
-check "grep -q '\"app\":\"7zip\"' /home/alice/.config/wootc/bridge-apps.json" "App detection: 7-Zip detected from registry manifest"
+detected_app() {
+    python3 -c 'import json, sys; apps = json.load(open("/home/alice/.config/wootc/bridge-apps.json"))["apps"]; sys.exit(not any(app["app"] == sys.argv[1] for app in apps))' "$1"
+}
+check "detected_app vscode" "App detection: VS Code detected"
+check "detected_app discord" "App detection: Discord detected"
+check "detected_app spotify" "App detection: Spotify detected"
+check "detected_app libreoffice" "App detection: LibreOffice detected from registry manifest"
+check "detected_app 7zip" "App detection: 7-Zip detected from registry manifest"
 check "[ -f /home/alice/.config/Code/User/settings.json ]" "App detection: VS Code settings.json copied"
 check "[ -f /home/alice/.config/wootc/vscode-extensions.txt ]" "App detection: VS Code extension list saved"
 
@@ -396,6 +415,48 @@ else
 fi
 check '[ ! -e "/home/carol/Documents/From Windows" ] && grep -q "^original windows bytes$" "$BL_DOCS/Projects/notes.txt" && grep -q "^later windows change$" "$BL_DOCS/Projects/notes.txt"' \
     "#427: failed copy leaves Windows source and destination unchanged"
+
+# A failed import must not mount Windows over native files saved earlier.
+# Exercise the production binding function and the actual permission failure.
+printf 'saved Linux workspace\n' > /home/carol/Documents/linux-work.txt
+chown carol:carol /home/carol/Documents/linux-work.txt
+COPY_FAILURE_OUT=$(
+    eval "$(sed -n '/^bind_profile() {/,/^}/p' /scripts/wootc-mount-user-dirs)"
+    log() { printf '%s\n' "$*"; }
+    warn() { printf '%s\n' "$*"; }
+    sel_on() { return 0; }
+    resolved_folder() { :; }
+    safe_folder_source() { return 0; }
+    add_host_bookmark() { :; }
+    FOLDERS=(Documents)
+    BITLOCKER_PROFILES=/tmp/bitlocker-fixture
+    bound=0; copied=0
+    bind_profile /tmp/bitlocker-fixture/Users/bob/ carol /home/carol
+)
+check '! mountpoint -q /home/carol/Documents && runuser -u carol -- grep -qx "saved Linux workspace" /home/carol/Documents/linux-work.txt' \
+    "#427: failed import never hides previously saved Linux files under a Windows bind"
+check 'echo "$COPY_FAILURE_OUT" | grep -q "leaving Linux Documents untouched"' \
+    "#427: failed editable workspace has an explicit preserving diagnostic"
+
+# Even when invoked by root, the importer must have only the recipient's file
+# access. A race in a user-owned destination cannot redirect privileged writes.
+PRIVATE_DOCS=/tmp/root-only-windows-documents
+mkdir -p "$PRIVATE_DOCS"
+printf 'root-only fixture\n' > "$PRIVATE_DOCS/private.txt"
+chmod 0600 "$PRIVATE_DOCS/private.txt"
+if bash /scripts/wootc-copy-windows-documents "$PRIVATE_DOCS" /home/bob bob >/tmp/wootc-copy-unprivileged.log 2>&1; then
+    bad "#427: root invocation must not bypass the recipient's file access"
+else
+    ok "#427: root invocation cannot import a root-only source file"
+fi
+check '[ ! -e "/home/bob/Documents/From Windows (3)/private.txt" ] && [ "$(cat "$PRIVATE_DOCS/private.txt")" = "root-only fixture" ]' \
+    "#427: unprivileged copy failure preserves the source and publishes no private data"
+
+useradd -m -u 1004 dave
+mkdir /home/dave/Documents # empty root-owned mountpoint left by the old bind
+bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/dave dave >/dev/null
+check 'runuser -u dave -- test -w "/home/dave/Documents/From Windows/Projects/notes.txt" && [ "$(stat -c %u /home/dave/Documents)" = "$(id -u dave)" ]' \
+    "#427: the ordinary user safely replaces an empty legacy root-owned mountpoint"
 
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

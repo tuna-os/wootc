@@ -4,8 +4,6 @@ namespace Wootc.Shell.Core;
 
 // The confirmation uses the legacy launchpad's own words
 // (app/frontend/src/screens/launchpad.js), with its HTML emphasis removed.
-// InstallDisclosureTests compares every line with that file, so a change to
-// either side fails until both say the same thing.
 public sealed record InstallDisclosure(string Heading, IReadOnlyList<string> Lines, string Action, string Cancel)
 {
     public static string InstallVerb(Branding brand) => string.IsNullOrWhiteSpace(brand.InstallVerb) ? "Install" : brand.InstallVerb;
@@ -35,6 +33,9 @@ public sealed record InstallDisclosure(string Heading, IReadOnlyList<string> Lin
         if (grant.SecureBootChainWarning.Length != 0) lines.Add(SecureBootChainPrefix + grant.SecureBootChainWarning);
         if (grant.BitLockerOn && grant.BitLockerRecoveryKeyWarning) lines.Add(BitLockerRecoveryKey);
         if (grant.FastStartupOn) lines.Add(FastStartup(brand));
+        lines.AddRange(grant.ProfileWarnings);
+        foreach (var account in grant.ProfileAccounts)
+            lines.Add($"Windows profile {account.WindowsDir} → Linux account {account.LinuxUser}.");
         return new($"{InstallVerb(brand)} {brand.Name}", lines, $"Advanced: {InstallVerb(brand)} with reboot", "Cancel");
     }
 }

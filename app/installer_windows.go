@@ -6,9 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"syscall"
@@ -68,17 +66,9 @@ func getSystemInfo() SystemInfo {
 	// form asks for a password and nothing else.
 	rawHost, _ := os.Hostname()
 	info.SuggestedHostname = suggestHostname(rawHost)
-	// Same idea for the account name, so the launchpad can collect only a
-	// password by default instead of asking the user to invent an identity
-	// they already have. Under over-the-shoulder UAC, user.Current() is the
-	// elevating admin — derive the machine's interactive human instead (#197, #225).
-	envUser := getElevationEnvUser()
-	interactiveUser := queryInteractiveUser()
-	var currentUser string
-	if u, err := user.Current(); err == nil {
-		currentUser = u.Username
-	}
-	info.SuggestedUsername = deriveHumanUsername(envUser, interactiveUser, currentUser)
+	// A suggestion is safe only when the elevated account is the signed-in
+	// person. checkSystem enforces the same SID gate before any mutation.
+	info.SuggestedUsername, _ = verifiedPrimaryUsername()
 
 	// OS version
 	v := windows.RtlGetVersion()
@@ -136,6 +126,9 @@ func validatePlatformConfig(cfg InstallConfig) error {
 func checkSystem() error {
 	if !isAdmin() {
 		return fmt.Errorf("%s must be run as Administrator", productName())
+	}
+	if _, err := verifiedPrimaryUsername(); err != nil {
+		return err
 	}
 	if !isUEFI() {
 		return fmt.Errorf("this PC starts Windows in legacy BIOS mode — %s needs UEFI. "+
@@ -275,7 +268,8 @@ func getUninstallInfo() UninstallInfo {
 	}
 
 	// 4. Check for system-wide wootc artifacts (BCD entries, ESP files, or registry).
-	if hasWootcBCDEntry() || hasWootcESPArtifacts() || hasUninstallRegistryEntry() {
+	hasBCD, bcdErr := hasWootcBCDEntry()
+	if hasBCD || bcdErr != nil || hasWootcESPArtifacts() || hasUninstallRegistryEntry() {
 		return UninstallInfo{Found: true, StorageDrive: "C", Orphaned: true}
 	}
 
@@ -284,19 +278,14 @@ func getUninstallInfo() UninstallInfo {
 
 // hasWootcBCDEntry reports whether BCD contains any wootc firmware entry or
 // active one-shot bootsequence pointing to wootc.
-func hasWootcBCDEntry() bool {
-	out, err := runCmd("bcdedit", "/enum", "firmware")
-	if err == nil {
-		re := regexp.MustCompile(`(?ms)identifier\s+(\{[^}]+\})[^{]*?description\s+wootc\s*$`)
-		if re.MatchString(out) {
-			return true
-		}
+func hasWootcBCDEntry() (bool, error) {
+	objs, err := observeFirmware(bootChainEnv{
+		bcdedit: func(args ...string) (string, error) { return runCmd("bcdedit", args...) },
+	})
+	if err != nil {
+		return false, err
 	}
-	mgrOut, err := runCmd("bcdedit", "/enum", "{fwbootmgr}")
-	if err == nil && strings.Contains(strings.ToLower(mgrOut), "wootc") {
-		return true
-	}
-	return false
+	return len(wootcEntryIDs(objs, "")) != 0, nil
 }
 
 // hasWootcESPArtifacts reports whether the ESP contains any wootc-owned files
@@ -315,8 +304,8 @@ func hasWootcESPArtifacts() bool {
 // hasUninstallRegistryEntry reports whether the Add/Remove Programs key exists.
 func hasUninstallRegistryEntry() bool {
 	out, err := runPowerShellOutput(fmt.Sprintf(
-		`if (Test-Path %q) { Write-Output 'EXISTS' }`, uninstallRegKey))
-	return err == nil && strings.TrimSpace(out) == "EXISTS"
+		`$ErrorActionPreference='Stop'; if (Test-Path -LiteralPath %s) { Write-Output 'EXISTS' }`, powershellLiteral(uninstallRegKey)))
+	return err != nil || strings.TrimSpace(out) == "EXISTS"
 }
 
 // cleanupESP deletes only attributable regular files, preserving neighbours.
@@ -440,26 +429,23 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 	}
 
 	var errs []string
+	if err := verifyUninstallRegistryOwnership(); err != nil {
+		return fmt.Errorf("uninstall preserved an unowned Add/Remove Programs key: %w", err)
+	}
 
-	// 0. Recovery tasks are the last executable path into the install. Refuse
-	// to delete their target when ownership or removal cannot be confirmed.
+	// Prove boot rollback before removing the executable recovery path, EFI
+	// files, or the journal needed to retry an interrupted cleanup.
+	if err := rollbackBootChain(); err != nil {
+		return fmt.Errorf("uninstall kept recovery state because boot cleanup could not be verified: %w", err)
+	}
+	if err := restorePriorPowerState(); err != nil {
+		return fmt.Errorf("uninstall kept saved power settings for a retry: %w", err)
+	}
 	if err := unregisterRecoveryTasks(); err != nil {
 		return fmt.Errorf("uninstall refused before deleting install state: %w", err)
 	}
-
-	// Restore what install changed outside its folder: hibernation / Fast
-	// Startup (read the marker / registry BEFORE the install dir and
-	// Add/Remove key are removed). "Windows is unchanged" must be true.
-	restorePriorPowerState()
-	unregisterUninstallEntry()
-
-	// 1. Remove all wootc BCD entries and disarm one-shot bootsequence.
-	deleteWootcBCDEntries()
-	disarmOneShot()
-
-	// 2. Remove ESP files (ownership-aware).
 	if err := cleanupESP(); err != nil {
-		errs = append(errs, fmt.Sprintf("cleaning ESP files: %v", err))
+		return fmt.Errorf("uninstall kept install state after EFI cleanup failed: %w", err)
 	}
 
 	// 3. Remove the install dir, staged files, cache, and logs.
@@ -473,7 +459,7 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		}
 	}
 	if err := moveRunningImageAside(removedDirs); err != nil {
-		errs = append(errs, err.Error())
+		return err
 	}
 	for _, d := range targetDrives {
 		if opts.RemovePartition {
@@ -488,44 +474,64 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 		}
 		wDir := d + `:\wootc`
 		if _, err := os.Stat(wDir); err != nil {
+			if !os.IsNotExist(err) {
+				errs = append(errs, fmt.Sprintf("inspect %s: %v", wDir, err))
+			}
 			continue
 		}
 		// Scrub the staged credentials first (#279, #281): RemoveAll only
 		// unlinks them, and NTFS keeps a deleted file's clusters readable.
 		if failed := scrubInstallSecrets(filepath.Join(wDir, "install")); len(failed) > 0 {
 			errs = append(errs, fmt.Sprintf("could not scrub %v", failed))
+			continue // Never unlink a secret whose overwrite was not confirmed.
 		}
 		// The first-boot record vouches for this install; it goes first, so a
 		// partial RemoveAll below can never leave it describing a removed one.
-		_ = os.Remove(firstBootEvidencePath(wDir))
+		if err := os.Remove(firstBootEvidencePath(wDir)); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, err.Error())
+			continue
+		}
 		// Always remove install, bundle, cache, logs, state.json, and metadata
 		for _, sub := range []string{"install", "bundle", "cache", "logs"} {
-			_ = os.RemoveAll(filepath.Join(wDir, sub))
+			if err := os.RemoveAll(filepath.Join(wDir, sub)); err != nil {
+				errs = append(errs, err.Error())
+			}
 		}
 		for _, loose := range []string{"state.json", "channel.txt", "brand.css", "brand.json", "e2e-drive.json", "e2e-drive-state.json"} {
-			_ = os.Remove(filepath.Join(wDir, loose))
-		}
-
-		rootDiskExists := false
-		for _, name := range []string{"root.disk", "root.vhdx"} {
-			if _, err := os.Stat(filepath.Join(wDir, "disks", name)); err == nil {
-				rootDiskExists = true
-				break
+			if err := os.Remove(filepath.Join(wDir, loose)); err != nil && !os.IsNotExist(err) {
+				errs = append(errs, err.Error())
 			}
 		}
 
-		// root.disk only on request. If no root.disk exists (partial/orphaned),
-		// clean up the entire folder.
-		if opts.DeleteRootDisk || opts.RemovePartition || !rootDiskExists {
-			_ = os.RemoveAll(filepath.Join(wDir, "disks"))
-			_ = os.RemoveAll(wDir)
+		// Absence of root.disk is not authority to recursively delete other
+		// saved VM/user files. Default removal clears only empty directories.
+		if opts.DeleteRootDisk || opts.RemovePartition {
+			if err := os.RemoveAll(filepath.Join(wDir, "disks")); err != nil {
+				errs = append(errs, err.Error())
+			}
+			if len(errs) == 0 {
+				if err := os.RemoveAll(wDir); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
+		} else {
+			for _, dir := range []string{filepath.Join(wDir, "disks"), wDir} {
+				if err := removeEmptyInstallerDirectory(dir); err != nil {
+					errs = append(errs, err.Error())
+				}
+			}
 		}
 	}
 
 	// 4. Optionally remove a wootc-created data partition and extend C:.
-	if opts.RemovePartition {
+	if opts.RemovePartition && len(errs) == 0 {
 		if err := removePartitionAndExtendC(drive, partitionReceipt); err != nil {
 			errs = append(errs, fmt.Sprintf("removing data partition %s: %v", drive, err))
+		}
+	}
+	if len(errs) == 0 {
+		if err := unregisterUninstallEntry(); err != nil {
+			errs = append(errs, err.Error())
 		}
 	}
 
@@ -549,7 +555,9 @@ func uninstallWith(ctx context.Context, opts UninstallOptions) error {
 func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 	var errs []string
 
-	if hasWootcBCDEntry() {
+	if present, err := hasWootcBCDEntry(); err != nil {
+		errs = append(errs, "could not verify firmware boot-entry cleanup: "+err.Error())
+	} else if present {
 		errs = append(errs, "the "+productName()+" firmware boot entry is still present")
 	}
 
@@ -565,6 +573,8 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 		installPath := d + `:\wootc\install`
 		if _, err := os.Stat(installPath); err == nil {
 			errs = append(errs, fmt.Sprintf("%s was not removed", installPath))
+		} else if !os.IsNotExist(err) {
+			errs = append(errs, fmt.Sprintf("could not verify %s was removed: %v", installPath, err))
 		}
 		if evidence := firstBootEvidencePath(d + `:\wootc`); pathExists(evidence) {
 			errs = append(errs, fmt.Sprintf("%s was not removed", evidence))
@@ -576,6 +586,8 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 			wDir := d + `:\wootc`
 			if _, err := os.Stat(wDir); err == nil {
 				errs = append(errs, fmt.Sprintf("%s was not fully removed", wDir))
+			} else if !os.IsNotExist(err) {
+				errs = append(errs, fmt.Sprintf("could not verify %s was removed: %v", wDir, err))
 			}
 		}
 	}
@@ -591,10 +603,32 @@ func verifyUninstallClean(opts UninstallOptions, storageDrive string) []string {
 
 const uninstallRegKey = `HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\wootc`
 
-func registerUninstallEntry() {
+// Registry metadata is authority for restoring power settings and executing
+// uninstall. Never overwrite or remove a same-name key belonging to anything
+// else, including old unmarked metadata that cannot prove ownership.
+func uninstallRegistryOwnershipScript(create bool) string {
+	guard := fmt.Sprintf(`$ErrorActionPreference='Stop'; if (Test-Path -LiteralPath %s) { `+
+		`$owner = (Get-ItemProperty -LiteralPath %s -ErrorAction Stop).WootcOwner; `+
+		`if ($owner -cne 'wootc-install-v1') { throw 'Unowned Add/Remove Programs key; preserve it and resolve ownership before retrying' } }`,
+		powershellLiteral(uninstallRegKey), powershellLiteral(uninstallRegKey))
+	if create {
+		guard += fmt.Sprintf(` else { New-Item -Path %s -ErrorAction Stop | Out-Null; `+
+			`Set-ItemProperty -LiteralPath %s -Name WootcOwner -Value 'wootc-install-v1' -ErrorAction Stop }; `,
+			powershellLiteral(uninstallRegKey), powershellLiteral(uninstallRegKey))
+	} else {
+		guard += "; "
+	}
+	return guard
+}
+
+func verifyUninstallRegistryOwnership() error {
+	return runPowerShell(uninstallRegistryOwnershipScript(false))
+}
+
+func registerUninstallEntry() error {
 	exe, err := os.Executable()
 	if err != nil {
-		return
+		return err
 	}
 	// The entry runs the staged copy under install\ (see uninstallEntryTarget),
 	// never a download or a preview package that can disappear first.
@@ -602,16 +636,15 @@ func registerUninstallEntry() {
 		func(p string) bool { st, err := os.Stat(p); return err == nil && st.Mode().IsRegular() })
 	// uninstallDisplayName (branding_policy.go) owns the listing name.
 	values := uninstallEntryValues(effectiveBranding(), target, wootcDir())
-	// Brand names may contain quotes. PowerShell uses doubled apostrophes,
-	// not Go's backslash quoting, in a literal string.
-	quote := func(value string) string { return "'" + strings.ReplaceAll(value, "'", "''") + "'" }
-	script := "New-Item -Path " + quote(uninstallRegKey) + " -Force | Out-Null; "
+	// Brand names may contain quotes; reuse the PowerShell literal encoder.
+	quote := powershellLiteral
+	script := uninstallRegistryOwnershipScript(true)
 	for name, value := range values {
 		script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name " + quote(name) + " -Value " + quote(value) + "; "
 	}
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoModify -Value 1 -Type DWord; "
 	script += "Set-ItemProperty -Path " + quote(uninstallRegKey) + " -Name NoRepair -Value 1 -Type DWord"
-	_ = runPowerShell(script)
+	return runPowerShell(script)
 }
 
 // moveRunningImageAside renames this program out of a directory uninstall is
@@ -638,9 +671,10 @@ func moveRunningImageAside(removed []string) error {
 	return nil
 }
 
-func unregisterUninstallEntry() {
-	_ = runPowerShell(fmt.Sprintf(
-		`Remove-Item -Path %q -Recurse -Force -ErrorAction SilentlyContinue`, uninstallRegKey))
+func unregisterUninstallEntry() error {
+	return runPowerShell(uninstallRegistryOwnershipScript(false) + fmt.Sprintf(
+		`if (Test-Path -LiteralPath %s) { Remove-Item -LiteralPath %s -Recurse -Force }; if (Test-Path -LiteralPath %s) { throw 'Uninstall registry entry remains' }`,
+		powershellLiteral(uninstallRegKey), powershellLiteral(uninstallRegKey), powershellLiteral(uninstallRegKey)))
 }
 
 // ── Reboot ────────────────────────────────────────────────────────────────────
@@ -652,15 +686,6 @@ func rebootWindows() error {
 }
 
 // ── Interactive user derivation (over-the-shoulder UAC) ───────────────────────
-
-func getElevationEnvUser() string {
-	for _, env := range []string{"WOOTC_ORIGINAL_USER", "WOOTC_INTERACTIVE_USER"} {
-		if val := strings.TrimSpace(os.Getenv(env)); val != "" {
-			return val
-		}
-	}
-	return ""
-}
 
 func queryInteractiveUser() string {
 	// Under over-the-shoulder UAC, user.Current() gives the elevating admin.

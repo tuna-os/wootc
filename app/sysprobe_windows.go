@@ -146,26 +146,22 @@ func totalRAMGB() float64 {
 // ── Fast Startup ──────────────────────────────────────────────────────────────
 
 func disableFastStartup() error {
-	// Record what is about to change so uninstall can put it back. Without
-	// this, "Windows is unchanged" after uninstall was false: hibernation
-	// stayed permanently off (the audit's finding). Best-effort — a missing
-	// marker just means uninstall leaves power settings alone.
-	recordPriorPowerState()
+	// Do not change power settings until their prior values are durable and
+	// the Add/Remove key is positively attributable to this installation.
+	if err := recordPriorPowerState(); err != nil {
+		return err
+	}
 	// `powercfg /h off` is the part that matters and the part we were missing
 	// (#63): clearing HiberbootEnabled disables FAST STARTUP, but a genuinely
 	// hibernated machine still has hiberfil.sys and a stale on-disk NTFS
 	// state. Turning hibernation off removes the file as well, so Linux can
 	// mount the volume read-write safely.
-	//
-	// Best-effort on the powercfg half: on some systems it is policy-disabled,
-	// and the registry change is still worth making. The Hibernated gate in
-	// getSystemInfo is what actually refuses to proceed.
-	if err := runPowerShell(`powercfg.exe /h off`); err != nil {
-		// Not fatal — report through the gate, not by aborting here.
-		_ = err
+	if err := runPowerShell(`$ErrorActionPreference='Stop'; powercfg.exe /h off; if ($LASTEXITCODE -ne 0) { throw 'Could not disable hibernation safely' }`); err != nil {
+		return err
 	}
-	return runPowerShell(`Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" ` +
-		`-Name "HiberbootEnabled" -Value 0 -Type DWord -Force`)
+	return runPowerShell(`$ErrorActionPreference='Stop'; Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" ` +
+		`-Name "HiberbootEnabled" -Value 0 -Type DWord -Force; ` +
+		`if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled).HiberbootEnabled -ne 0) { throw 'Fast Startup disable was not observed' }`)
 }
 
 // priorPowerPath records the pre-install hibernation/Fast Startup state, so
@@ -175,78 +171,122 @@ func priorPowerPath() string {
 	return filepath.Join(wootcDir(), "install", "prior-power.txt")
 }
 
-func recordPriorPowerState() {
-	// Only the FIRST install on this machine gets to define "prior": a
-	// reinstall after wootc already turned things off must not record the
-	// off state as the thing to restore to.
-	if _, err := os.Stat(priorPowerPath()); err == nil {
-		return
+func recordPriorPowerState() error {
+	if err := verifyUninstallRegistryOwnership(); err != nil {
+		return err
 	}
-	hibernate, err1 := runPowerShellOutput(`(Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name HibernateEnabled -ErrorAction SilentlyContinue).HibernateEnabled`)
-	hiberboot, err2 := runPowerShellOutput(`(Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled`)
-	if err1 != nil && err2 != nil {
-		return
+	// A retry never redefines "prior" after an earlier run disabled power.
+	var hib, hbb string
+	missing := false
+	if data, err := os.ReadFile(priorPowerPath()); err == nil {
+		hib, hbb = parsePriorPower(string(data))
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("read saved power settings: %w", err)
+	} else {
+		missing = true
+		var err1, err2 error
+		hib, err1 = runPowerShellOutput(`$ErrorActionPreference='Stop'; (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name HibernateEnabled).HibernateEnabled`)
+		hbb, err2 = runPowerShellOutput(`$ErrorActionPreference='Stop'; (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled).HiberbootEnabled`)
+		if err1 != nil || err2 != nil {
+			return fmt.Errorf("cannot observe prior hibernation/Fast Startup settings; no settings changed (hibernate: %v; Fast Startup: %v)", err1, err2)
+		}
+		hib, hbb = strings.TrimSpace(hib), strings.TrimSpace(hbb)
 	}
-	hib, hbb := strings.TrimSpace(hibernate), strings.TrimSpace(hiberboot)
-	content := fmt.Sprintf("hibernate=%s\nhiberboot=%s\n", hib, hbb)
-	_ = os.MkdirAll(filepath.Dir(priorPowerPath()), 0o755)
-	_ = os.WriteFile(priorPowerPath(), []byte(content), 0o644)
-	// Mirror into the Add/Remove key, which survives what the file cannot.
-	// The file lives under C:\wootc\install — so a user who deletes C:\wootc
-	// by hand and THEN uninstalls (the orphaned-leftovers path, and a case
-	// #238 tests explicitly) destroys the only record of what to restore, and
-	// restorePriorPowerState() silently returns having changed nothing:
-	// hibernation stays off forever on a machine we promised to leave
-	// unchanged. The registry key is removed by unregisterUninstallEntry(),
-	// which runs immediately AFTER the restore, so the mirror outlives exactly
-	// the window it is needed for.
-	_ = runPowerShell(fmt.Sprintf(
-		`New-Item -Path %q -Force | Out-Null; `+
-			`Set-ItemProperty -Path %q -Name WootcPriorHibernate -Value %q; `+
-			`Set-ItemProperty -Path %q -Name WootcPriorHiberboot -Value %q`,
-		uninstallRegKey, uninstallRegKey, hib, uninstallRegKey, hbb))
+	if (hib != "0" && hib != "1") || (hbb != "0" && hbb != "1") {
+		return fmt.Errorf("saved or observed Windows power settings are incomplete; preserve the install record and resolve it before retrying")
+	}
+	if missing {
+		if err := os.MkdirAll(filepath.Dir(priorPowerPath()), 0700); err != nil {
+			return err
+		}
+		file, err := os.OpenFile(priorPowerPath(), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(file, "hibernate=%s\nhiberboot=%s\n", hib, hbb); err != nil {
+			_ = file.Close()
+			return err
+		}
+		if err := file.Sync(); err != nil {
+			_ = file.Close()
+			return err
+		}
+		if err := file.Close(); err != nil {
+			return err
+		}
+	}
+	// The mirror survives removal of the installer folder. A failed mirror
+	// write prevents mutation, and a retry reuses the already-durable file.
+	return runPowerShell(uninstallRegistryOwnershipScript(true) + fmt.Sprintf(
+		`Set-ItemProperty -LiteralPath %s -Name WootcPriorHibernate -Value %s; `+
+			`Set-ItemProperty -LiteralPath %s -Name WootcPriorHiberboot -Value %s; `+
+			`$saved = Get-ItemProperty -LiteralPath %s; `+
+			`if ($saved.WootcPriorHibernate -cne %s -or $saved.WootcPriorHiberboot -cne %s) { throw 'Prior power mirror was not observed' }`,
+		powershellLiteral(uninstallRegKey), powershellLiteral(hib), powershellLiteral(uninstallRegKey), powershellLiteral(hbb), powershellLiteral(uninstallRegKey), powershellLiteral(hib), powershellLiteral(hbb)))
 }
 
-// readPriorPowerMirror reads the registry copy of the pre-install power state.
-// Returns ("", "") when no mirror exists — an install that predates the mirror,
-// or a machine wootc never touched.
-func readPriorPowerMirror() (hibernate, hiberboot string) {
-	h, err1 := runPowerShellOutput(fmt.Sprintf(
-		`(Get-ItemProperty -Path %q -Name WootcPriorHibernate -ErrorAction SilentlyContinue).WootcPriorHibernate`,
-		uninstallRegKey))
-	b, err2 := runPowerShellOutput(fmt.Sprintf(
-		`(Get-ItemProperty -Path %q -Name WootcPriorHiberboot -ErrorAction SilentlyContinue).WootcPriorHiberboot`,
-		uninstallRegKey))
-	if err1 != nil {
-		h = ""
+// readPriorPowerMirror distinguishes absence from a failed observation.
+func readPriorPowerMirror() (hibernate, hiberboot string, err error) {
+	out, err := runPowerShellOutput(uninstallRegistryOwnershipScript(false) + fmt.Sprintf(
+		`if (Test-Path -LiteralPath %s) { $saved = Get-ItemProperty -LiteralPath %s; `+
+			`[pscustomobject]@{hibernate=[string]$saved.WootcPriorHibernate;hiberboot=[string]$saved.WootcPriorHiberboot} | ConvertTo-Json -Compress }`,
+		powershellLiteral(uninstallRegKey), powershellLiteral(uninstallRegKey)))
+	if err != nil {
+		return "", "", fmt.Errorf("observe saved power mirror: %w", err)
 	}
-	if err2 != nil {
-		b = ""
+	if strings.TrimSpace(out) == "" {
+		return "", "", nil
 	}
-	return strings.TrimSpace(h), strings.TrimSpace(b)
+	var saved struct {
+		Hibernate string `json:"hibernate"`
+		Hiberboot string `json:"hiberboot"`
+	}
+	if err := unmarshalJSON([]byte(out), &saved); err != nil {
+		return "", "", fmt.Errorf("parse saved power mirror: %w", err)
+	}
+	return saved.Hibernate, saved.Hiberboot, nil
 }
 
-// restorePriorPowerState re-enables hibernation / Fast Startup if — and only
-// if — they were on before wootc touched them. Best-effort by design.
-func restorePriorPowerState() {
-	hibernate, hiberboot := priorPowerValues()
+// restorePriorPowerState restores recorded enabled settings and observes the
+// result. The caller must retain the marker and registry mirror on failure.
+func restorePriorPowerState() error {
+	hibernate, hiberboot, err := priorPowerValues()
+	if err != nil {
+		return err
+	}
+	if hibernate == "" && hiberboot == "" {
+		return nil // No recorded change, as on a fresh uninstall.
+	}
+	if (hibernate != "0" && hibernate != "1") || (hiberboot != "0" && hiberboot != "1") {
+		return fmt.Errorf("saved Windows power settings are incomplete; keeping both restore records")
+	}
 	if hibernate == "1" {
-		_ = runPowerShell(`powercfg.exe /h on`)
+		if err := runPowerShell(`$ErrorActionPreference='Stop'; powercfg.exe /h on; ` +
+			`if ($LASTEXITCODE -ne 0) { throw 'Could not restore hibernation' }; ` +
+			`if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name HibernateEnabled).HibernateEnabled -ne 1) { throw 'Hibernation restoration was not observed' }`); err != nil {
+			return fmt.Errorf("restore hibernation: %w", err)
+		}
 	}
 	if hiberboot == "1" {
-		_ = runPowerShell(`Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" ` +
-			`-Name "HiberbootEnabled" -Value 1 -Type DWord -Force`)
+		if err := runPowerShell(`$ErrorActionPreference='Stop'; Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" ` +
+			`-Name "HiberbootEnabled" -Value 1 -Type DWord -Force; ` +
+			`if ((Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled).HiberbootEnabled -ne 1) { throw 'Fast Startup restoration was not observed' }`); err != nil {
+			return fmt.Errorf("restore Fast Startup: %w", err)
+		}
 	}
+	return nil
 }
 
 // priorPowerValues resolves the recorded pre-install state, file first and
 // registry mirror second. The file is authoritative when present; the mirror
 // is what makes the orphaned-leftovers path restorable at all, because that
 // path begins by deleting the file.
-func priorPowerValues() (hibernate, hiberboot string) {
+func priorPowerValues() (hibernate, hiberboot string, err error) {
 	if b, err := os.ReadFile(priorPowerPath()); err == nil {
-		return parsePriorPower(string(b))
+		hibernate, hiberboot = parsePriorPower(string(b))
+		return hibernate, hiberboot, nil
+	} else if !os.IsNotExist(err) {
+		return "", "", fmt.Errorf("read saved power settings: %w", err)
 	}
 	return readPriorPowerMirror()
 }
-

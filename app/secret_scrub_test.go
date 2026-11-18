@@ -53,11 +53,8 @@ func TestScrubFileZeroesBeforeRemoving(t *testing.T) {
 	if err := os.WriteFile(p, []byte("123456"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// Hold a second handle to observe the content after the overwrite.
-	h, err := os.Open(p)
-	if err != nil {
-		t.Fatal(err)
-	}
+	// Observe the overwritten object without preventing its removal.
+	h := openScrubObservation(t, p)
 	defer h.Close()
 	if err := scrubFile(p); err != nil {
 		t.Fatal(err)
@@ -70,5 +67,31 @@ func TestScrubFileZeroesBeforeRemoving(t *testing.T) {
 		if b != 0 {
 			t.Fatalf("content not zeroed: %q", buf)
 		}
+	}
+	if err := h.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(p); !os.IsNotExist(err) {
+		t.Fatalf("scrubbed file was not removed: %v", err)
+	}
+}
+
+func TestScrubFilePreservesSecretWhenOverwriteIsDenied(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "readonly-key")
+	const secret = "fixture secret bytes"
+	if err := os.WriteFile(path, []byte(secret), 0400); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(path, 0600)
+	if file, err := os.OpenFile(path, os.O_WRONLY, 0); err == nil {
+		file.Close()
+		t.Skip("this account can bypass the read-only file permission")
+	}
+	if err := scrubFile(path); err == nil {
+		t.Fatal("failed overwrite was reported as a successful scrub")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != secret {
+		t.Fatalf("unscrubbed secret was unlinked instead of preserved for retry: %q, %v", data, err)
 	}
 }

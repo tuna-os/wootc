@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -84,7 +85,7 @@ func readESPOwnership(espPath string) (map[string]bool, error) {
 
 func readESPOwnershipFile(path string) (map[string]bool, error) {
 	owned := map[string]bool{}
-	f, err := os.Open(path)
+	f, err := openESPManifest(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return owned, nil
@@ -106,7 +107,10 @@ func readESPOwnershipFile(path string) (map[string]bool, error) {
 		}
 		owned[normalizeESPPath(line)] = true
 	}
-	return owned, sc.Err()
+	if err := sc.Err(); err != nil {
+		return nil, err
+	}
+	return owned, nil
 }
 
 // normalizeESPPath makes comparisons independent of separator and case. ESPs
@@ -228,6 +232,11 @@ func recordESPOwnership(espPath string, relPaths []string) error {
 // sibling temp file, flush it to the device, then rename over: a reader sees
 // either the whole old manifest or the whole new one, and an interruption at
 // any point leaves one of those two on disk.
+//
+// Windows may refuse replacement while a destination handle remains open,
+// even when it shares deletion. Publication is bounded, not a promise to
+// outwait an indefinitely held snapshot: failure leaves the old manifest
+// authoritative and stageESPFile must not start the boot-file write.
 func writeESPManifest(espPath, content string) error {
 	final := espManifestPath(espPath)
 	return persistManifest(final+".tmp", final, content)
@@ -318,7 +327,12 @@ func writeFileSynced(path, content string) error {
 // manifestLanded reports whether final already holds exactly the content this
 // write intended — the ground truth a lying rename return code can't fake.
 func manifestLanded(final, content string) bool {
-	b, err := os.ReadFile(final)
+	f, err := openESPManifest(final)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	b, err := io.ReadAll(f)
 	return err == nil && string(b) == content
 }
 
