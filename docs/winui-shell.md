@@ -64,10 +64,13 @@ shell/
 
 ## Build dependency and OS evidence
 
-Current source pins **Windows App SDK 2.6.4** in
-[`Wootc.Shell.csproj`](../shell/Wootc.Shell/Wootc.Shell.csproj) and
-**.NET SDK 10.0.403** in [`global.json`](../shell/global.json), with roll-forward
-disabled. Install that SDK to reproduce the build. The application still
+The source pins the Windows App SDK in the `Microsoft.WindowsAppSDK`
+package reference of
+[`Wootc.Shell.csproj`](../shell/Wootc.Shell/Wootc.Shell.csproj), and the
+.NET SDK in `sdk.version` of [`global.json`](../shell/global.json), with
+roll-forward disabled. Renovate updates both pins, so this page does not copy
+the numbers. Install the exact .NET SDK that `global.json` names to reproduce
+the build; another SDK version fails. The application still
 targets `net8.0-windows10.0.19041.0`; SDK and target framework are different.
 Older hosted runs on this page used earlier pins and do not certify the new
 combination or the minimum OS.
