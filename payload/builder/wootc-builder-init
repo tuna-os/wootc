@@ -1,5 +1,5 @@
 #!/bin/sh
-# A helper VM owns only two dedicated image files exported as VirtIO disks.
+# A helper VM owns only explicitly attached, dedicated image files.
 # Never discover or mount a Windows host volume from this environment.
 set -eu
 . /lib/wootc-builder.sh

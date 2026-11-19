@@ -23,13 +23,15 @@ log() { printf '[wootc-import-browser] %s\n' "$*"; }
 name="${1:?usage: wootc-import-browser <username> [linuxuser]}"
 target="${2:-$name}"
 
-mountpoint -q /run/wootc/host || { log "ERROR: /run/wootc/host not mounted"; exit 1; }
-home=$(getent passwd "$target" | cut -d: -f6)
+HOST="${WOOTC_HOST:-/run/wootc/host}"
+mountpoint -q "$HOST" || { log "ERROR: $HOST not mounted"; exit 1; }
+passwd_record=$(getent passwd "$target")
+IFS=: read -r _ _ target_uid target_gid _ home _ <<< "$passwd_record"
+[[ "$target_uid" =~ ^[0-9]+$ && "$target_gid" =~ ^[0-9]+$ ]] || { log "ERROR: invalid target account"; exit 1; }
 [[ -d "$home" ]] || { log "ERROR: no home for $name"; exit 1; }
-winprofile="/run/wootc/host/Users/$name"
-[[ -d "$winprofile" ]] || { log "no Windows profile for $name"; exit 0; }
 
 # Respect the migration chooser: skip browsers if the user turned them off.
+browsers_enabled=true
 if command -v wootc-selection >/dev/null 2>&1; then
     _sel_rc=0
     wootc-selection "$target" browsers >/dev/null 2>&1 || _sel_rc=$?
@@ -37,11 +39,9 @@ if command -v wootc-selection >/dev/null 2>&1; then
     # fails OPEN: never silently drop a migration because a helper broke.
     if [ "$_sel_rc" -eq 1 ]; then
         log "browsers: skipped (turned off in the migration chooser)"
-        exit 0
+        browsers_enabled=false
     fi
 fi
-
-imported=()
 
 item_on() {
     local item="$1" rc=0
@@ -50,78 +50,426 @@ item_on() {
     [[ "$rc" -ne 1 ]]
 }
 
-# ── Firefox: whole-profile copy ─────────────────────────────────────────────
-FF_WIN="$winprofile/AppData/Roaming/Mozilla/Firefox"
-if item_on firefox && [[ -f "$FF_WIN/profiles.ini" ]]; then
-    # Pick the default profile dir from profiles.ini.
-    ffprof=$(awk -F= '/^\[Install/{ins=1} ins&&/^Default=/{print $2; exit}' "$FF_WIN/profiles.ini")
-    [[ -z "$ffprof" ]] && ffprof=$(awk -F= '/^Path=/{print $2; exit}' "$FF_WIN/profiles.ini")
-    if [[ -n "$ffprof" && -d "$FF_WIN/$ffprof" ]]; then
-        for ff_linux in \
-            "$home/.var/app/org.mozilla.firefox/.mozilla/firefox" \
-            "$home/.mozilla/firefox"; do
-            parent=$(dirname "$ff_linux")
-            [[ -d "$parent" ]] || continue
-            dest="$ff_linux/windows-import.wootc"
-            mkdir -p "$dest"
-            # Copy profile, skipping lock files and the cache.
-            rsync -a --exclude 'lock' --exclude '.parentlock' \
-                  --exclude 'cache2' --exclude 'startupCache' \
-                  "$FF_WIN/$ffprof/" "$dest/" 2>/dev/null || cp -a "$FF_WIN/$ffprof/." "$dest/"
-            # Register it so Firefox's profile manager offers it.
-            ini="$ff_linux/profiles.ini"
-            if [[ -f "$ini" ]] && ! grep -q "windows-import.wootc" "$ini"; then
-                n=$(grep -c '^\[Profile' "$ini" || echo 0)
-                printf '\n[Profile%s]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\n' "$n" >> "$ini"
-            elif [[ ! -f "$ini" ]]; then
-                printf '[Profile0]\nName=Imported from Windows\nIsRelative=1\nPath=windows-import.wootc\nDefault=1\n\n[General]\nStartWithLastProfile=1\nVersion=2\n' > "$ini"
-            fi
-            imported+=("firefox")
-            log "Firefox profile imported for $name → $dest"
-            break
-        done
-    fi
-fi
-
-# ── Chrome + Edge → Linux Chrome: bookmarks & history ──────────────────────
-import_chromium() {
-    local src_default="$1" label="$2"
-    local item="${label,,}"
-    item_on "$item" || { log "$label: skipped (turned off in the migration chooser)"; return 0; }
-    [[ -d "$src_default" ]] || return 0
-    for chrome_linux in \
-        "$home/.var/app/com.google.Chrome/config/google-chrome/Default" \
-        "$home/.config/google-chrome/Default"; do
-        [[ -d "$(dirname "$(dirname "$chrome_linux")")" ]] || continue
-        mkdir -p "$chrome_linux"
-        for f in Bookmarks History; do
-            if [[ -f "$src_default/$f" && ! -f "$chrome_linux/$f" ]]; then
-                cp "$src_default/$f" "$chrome_linux/$f"
-                log "$label $f imported for $name"
-                imported+=("${label,,}-${f,,}")
-            fi
-        done
-        break
+# The copier keeps directory descriptors pinned, never follows source links,
+# and publishes complete staged data without replacing any existing app data.
+selected=()
+if "$browsers_enabled"; then
+    for browser in firefox chrome edge; do
+        item_on "$browser" && selected+=("$browser")
     done
-}
-import_chromium "$winprofile/AppData/Local/Google/Chrome/User Data/Default" "Chrome"
-import_chromium "$winprofile/AppData/Local/Microsoft/Edge/User Data/Default" "Edge"
-
-# ── Record outcome for the dashboard ────────────────────────────────────────
-state_dir="$home/.config/wootc"
-mkdir -p "$state_dir"
-{
-    printf '{\n  "imported": ['
-    for i in "${!imported[@]}"; do
-        sep=$([[ $i -lt $((${#imported[@]} - 1)) ]] && echo ', ' || echo '')
-        printf '"%s"%s' "${imported[$i]}" "$sep"
-    done
-    printf '],\n  "passwordsNote": "Chromium passwords are protected by your Windows login and cannot be moved automatically. Firefox passwords came across with the profile."\n}\n'
-} > "$state_dir/bridge-browser.json"
-chown -R "$target:" "$state_dir" 2>/dev/null || true
-
-if [[ ${#imported[@]} -eq 0 ]]; then
-    log "nothing to import for $name"
-else
-    log "done: ${imported[*]}"
 fi
+python3 - "$HOST" "$name" "$home" "$target_uid" "$target_gid" "${selected[@]}" <<'PY'
+import configparser
+import ctypes
+import errno
+import json
+import os
+import stat
+import sys
+import uuid
+
+host, username, home, uid, gid, *selected = sys.argv[1:]
+uid, gid = int(uid), int(gid)
+DIRECTORY = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+READ_FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+EXCLUDED = {"lock", ".parentlock", "cache2", "startupCache"}
+imported = []
+failures = []
+notes = []
+libc = ctypes.CDLL(None, use_errno=True)
+
+
+def identity(details):
+    return details.st_dev, details.st_ino, stat.S_IFMT(details.st_mode)
+
+
+def version(details):
+    return identity(details), details.st_size, details.st_mtime_ns, details.st_ctime_ns
+
+
+def inspect(fd, directory=False):
+    details = os.fstat(fd)
+    expected = stat.S_ISDIR if directory else stat.S_ISREG
+    if not expected(details.st_mode):
+        raise ValueError("source or destination is not a regular file/directory")
+    if getattr(details, "st_file_attributes", 0) & 0x400:
+        raise ValueError("Windows reparse points are not importable")
+    try:
+        attributes = os.listxattr(fd)
+    except OSError as error:
+        if error.errno not in (errno.ENOTSUP, errno.EOPNOTSUPP):
+            raise
+        attributes = []
+    if any(key in attributes for key in
+           ("system.ntfs_reparse_data", "system.ntfs_reparse_tag", "user.ntfs.reparse_data")):
+        raise ValueError("Windows reparse points are not importable")
+    return details
+
+
+class Tree:
+    def __init__(self, path, owner=None):
+        self.path = path
+        self.owner = owner
+        self.root = os.open(path, DIRECTORY)
+        self.descriptors = [self.root]
+        self.links = []
+        inspect(self.root, directory=True)
+        if owner is not None and os.fstat(self.root).st_uid != owner:
+            raise ValueError("target home is not owned by the selected user")
+
+    def directory(self, parts, create=False):
+        parent = self.root
+        for part in parts:
+            if not part or part in (".", "..") or "/" in part or "\\" in part:
+                raise ValueError("unsafe directory component")
+            created = False
+            if create:
+                try:
+                    os.mkdir(part, 0o700, dir_fd=parent)
+                    created = True
+                except FileExistsError:
+                    pass
+            fd = os.open(part, DIRECTORY, dir_fd=parent)
+            self.descriptors.append(fd)
+            inspect(fd, directory=True)
+            if created:
+                os.fchown(fd, uid, gid)
+                os.fsync(parent)
+            if self.owner is not None and os.fstat(fd).st_uid != self.owner:
+                raise ValueError("destination directory is not owned by the selected user")
+            self.links.append((parent, part, fd))
+            parent = fd
+        return parent
+
+    def verify(self):
+        if identity(os.stat(self.path, follow_symlinks=False)) != identity(os.fstat(self.root)):
+            raise ValueError("root directory changed during import")
+        for parent, name, fd in self.links:
+            if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(os.fstat(fd)):
+                raise ValueError("source or destination directory changed during import")
+
+    def close(self):
+        for fd in reversed(self.descriptors):
+            os.close(fd)
+
+
+def exists(parent, name):
+    try:
+        os.stat(name, dir_fd=parent, follow_symlinks=False)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def read_file(parent, name):
+    fd = os.open(name, READ_FILE, dir_fd=parent)
+    try:
+        before = inspect(fd)
+        with os.fdopen(os.dup(fd), "rb") as stream:
+            data = stream.read()
+        if (version(before) != version(os.fstat(fd))
+                or version(before) != version(os.stat(name, dir_fd=parent, follow_symlinks=False))):
+            raise ValueError("source file changed while reading")
+        return data
+    finally:
+        os.close(fd)
+
+
+def copy_file(source, name, destination):
+    source_fd = os.open(name, READ_FILE, dir_fd=source)
+    destination_fd = None
+    try:
+        before = inspect(source_fd)
+        destination_fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                                 os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=destination)
+        count = 0
+        while True:
+            chunk = os.read(source_fd, 1024 * 1024)
+            if not chunk:
+                break
+            count += len(chunk)
+            remaining = memoryview(chunk)
+            while remaining:
+                written = os.write(destination_fd, remaining)
+                if written == 0:
+                    raise OSError("short write while staging browser data")
+                remaining = remaining[written:]
+        if (count != before.st_size or version(before) != version(os.fstat(source_fd))
+                or version(before) != version(os.stat(name, dir_fd=source, follow_symlinks=False))):
+            raise ValueError("source file changed during copy")
+        os.fchown(destination_fd, uid, gid)
+        os.fsync(destination_fd)
+        return identity(os.fstat(destination_fd))
+    finally:
+        if destination_fd is not None:
+            os.close(destination_fd)
+        os.close(source_fd)
+
+
+def copy_directory(source, destination):
+    before = inspect(source, directory=True)
+    for name in sorted(os.listdir(source)):
+        if name in EXCLUDED:
+            continue
+        details = os.stat(name, dir_fd=source, follow_symlinks=False)
+        if stat.S_ISDIR(details.st_mode):
+            child = os.open(name, DIRECTORY, dir_fd=source)
+            target = None
+            try:
+                if identity(details) != identity(inspect(child, directory=True)):
+                    raise ValueError("source directory changed during copy")
+                os.mkdir(name, 0o700, dir_fd=destination)
+                target = os.open(name, DIRECTORY, dir_fd=destination)
+                copy_directory(child, target)
+                os.fchown(target, uid, gid)
+                os.fsync(target)
+                if identity(os.stat(name, dir_fd=source, follow_symlinks=False)) != identity(os.fstat(child)):
+                    raise ValueError("source directory replaced during copy")
+            finally:
+                if target is not None:
+                    os.close(target)
+                os.close(child)
+        elif stat.S_ISREG(details.st_mode):
+            copy_file(source, name, destination)
+        else:
+            raise ValueError("profile contains a symbolic link, reparse point, or special file")
+    if version(before) != version(os.fstat(source)):
+        raise ValueError("source directory changed during copy")
+
+
+def stage_directory(parent, app):
+    name = ".wootc-" + app + "-" + uuid.uuid4().hex + ".partial"
+    os.mkdir(name, 0o700, dir_fd=parent)
+    fd = os.open(name, DIRECTORY, dir_fd=parent)
+    return name, fd
+
+
+def publish_directory(parent, name, destination, stage_fd):
+    # renameat2 is required: ordinary rename may replace an empty directory
+    # created by another writer after preflight.
+    if identity(os.stat(name, dir_fd=parent, follow_symlinks=False)) != identity(os.fstat(stage_fd)):
+        raise ValueError("staging directory changed before publication")
+    rename = getattr(libc, "renameat2", None)
+    if rename is None:
+        raise OSError("renameat2(RENAME_NOREPLACE) is required for safe browser import")
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(parent, os.fsencode(name), parent, os.fsencode(destination), 1) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), destination)
+    if identity(os.stat(destination, dir_fd=parent, follow_symlinks=False)) != identity(os.fstat(stage_fd)):
+        raise ValueError("published Firefox directory changed during import")
+    os.fsync(parent)
+
+
+def relative_profile(data):
+    parser = configparser.RawConfigParser(strict=True)
+    parser.read_string(data.decode("utf-8-sig"))
+    profile = next((parser.get(section, "Default")
+                    for section in parser.sections()
+                    if section.startswith("Install") and parser.has_option(section, "Default")), "")
+    if not profile:
+        profile = next((parser.get(section, "Path")
+                        for section in parser.sections()
+                        if section.startswith("Profile") and parser.has_option(section, "Path")), "")
+    for section in parser.sections():
+        if (section.startswith("Profile") and parser.get(section, "Path", fallback="") == profile
+                and parser.get(section, "IsRelative", fallback="1") != "1"):
+            raise ValueError("absolute Firefox profile paths are not importable")
+    parts = profile.replace("\\", "/").split("/")
+    if (not profile or ":" in profile or any(ord(character) < 32 for character in profile)
+            or any(part in ("", ".", "..") for part in parts)):
+        raise ValueError("unsafe relative Firefox profile path")
+    return parts
+
+
+def import_firefox(source_tree, destination_tree, target):
+    try:
+        source = source_tree.directory(("Users", username, "AppData", "Roaming", "Mozilla", "Firefox"))
+    except FileNotFoundError:
+        return
+    if not exists(source, "profiles.ini"):
+        return
+    parts = relative_profile(read_file(source, "profiles.ini"))
+    profile = source_tree.directory(("Users", username, "AppData", "Roaming", "Mozilla", "Firefox", *parts))
+    if target is None:
+        raise ValueError("no existing Linux Firefox parent directory")
+    destination = destination_tree.directory(target, create=True)
+    if exists(destination, "windows-import.wootc"):
+        raise FileExistsError("existing Firefox import preserved; choose another profile explicitly")
+    name, staged = stage_directory(destination, "firefox")
+    try:
+        copy_directory(profile, staged)
+        source_tree.verify()
+        destination_tree.verify()
+        os.fchown(staged, uid, gid)
+        os.fsync(staged)
+        publish_directory(destination, name, "windows-import.wootc", staged)
+        destination_tree.verify()
+        imported.append("firefox")
+    finally:
+        os.close(staged)
+    # Never rewrite or append to existing browser metadata. A live Firefox
+    # writer does not cooperate with our lock and could otherwise lose edits.
+    if exists(destination, "profiles.ini"):
+        raise FileExistsError("Firefox profile copied; existing profiles.ini preserved. Register windows-import.wootc manually in Firefox's profile manager.")
+    registration = (b"[Profile0]\nName=Imported from Windows\nIsRelative=1\n"
+                    b"Path=windows-import.wootc\nDefault=1\n\n[General]\n"
+                    b"StartWithLastProfile=1\nVersion=2\n")
+    temporary = ".profiles-" + uuid.uuid4().hex
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                 0o600, dir_fd=destination)
+    try:
+        with os.fdopen(os.dup(fd), "wb") as stream:
+            stream.write(registration)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.fchown(fd, uid, gid)
+        os.fsync(fd)
+        destination_tree.verify()
+        if identity(os.stat(temporary, dir_fd=destination, follow_symlinks=False)) != identity(os.fstat(fd)):
+            raise ValueError("Firefox registration staging file changed")
+        os.link(temporary, "profiles.ini", src_dir_fd=destination,
+                dst_dir_fd=destination, follow_symlinks=False)
+        if identity(os.stat("profiles.ini", dir_fd=destination, follow_symlinks=False)) != identity(os.fstat(fd)):
+            raise ValueError("Firefox registration changed during publication")
+        destination_tree.verify()
+        os.unlink(temporary, dir_fd=destination)
+        os.fsync(destination)
+    finally:
+        os.close(fd)
+    if exists(profile, "logins.json") and exists(profile, "key4.db"):
+        notes.append("Firefox passwords came across with the profile.")
+    else:
+        notes.append("Firefox profile copied; saved-password availability is not verified.")
+
+
+def import_chromium(app, source_tree, destination_tree, target):
+    vendor = ("Google", "Chrome") if app == "chrome" else ("Microsoft", "Edge")
+    try:
+        source = source_tree.directory(("Users", username, "AppData", "Local", *vendor, "User Data", "Default"))
+    except FileNotFoundError:
+        return
+    files = [name for name in ("Bookmarks", "History") if exists(source, name)]
+    if not files:
+        return
+    if target is None:
+        raise ValueError("no existing Linux Chrome parent directory")
+    destination = destination_tree.directory(target, create=True)
+    for filename in files:
+        if exists(destination, filename):
+            raise FileExistsError("existing Linux Chrome " + filename + " preserved")
+    name, staged = stage_directory(destination, app)
+    complete = False
+    staged_files = {}
+    try:
+        for filename in files:
+            staged_files[filename] = copy_file(source, filename, staged)
+        source_tree.verify()
+        destination_tree.verify()
+        if identity(os.stat(name, dir_fd=destination, follow_symlinks=False)) != identity(os.fstat(staged)):
+            raise ValueError("staging directory changed before publication")
+        for filename in files:
+            destination_tree.verify()
+            if identity(os.stat(filename, dir_fd=staged, follow_symlinks=False)) != staged_files[filename]:
+                raise ValueError("staged Chromium file changed before publication")
+            os.link(filename, filename, src_dir_fd=staged,
+                    dst_dir_fd=destination, follow_symlinks=False)
+            if identity(os.stat(filename, dir_fd=destination, follow_symlinks=False)) != staged_files[filename]:
+                raise ValueError("Chromium destination file changed during publication")
+            destination_tree.verify()
+            imported.append(app + "-" + filename.lower())
+            os.fsync(destination)
+        complete = True
+    finally:
+        if complete:
+            for filename in files:
+                os.unlink(filename, dir_fd=staged)
+        os.close(staged)
+        if complete:
+            os.rmdir(name, dir_fd=destination)
+            os.fsync(destination)
+
+
+def choose_parent(candidates):
+    return next((parts for parts, parent in candidates
+                 if os.path.isdir(os.path.join(home, *parent))), None)
+
+
+destination_tree = source_tree = state_tree = None
+try:
+    if not username or username in (".", "..") or "/" in username or "\\" in username:
+        raise ValueError("unsafe Windows username")
+    # getent supplies the trusted home; resolve distro-owned /home aliases
+    # once, then pin and recheck every user-controlled descendant.
+    destination_tree = Tree(os.path.realpath(home), owner=uid)
+    firefox_target = choose_parent((
+        ((".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
+         (".var", "app", "org.mozilla.firefox", ".mozilla")),
+        ((".mozilla", "firefox"), (".mozilla",)),
+    ))
+    chromium_target = choose_parent((
+        ((".var", "app", "com.google.Chrome", "config", "google-chrome", "Default"),
+         (".var", "app", "com.google.Chrome", "config")),
+        ((".config", "google-chrome", "Default"), (".config",)),
+    ))
+    # Browser-directory races must not prevent recording a failed result in
+    # the independently pinned state directory.
+    state_tree = Tree(os.path.realpath(home), owner=uid)
+    state = state_tree.directory((".config", "wootc"), create=True)
+
+    def record(status, note):
+        temporary = ".browser-status-" + uuid.uuid4().hex
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                     0o600, dir_fd=state)
+        try:
+            with os.fdopen(os.dup(fd), "w", encoding="utf-8") as stream:
+                json.dump({
+                    "status": status, "imported": imported, "failures": failures,
+                    "verified": False, "note": note,
+                    "state": "failed" if failures else ("native" if imported else "unchanged"),
+                    "errors": [failure["app"] + ": " + failure["error"] for failure in failures],
+                    "passwordsNote": "Chromium passwords need a fresh sign-in. " + " ".join(notes),
+                }, stream)
+                stream.write("\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.fchown(fd, uid, gid)
+            os.fsync(fd)
+            state_tree.verify()
+            os.replace(temporary, "bridge-browser.json", src_dir_fd=state, dst_dir_fd=state)
+            os.fsync(state)
+        finally:
+            os.close(fd)
+
+    record("partial", "Import started; no completed copy has been recorded.")
+    try:
+        if selected:
+            source_tree = Tree(host)
+        for app in selected:
+            try:
+                if app == "firefox":
+                    import_firefox(source_tree, destination_tree, firefox_target)
+                else:
+                    import_chromium(app, source_tree, destination_tree, chromium_target)
+            except (OSError, ValueError, configparser.Error, UnicodeError) as error:
+                failures.append({"app": app, "error": str(error)})
+    except (OSError, ValueError) as error:
+        failures.append({"app": "source", "error": str(error)})
+    status = ("partial" if imported else "failed") if failures else ("success" if imported else "partial")
+    record(status, "Copy results only; browser login and application acceptance are not verified.")
+    for failure in failures:
+        print("[wootc-import-browser] " + failure["app"] + ": " + failure["error"], file=sys.stderr)
+    print("[wootc-import-browser] copied: " + (", ".join(imported) or "nothing"))
+except (OSError, ValueError) as error:
+    print("[wootc-import-browser] " + str(error), file=sys.stderr)
+    sys.exit(1)
+finally:
+    if source_tree is not None:
+        source_tree.close()
+    if destination_tree is not None:
+        destination_tree.close()
+    if state_tree is not None:
+        state_tree.close()
+sys.exit(1 if failures else 0)
+PY

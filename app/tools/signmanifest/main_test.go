@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"wootc/internal/privatefiletest"
 )
 
 func TestReleaseSigningRoundTrip(t *testing.T) {
@@ -16,11 +18,17 @@ func TestReleaseSigningRoundTrip(t *testing.T) {
 	if err := run([]string{"generate", seed, pub}); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := os.Stat(seed); err != nil || info.Mode().Perm() != 0600 {
-		t.Fatalf("private seed permissions: %v %v", info, err)
+	privatefiletest.AssertPrivate(t, seed)
+	originalSeed, err := os.ReadFile(seed)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if err := run([]string{"generate", seed, pub}); err == nil {
 		t.Fatal("overwrote signing identity")
+	}
+	preservedSeed, err := os.ReadFile(seed)
+	if err != nil || string(preservedSeed) != string(originalSeed) {
+		t.Fatalf("refused generation changed signing identity: %v", err)
 	}
 	if err := os.WriteFile(manifest, []byte(strings.Repeat("f", 64)+"  deployer-vmlinuz\n"), 0600); err != nil {
 		t.Fatal(err)

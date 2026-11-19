@@ -271,7 +271,7 @@ func readNativeConfigurationTimed(ctx context.Context, roots []string, selectedR
 	}
 	return NativeConfigurationSnapshot{SchemaVersion: 1, BrandID: brandID, RootBinding: binding, RootScope: scope,
 		CatalogueSource: catalogueSource, CatalogueMetadataSHA256: hex.EncodeToString(sum[:]), PolicySource: policySource,
-		Policy: policy, Branding: brand, Images: images, Defaults: NativeConfigurationDefaults{DiskSizeGB: 40, Encryption: "tpm2-luks", Bootloader: "auto"},
+		Policy: policy, Branding: brand, Images: images, Defaults: NativeConfigurationDefaults{DiskSizeGB: 40, Encryption: "none", Bootloader: "auto"},
 		Steps: InstallerSteps(), Bundle: bundle, StorageStatus: "not-observed", Storage: []NativeConfigurationStorage{}}, nil
 }
 

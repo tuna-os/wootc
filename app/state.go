@@ -39,6 +39,10 @@ func statePath() string {
 // writeState persists the lifecycle state. Best-effort: state is advisory
 // for UX and tests; a write failure must never abort an install step.
 func writeState(state, phase, errMsg string) {
+	writeStateAt(statePath(), state, phase, errMsg)
+}
+
+func writeStateAt(path, state, phase, errMsg string) {
 	s := LifecycleState{
 		State:     state,
 		Phase:     phase,
@@ -47,7 +51,7 @@ func writeState(state, phase, errMsg string) {
 		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
 		UpdatedBy: "wootc-installer",
 	}
-	_ = marshalJSONToFile(statePath(), s)
+	_ = marshalJSONToFile(path, s)
 }
 
 // readState loads state.json; ok is false when it does not exist or is

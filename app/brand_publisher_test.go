@@ -11,30 +11,17 @@ package main
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// asBrandBuild makes this test binary behave like the -X main.brandID=<id>
-// exe, with the runtime overlays that would mask the embedded brand cleared.
+// asBrandBuild selects the embedded build identity for this test. Callers
+// resolve runtime overlays only from their own temporary directories.
 func asBrandBuild(t *testing.T, id string) {
 	t.Helper()
 	old := brandID
 	brandID = id
 	t.Cleanup(func() { brandID = old })
-	for _, name := range []string{"brand.json", "brand.css", "images.json", "channel.txt"} {
-		path := filepath.Join(wootcDir(), name)
-		saved, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		if err := os.Remove(path); err != nil {
-			t.Fatalf("clear overlay %s: %v", path, err)
-		}
-		t.Cleanup(func() { _ = os.WriteFile(path, saved, 0o644) })
-	}
 }
 
 func embeddedBrandJSON(t *testing.T, id string) Branding {
@@ -61,7 +48,7 @@ func TestUnblessedBrandsNeverClaimTheOwnerAsPublisher(t *testing.T) {
 	unblessed := 0
 	for id, record := range loadBlessings(t) {
 		asBrandBuild(t, id)
-		got := effectiveBranding()
+		got := effectiveBrandingAt(t.TempDir())
 		declared := embeddedBrandJSON(t, id)
 		owner := strings.TrimSpace(strings.SplitN(record.Mark.Owner, "—", 2)[0])
 		if record.SelfOwned {
@@ -129,7 +116,7 @@ func TestOwnerMayBeNamed(t *testing.T) {
 // TunaOS as the publisher — not Universal Blue, who has not been asked.
 func TestBazziteBuild_PublisherIsTheDistributorWhileUnblessed(t *testing.T) {
 	asBrandBuild(t, "bazzite")
-	b := effectiveBranding()
+	b := effectiveBrandingAt(t.TempDir())
 	if b.Publisher != "TunaOS" {
 		t.Errorf("bazzite publisher = %q, want TunaOS while blessing.json is pending", b.Publisher)
 	}

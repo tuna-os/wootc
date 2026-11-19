@@ -15,6 +15,8 @@ public sealed class InstallProgress
     public const string ArmStep = "Making Linux bootable on your machine";
     private readonly IReadOnlyList<StepDefinition> steps;
     private readonly HashSet<string> completed = new(StringComparer.Ordinal);
+    private readonly List<string> hardwareWarnings = new();
+    public IReadOnlyList<string> HardwareWarnings => hardwareWarnings;
     public string Step { get; private set; } = "";
     public string Message { get; private set; } = "";
     public double Percent { get; private set; }
@@ -38,6 +40,8 @@ public sealed class InstallProgress
         if (Done) return;
         Step = !string.IsNullOrEmpty(update.PhaseId) ? update.PhaseId : update.Step;
         Message = update.Message;
+        if (update.Message.StartsWith("Hardware compatibility WARNING", StringComparison.Ordinal) && !hardwareWarnings.Contains(update.Message))
+            hardwareWarnings.Add(update.Message);
         Percent = double.IsFinite(update.Percent) ? Math.Clamp(update.Percent, 0, 100) : Percent;
         if (!string.IsNullOrEmpty(update.Error)) Error = update.Error;
         if (update.Warnings is not null)
@@ -99,6 +103,7 @@ public static class InstallProgressText
         if (progress.Error is { } error) { lines.Add(ErrorLine(error)); lines.Add(ErrorCalm(progress.PastArm)); }
         foreach (string warning in progress.Warnings) lines.Add("Hardware compatibility warning: " + warning);
         if (progress.Step == InstallProgress.BitLockerStep) lines.Add(BitLockerKeyCopy(storageDrive, brand));
+        lines.AddRange(progress.HardwareWarnings);
         lines.Add(Calm(progress.PastArm, brand));
         return lines;
     }

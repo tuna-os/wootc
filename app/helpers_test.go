@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"wootc/internal/privatefiletest"
 )
 
 func TestMarshalJSONRoundTrip(t *testing.T) {
@@ -50,13 +52,7 @@ func TestMarshalJSONToFileRoundTrip(t *testing.T) {
 	if err := marshalJSONToFile(path, map[string]string{"k": "v"}); err != nil {
 		t.Fatal(err)
 	}
-	st, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := st.Mode().Perm(); perm != 0o600 {
-		t.Errorf("marshalJSONToFile perm = %o, want 600", perm)
-	}
+	privatefiletest.AssertPrivate(t, path)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +60,17 @@ func TestMarshalJSONToFileRoundTrip(t *testing.T) {
 	var m map[string]string
 	if err := unmarshalJSON(data, &m); err != nil || m["k"] != "v" {
 		t.Errorf("round trip = %v, %v", m, err)
+	}
+	if err := marshalJSONToFile(path, map[string]string{"k": "replacement"}); err != nil {
+		t.Fatal(err)
+	}
+	privatefiletest.AssertPrivate(t, path)
+	data, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := unmarshalJSON(data, &m); err != nil || m["k"] != "replacement" {
+		t.Fatalf("overwrite round trip = %v, %v", m, err)
 	}
 }
 

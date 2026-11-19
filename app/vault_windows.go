@@ -83,7 +83,10 @@ func writeVault(cfg InstallConfig) error {
 	// installed system so wootc-mount-user-dirs can bridge each directory to
 	// the right account even when the names differ ("Alice Smith" →
 	// alice-smith, and the primary's freely chosen username).
-	others := listWindowsProfiles(cfg.Username)
+	others, err := resolveProfileAccounts(cfg.Username, cfg.ProfileAccounts)
+	if err != nil {
+		return err
+	}
 	profileMap := map[string]string{}
 	if dir := primaryProfileDir(); dir != "" {
 		profileMap[dir] = cfg.Username

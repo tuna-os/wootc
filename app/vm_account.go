@@ -31,8 +31,12 @@ func validateVMInstallConfig(cfg VMInstallConfig) error {
 	if cfg.ImageRef == "" || strings.ContainsAny(cfg.ImageRef, " \t\r\n\x00") {
 		return fmt.Errorf("select a valid operating system image")
 	}
-	if !vmUsernamePattern.MatchString(cfg.Username) || cfg.Username == "root" {
-		return fmt.Errorf("choose a Linux username of up to 32 lowercase letters, digits, underscores or hyphens, beginning with a letter or underscore; root is reserved")
+	if !vmUsernamePattern.MatchString(cfg.Username) {
+		return fmt.Errorf("choose a Linux username of up to 32 lowercase letters, digits, underscores or hyphens, beginning with a letter or underscore")
+	}
+	switch cfg.Username {
+	case "root", "nobody", "daemon", "bin", "sys":
+		return fmt.Errorf("choose a Linux username that is not reserved for a system account")
 	}
 	if cfg.Password == "" || len(cfg.Password) > 1024 || strings.ContainsAny(cfg.Password, "\x00\r\n") {
 		return fmt.Errorf("enter a password without line breaks, up to 1024 bytes")

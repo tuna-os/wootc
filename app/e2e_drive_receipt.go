@@ -105,10 +105,9 @@ func e2eBoundDriveReport(report, directive []byte) bool {
 	return true
 }
 
-func writeE2EDriveReport(state string) {
+func writeE2EDriveReport(directivePath, path, state string) {
 	e2eDriveWriteMu.Lock()
 	defer e2eDriveWriteMu.Unlock()
-	directivePath := e2eDrivePath("e2e-drive.json")
 	read := func(path string) ([]byte, error) {
 		file, err := os.Open(path)
 		if err != nil {
@@ -125,7 +124,6 @@ func writeE2EDriveReport(state string) {
 	if err != nil || !e2eBoundDriveReport([]byte(state), directive) {
 		return
 	}
-	path := e2eDrivePath("e2e-drive-state.json")
 	staged, ok := stageE2EFile(path, state)
 	if !ok {
 		return
@@ -178,7 +176,7 @@ func commitE2EFile(staged, path string) {
 // every run since the drive loop landed). The payload carries only the
 // schema version and the current screen; progress authentication stays with
 // the bound drive-state channel.
-func writeE2EReady(state string) {
+func writeE2EReady(path, state string) {
 	fields, err := e2eUniqueObject([]byte(state))
 	if err != nil || len(fields) != 2 {
 		return
@@ -194,7 +192,7 @@ func writeE2EReady(state string) {
 	if json.Unmarshal(screen, &name) != nil || name == "" {
 		return
 	}
-	if staged, ok := stageE2EFile(e2eDrivePath("e2e-ready.json"), state); ok {
-		commitE2EFile(staged, e2eDrivePath("e2e-ready.json"))
+	if staged, ok := stageE2EFile(path, state); ok {
+		commitE2EFile(staged, path)
 	}
 }

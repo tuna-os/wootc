@@ -68,6 +68,22 @@ func TestVMAccountValidationDoesNotEchoPassword(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVMAccountUsernameBoundaries(t *testing.T) {
+	cfg := VMInstallConfig{ImageRef: "ghcr.io/test/os:latest", Password: "private password"}
+	for _, username := range []string{"a", strings.Repeat("a", 32)} {
+		cfg.Username = username
+		if err := validateVMInstallConfig(cfg); err != nil {
+			t.Fatalf("valid username %q refused: %v", username, err)
+		}
+	}
+	for _, username := range []string{"root", "nobody", "daemon", "bin", "sys", strings.Repeat("a", 33)} {
+		cfg.Username = username
+		if err := validateVMInstallConfig(cfg); err == nil {
+			t.Fatalf("invalid username %q accepted", username)
+		}
+	}
+}
 func TestVMReceiptRequiresCreatedAccountIdentity(t *testing.T) {
 	path, id := vmTestDisk(t)
 	state := VMState{RunID: "run-12345", InstallID: "install-12345", Image: "image@digest", DiskPath: path, Username: "alice", AccountOutcome: "created"}

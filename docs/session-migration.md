@@ -1,105 +1,239 @@
-# Session migration — copy the login where we honestly can, re-link where we can't
+# Session migration — staged keys, explicit import, honest outcomes
 
-North Star: the user should not have to re-set-up their digital life. So
-we try, in this order, to carry each app's *logged-in session* across —
-and when we can't do it safely, we make re-authenticating one tap, not a
-scavenger hunt.
+## Scope and evidence, 2026-11-02
 
-## The key realization: decrypt in Windows, not in the deployer
+The goal is to preserve a person's digital setup where safe. Otherwise, help
+the person sign in or re-link.
 
-Most "you can't migrate the session" folklore assumes offline access from
-Linux. But the **wootc installer GUI runs inside the user's live Windows
-session**, where the DPAPI master key is unlocked. That is exactly where
-Chromium/Electron `safeStorage` and cookie databases *can* be decrypted.
+**A copied profile, unlocked key, rewritten database,
+or synthetic crypto fixture is not proof of a logged-in service.**
 
-So session handling splits by *where* it must happen:
+The source can rewrite supported stores from Chrome/Edge within strict bounds.
+It targets profiles that Chrome has initialized on Linux.
 
-| Where | What it can do | Owns |
+The real disposable-account Chrome/Edge/Spotify launch-and-restart matrix remains
+a separate gate (#296). Spotify's actual session format and Linux safeStorage
+identity remain unsupported: sign in again.
+
+This describes source behavior, not a promise that the older published
+`v0.1.0-alpha.1` contains the target-side importer. See the [start guide](getting-started.md)
+and [verification status](status.md). The
+[unlock ADR](adr/0005-session-envelope-unlock.md) records the explicit-password
+contract; a maintainer must still approve it for #252 acceptance.
+
+## Ownership and consent
+
+| Stage | Responsibility | What it does not prove |
 |---|---|---|
-| **Windows GUI (online, DPAPI available)** | decrypt cookies/tokens, re-encrypt for transport | `slurp_windows.go` session collectors |
-| **Deployer (offline)** | copy plain-file state only | `wootc-detect-apps`, `wootc-import-browser` |
-| **Target first-login** | re-import, or present a one-tap re-link | dashboard + `wootc-apply-look` |
+| Windows online collector | Identify the original interactive user, assess DPAPI decryptability, export a consented per-app os_crypt key | Linux compatibility or accepted login |
+| Deployer | Retain encrypted session envelopes on the Windows volume; do not install copies under `/usr/share` | Unlock or authentication |
+| Linux dashboard | Ask for per-app consent and the original installation password for this attempt; invoke the target import action | Successful service login |
+| Linux importer | Validate source/envelope/schema/keyring, prepare replacements, preserve existing identities and backups, record outcome | Live authentication, token validity, account/service acceptance |
+| User/runtime acceptance | Open the actual app with a disposable account and check behavior after restart | A generic guarantee for other app versions or services |
 
-## Per-class strategy
+Consent defaults off. Windows `InstallConfig.sessionConsent` opts in per app;
+missing/false entries stage nothing. Import on Linux needs separate, explicit
+consent for each app. Do not silently infer one from the other.
 
-**Plain-file sessions → copy verbatim (already implemented).**
-Firefox/Thunderbird whole profile, Telegram `tdata`, VS Code, OBS. These
-carry the login with no decryption. Done in the deployer.
+The native RPC for installation now refuses `sessionConsent`: its strict
+plan is not a session-export API. The legacy path on Windows refuses if it
+cannot establish the original interactive user. It also refuses if elevation
+changes that identity. Environment variables do not grant authority to access another user's encrypted data.
 
-**Chromium/Electron `safeStorage` (Discord, Slack, Spotify, Chrome, Edge)
-→ decrypt-and-rewrap in Windows.** At slurp time the GUI:
-1. reads the app's `Local State`, DPAPI-decrypts the `os_crypt.encrypted_key`;
-2. uses it to decrypt the Cookies/Local Storage LevelDB entries;
-3. re-encrypts the payload under a key derived from the wootc vault
-   secret (never written in clear to disk), stored in
-   `install\slurp\session\<app>.enc`.
-On the Linux side, once the app's equivalent store is written back,
-re-encrypted under the Linux `safeStorage` (libsecret/kwallet), and verified
-against real service invalidation, the app opens signed in. **Gated behind
-explicit user consent per app** — this is moving auth tokens, so the dashboard
-asks first and defaults off. Until the target consumer and test matrix prove
-a migration, the key remains staged and the UI honestly says so.
+## Windows envelope and discovery
 
-### Online rewrap contract
+The exporter stages only the DPAPI-recovered **32-byte os_crypt key**, not a
+complete cookie database or token payload, at
+`<drive>:\wootc\install\slurp\session\<app>.enc`. Its `exports.json` ledger
+uses `staged`, `skipped` or `failed`, never authenticated/imported success.
+Export is best-effort; the UI must not report a failed export as a transferred session.
 
-The Windows installer now has the first complete, testable half of that
-contract. `collectSessions` writes only decryptability findings. The install
-configuration's `sessionConsent` map is opt-in per app; missing and false
-entries do nothing. For a consented Chrome, Edge, or Spotify entry, the
-installer decrypts the DPAPI-protected Chromium master key while the user is
-online and writes `install/slurp/session/<app>.enc`. It also writes an
-`exports.json` ledger whose state is `staged`, never `imported`.
+The envelope uses versioned, authenticated AES-256-GCM:
+`[version | 32-byte salt | nonce | ciphertext + tag]`. HKDF-SHA256 derives the
+key from the original password for Linux installation, app name and fresh salt.
+The app name is also associated data.
+The installer persists a password hash, not recoverable plaintext.
+A later Linux login/password change does not change which password opens an already staged envelope.
 
-That file is a versioned, authenticated AES-256-GCM envelope with the binary
-layout `[version | 32-byte salt | nonce | ciphertext+tag]`. Its key is
-derived with HKDF-SHA256 from the Linux vault secret, app name, and the fresh
-per-envelope salt; the app name is also authenticated as associated data.
-The DPAPI key is never written in clear. Files are created with mode `0600`
-and the export is best-effort: a failed export does not fail installation or
-claim that the session moved.
+Target discovery is **only**:
 
-The target-side consumer still must decrypt the envelope, enumerate the
-app's SQLite/LevelDB values, and re-encrypt them with the Linux keyring. That
-work is deliberately separate because Chrome, Edge, and Spotify differ in
-database layout and token invalidation behavior. Discord and Slack remain
-re-link-only even when DPAPI can read their key.
+```text
+/run/wootc/host/wootc/install/slurp/session/
+  exports.json
+  chrome.enc
+  edge.enc
+  spotify.enc
+```
 
-`decryptChromiumValue` (`app/session_chromium_value.go`) implements the one
-sub-step of that whose correctness doesn't depend on a live browser: given
-the os_crypt key recovered from the envelope, it decrypts a single Cookies
-`encrypted_value` (or Local Storage value) in Chromium's documented `v10`
-wire format — `"v10" | 12-byte nonce | ciphertext | GCM tag`, AES-256-GCM.
-Tested against synthetically-sealed fixtures, not a real browser. Still
-unclaimed: enumerating a real Cookies SQLite/Local Storage LevelDB file,
-`v11`-prefixed values (which add platform-specific associated data on some
-Chrome versions — not documented consistently enough to implement blind),
-and the actual libsecret/kwallet write on the target. Those need a real
-Chrome/Edge install and a Linux D-Bus session to verify against, neither
-of which this change had access to.
+The importer only reads the Windows source. It does not fall back to `/usr/share`,
+accept an arbitrary envelope path from a caller, or scan recursively.
+It consumes only supported app names with a `staged` ledger entry.
+It ignores a source ledger that claims `imported`; that claim is not evidence.
+The importer limits the ledger to 64 KiB and each regular, non-symlink envelope to 4096 bytes.
 
-Until that consumer completes and records `imported`, the dashboard must show
-staged guidance ("staged — you'll sign in once on Linux") or re-link/sign-in
-guidance rather than a signed-in result. A staged key is an implementation
-artifact, not evidence that a token transplant succeeded.
+It refuses duplicate entries for supported apps, changed/unsafe files, unsupported
+versions, failed GCM authentication and non-32-byte payloads.
 
-**Phone-linked apps → guided re-link, not token theft.** Signal, WhatsApp,
-and (when token copy is declined) any messenger: the safest, most durable
-path is the app's own "link a device" flow. The dashboard shows the exact
-steps and, where possible, deep-links the Linux app straight to its
-QR/scan screen. This is *better* than copying a fragile token that the
-service may invalidate on a new device fingerprint.
+## Unlock, retry, cancellation and cleanup
 
-**Cloud-account apps → one-tap sign-in.** Spotify library, Discord
-servers, Zoom — the content is server-side; a single sign-in restores
-everything. The dashboard frames it that way ("your playlists are waiting
-— just sign in") instead of implying data was lost.
+- Enter the **original installation password** explicitly for each try.
+  It is not a Windows password or a request to unlock all Linux secret stores.
+  The dashboard must not prefill it from durable state.
+- The password travels only in the in-process request.
+  The app does not retain it in `App` state, a ledger, logs, command-line arguments, environment, or a file.
+  The code will clear mutable buffers after use.
+  Go/JavaScript strings and garbage collection provide no guarantee of complete erasure from memory.
+- Wrong password, damaged envelope and unsupported version share a safe unlock
+  refusal; do not reveal or log secret material. The source stays `staged`
+  and unchanged. The person may retry with a new password; there is no durable
+  lockout counter or retry secret cache.
+- Cancel before submission closes the form without import.
+  After submission, the modal disables Cancel/Escape; it offers no in-flight cancel control.
+  Process shutdown/context cancellation and time limits on secret-store work still apply.
+  Do not report a partial operation as success.
+  A closed form does not prove that the worker stopped. Keep rollback errors.
+- Unlock alone never deletes the envelope or changes its source ledger.
+  This importer leaves originals on NTFS for retry; it does not automatically wipe them after a rewrite.
+  They remain sensitive encrypted material.
+  Do not attach them, browser databases or secrets from credential stores to a public issue.
 
-## Honesty rules (non-negotiable, North Star)
+## Target action and supported formats
 
-- Never claim a session moved when only bookmarks did.
-- Never silently copy auth tokens — always consent, always per-app.
-- Prefer re-link over token copy when the service is known to invalidate
-  transplanted sessions (avoids a broken-looking app on first launch).
-- Every app row in the dashboard states its real outcome: *signed in*,
-  *staged — sign in once*, *re-link needed (2 steps)*, or *sign in once*.
-- No UI surface implies a migration that wasn't measured.
+`App.ImportAppSession` takes this JSON-shaped Wails request (this is **not** a
+new `wootc.exe serve` method and there is no shell unlock CLI):
+
+```json
+{"app":"chrome","consent":true,"password":"<entered for this attempt>","backend":"secret-service","packaging":"flatpak","sourceProfile":"Default","targetProfile":"Default"}
+```
+
+Treat this as an input schema, not a command to paste with a real password.
+`app` is `chrome` or `edge` for supported rewrites.
+For `spotify`, the action returns re-link advice and does not change a profile.
+`packaging` is explicitly `flatpak` or `native` for the initialized **Google Chrome** target:
+
+- Flatpak: `~/.var/app/com.google.Chrome/config/google-chrome`
+- Native: `~/.config/google-chrome`
+
+Source and target profile names are `Default` or numbered `Profile N` names.
+An Edge source on Windows maps to the Chrome target on Linux.
+This does not establish support for arbitrary native/Flatpak Edge destinations or package identities.
+Open the target once, then close all Chrome/Chromium processes.
+Import as the installed user in their desktop session.
+
+The importer will refuse unsafe paths, active browsers, singleton locks, missing/uninitialized
+profiles, concurrent imports and unsupported package types.
+Do not delete browser locks to bypass this.
+The target must already contain a compatible Cookies database (schema 23/24).
+If the source has Local Storage, the target also needs its own `Local Storage/leveldb` `VERSION=1` store.
+An otherwise empty profile does not suffice without those stores, even after you open it.
+The importer never invents a destination schema or automatically initializes a new database.
+
+### Cookies SQLite
+
+- The importer supports validated schemas **23 and 24** for Chromium.
+  It supports `v10` AES-GCM values from Windows and domain binding for schema 24.
+  It refuses Windows app-bound `v20`, unknown schema/crypto prefixes and incompatible rows; it does not guess a decryption scheme.
+- The importer will re-encrypt imported values with the Linux secret store that the person explicitly selects.
+  Cookie identities that already exist in the target win.
+  Import does not authorize changes to native cookies or removal of a signed-in target account.
+- Stage into a complete replacement, retain the adjacent
+  `.wootc-session-backup-*` original, and use atomic exchange.
+  The importer never changes the source database on Windows.
+
+### Local Storage LevelDB
+
+The supported Chromium `VERSION=1` store contains script-controlled bytes,
+not a universal format for encrypted safeStorage values.
+The importer merges records for supported origins **byte-for-byte** and preserves origins that already exist in the target.
+It does not blindly decrypt every value that resembles `v10`.
+It refuses unknown metadata/layout, corruption or locks.
+Generic Chromium fixtures do not establish Spotify/Electron record layout or invalidation behavior.
+
+An error in a later store or the outcome ledger will request rollback of replacements
+that the importer has already published during normal operation.
+Before publication or rollback, the importer checks again for an active browser.
+It also rechecks file identity/inode, content digest and database sidecars, with the same checks for the backup to restore.
+If the browser becomes active or either store changes, rollback **refuses** to overwrite newer data.
+It reports both paths for manual recovery.
+
+This is **not a browser lease or a crash-atomic multi-store transaction**.
+A browser can race an observation.
+A process/power failure between stores can leave a partial format rewrite.
+The importer retains all stores that it published or displaced, even after an otherwise clean rollback.
+Late writes through open file descriptors can still reach those stores.
+
+Do not automatically erase these recovery copies or assume that one path contains every latest write.
+Keep them private and stop the browser.
+Inspect reported paths/errors before manual recovery or retry.
+The operation does not produce a signed-in state.
+
+## Linux safeStorage prerequisites and limitations
+
+Select `backend` explicitly: `secret-service`, `kwallet5` or `kwallet6`.
+The importer does not guess a backend, fall back automatically, generate a new secret,
+or use Chromium `basic_text`/plaintext fallback.
+It uses the target Chrome identity, even when the Windows source is Edge:
+
+| Backend | Existing identity required |
+|---|---|
+| Secret Service | `application=chrome`, Chrome Safe Storage secret, in the existing unlocked default collection |
+| KWallet 5/6 | Existing network wallet, folder `Chrome Keys`, key `Chrome Safe Storage`, application `Google Chrome` |
+
+Run as the installed desktop user with a valid, explicit `DBUS_SESSION_BUS_ADDRESS`.
+Use an active, permitted service and the existing unlocked collection/wallet.
+The adapter does not activate a service or invoke Secret Service Unlock/Prompt.
+Secret Service uses its standard `plain` transport session on that user's D-Bus.
+This does not store the browser secret as plaintext.
+
+KWallet checks whether the wallet has an unlocked state before the native call to acquire a handle.
+If the wallet locks between those calls, the unavoidable race can still cause a daemon prompt.
+Do not promise a no-prompt guarantee.
+
+The target Flatpak must use that exact key identity and have the required D-Bus access.
+Do not assume compatibility with portal-only or isolated access.
+Output uses Linux Chromium `v11` safeStorage with AES-128-CBC and its documented PBKDF2 parameters.
+That byte-format conversion is not proof of browser or service acceptance.
+Spotify support needs real, versioned, sanitized Linux/Windows records and a verified safeStorage identity.
+
+## Detection, ledgers and presentation
+
+`wootc-detect-apps --detect-browsers [username]` detects browsers and only reads their data.
+It honors the standard `WOOTC_HOST`, `WOOTC_WIN_USER` and `WOOTC_WIN_USER_DIR` source-selection contract.
+Browser plugins, the manifest fallback and the legacy detector for apps consume those records.
+Detection itself does not copy browser data or change mount/user-directory setup.
+
+Browser detection will retain discovery and source fields for Firefox `profiles.ini` and Chrome/Edge `User Data`.
+UI outcomes remain `portable`, `staged` or `signin`, with details.
+A source export's `staged` entry is eligibility, not proof of authentication.
+The UI must not show signed-in status from even an untrusted source `imported` marker.
+
+The importer will record outcomes for the target separately in
+`~/.config/wootc/session-imports.json`: `rewritten` or `failed`, with
+`verified:false`; Spotify is re-link-only. The action result includes `app`,
+`state`, `verified`, `reason`, `cookiesWritten`, `localRecordsWritten`,
+`recordsPreserved` and optional backup paths. The source export ledger stays `staged`.
+Use text such as **“Supported records rewritten; sign in if requested”**.
+Never report **“Session moved”** or **“Signed in”** from that result.
+
+Firefox whole-profile copies can include saved passwords, but still do not
+prove every service accepts the new profile. Phone-linked apps should use
+their own link-a-device flow. Discord/Slack remain sign-in/re-link routes;
+a DPAPI key alone is not permission to transplant their credentials.
+
+## Remaining runtime acceptance
+
+Use a disposable source account on real Windows and a graphical session on Linux.
+Use real, initialized Chrome/Edge stores and supported versions of SQLite.
+Test each required combination of secret store, backend and package type.
+Verify source and target preservation, explicit consent, wrong-password retry and cancellation.
+Verify refusal of locked secret stores, preservation of duplicate identities/origins, and multi-store rollback.
+Verify that the outcome persists after a dashboard restart.
+
+For authentication acceptance, get consent to use a disposable account for the service.
+Open the real destination app and observe the expected account/content.
+Quit and restart it.
+Retain sanitized evidence that identifies the app version, backend, package type and build SHA.
+Record invalidated sessions as sign-in/re-link, not migration success.
+
+Spotify remains blocked on real fixtures for its format and secret store.
+Synthetic cookie, LevelDB or D-Bus tests cannot replace this matrix.

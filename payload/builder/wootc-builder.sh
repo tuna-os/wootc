@@ -38,7 +38,7 @@ failed() {
 }
 
 read_contract() {
-    IMAGE="" RUN_ID="" INSTALL_ID="" ACCOUNT_MODE=image-default
+    IMAGE="" RUN_ID="" INSTALL_ID="" ACCOUNT_MODE=image-default OPERATION=install EXPORT_DISK_ID=""
     ACCOUNT_USER="" ACCOUNT_HASH="" ACCOUNT_OUTCOME=image-default
     for token in $(cat /proc/cmdline); do
         case "$token" in
@@ -46,6 +46,8 @@ read_contract() {
             wootc.run_id=*) RUN_ID=${token#*=} ;;
             wootc.install_id=*) INSTALL_ID=${token#*=} ;;
             wootc.account_mode=*) ACCOUNT_MODE=${token#*=} ;;
+            wootc.operation=*) OPERATION=${token#*=} ;;
+            wootc.disk_id=*) EXPORT_DISK_ID=${token#*=} ;;
         esac
     done
     validate_contract
@@ -82,7 +84,7 @@ validate_account() {
         type == "object" and .schemaVersion == 1 and
         .runId == $run and .installId == $install and
         (.username | type == "string") and (.passwordHash | type == "string") and
-        (.username | test("\\A[a-z_][a-z0-9_-]{0,30}\\z")) and
+        (.username | test("\\A[a-z_][a-z0-9_-]{0,31}\\z")) and
         (.passwordHash | test("\\A\\$6\\$(rounds=[0-9]{4,9}\\$)?[a-zA-Z0-9./]{1,16}\\$[a-zA-Z0-9./]{86}\\z"))
     ' >/dev/null || failed 'invalid account input or identity'
     ACCOUNT_USER=$(printf '%s' "$account_json" | jq -r '.username')
@@ -242,11 +244,21 @@ builder_main() {
     mkdir -p /dev/virtio-ports
     for port in /sys/class/virtio-ports/*; do
         [ -f "$port/name" ] || continue
-        [ "$(cat "$port/name")" = wootc.ipc ] || continue
-        ln -sf "/dev/${port##*/}" "$IPC"
+        name=$(cat "$port/name")
+        case "$name" in wootc.ipc|wootc.export) ;; *) continue ;; esac
+        ln -sf "/dev/${port##*/}" "/dev/virtio-ports/$name"
     done
     [ -c "$IPC" ] || failed 'private result channel is unavailable'
     read_contract
+    case "$OPERATION" in
+        export-boot)
+            printf '%s\n' "$EXPORT_DISK_ID" | grep -Eq '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' || failed 'invalid export disk identity'
+            . /lib/wootc-export.sh
+            export_boot_inputs
+            ;;
+        install) ;;
+        *) failed 'unsupported helper operation' ;;
+    esac
     read_account
     stage storage
     prepare_storage

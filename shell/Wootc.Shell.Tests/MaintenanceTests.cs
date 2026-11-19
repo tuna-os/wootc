@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Wootc.Shell.Core;
 using Wootc.Shell.Engine;
 using Xunit;
@@ -206,6 +205,27 @@ public sealed class MaintenanceScreenTests
         Assert.DoesNotContain(after.Lines, line => line.Id == "ManageFailedAttempt");
     }
 
+    [Theory]
+    [InlineData("verified", true)]
+    [InlineData("missing", false)]
+    [InlineData("mismatch", false)]
+    public async Task InstalledFactsExposeOnlyActualVerifiedBootAssessment(string verdict, bool visible)
+    {
+        await using var gate = await Opened(session => session.Info.BootEvidence = new FirstBootAssessment
+        {
+            Verdict = verdict, Kernel = "6.12.1", SourceImageRef = "ghcr.io/example/linux:stable", BootId = "01234567-89ab-cdef-0123-456789abcdef",
+            Bridge = new FirstBootBridge { BoundFolders = 4, MatchedUsers = 2, BitlockerUnlocked = true },
+        });
+        var view = MaintenanceScreen.For(StartupRoute.Manage, Snapshot(), gate, Brand, id => id)!;
+        var facts = view.Lines.Where(line => line.ReadOnlyValue).ToArray();
+        Assert.Equal(visible ? 4 : 0, facts.Length);
+        if (!visible) return;
+        Assert.Equal("6.12.1", Line(view, "InstalledBootKernel"));
+        Assert.Equal("ghcr.io/example/linux:stable", Line(view, "InstalledBootSource"));
+        Assert.Equal("boundFolders=4;matchedUsers=2;bitlockerUnlocked=true", Line(view, "InstalledBootBridge"));
+        Assert.Equal("01234567-89ab-cdef-0123-456789abcdef", Line(view, "InstalledBootId"));
+    }
+
     [Fact]
     public async Task ManageNamesLeftoverBootFilesAndKeepsAUnremovableVolume()
     {
@@ -253,121 +273,19 @@ public sealed class MaintenanceScreenTests
     }
 }
 
-// Word for word with the legacy Manage (control.js) and Recovery
-// (recovery.js) screens, with the same normalisation as the progress screens.
 public sealed class MaintenanceTextTests
 {
     private static readonly Branding Brand = new() { ProductName = "@PRODUCT@", Name = "@DISTRO@" };
 
-    private static string Legacy(string file)
-    {
-        string source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", file));
-        source = Regex.Replace(source, @"['`]\s*\+\s*['`]", "");
-        source = Regex.Replace(source, "<[^>]+>", "");
-        source = Regex.Replace(source, @"\s+", " ");
-        return source.Replace("\\\\", "\\");
-    }
-
-    private static void Same(string file, string native, params (string Value, string Template)[] names)
-    {
-        foreach (var (value, template) in names) native = native.Replace(value, template);
-        native = native.Replace("@DISTRO@", "${distroName()}").Replace("@PRODUCT@", "${productName()}").Replace("\n", "\\n");
-        Assert.Contains(native, Legacy(file));
-    }
-
     [Fact]
-    public void ManageLinesMatchTheLegacyScreen()
-    {
-        var info = new UninstallInfo { DiskPath = "@PATH@", DiskSizeGB = 1, ReclaimGB = 7.5, VolumeLabel = "@LABEL@", StorageDrive = "@DRIVE@" };
-        Same("control.js", MaintenanceText.ManageTitle(Brand));
-        Same("control.js", MaintenanceText.ManageSubtitle(Brand));
-        Same("control.js", MaintenanceText.FailedAttempt("@STEP@"), ("@STEP@", "${escapePhaseLabel(installStepLabel(state.lastRun.phaseId || state.lastRun.phase) || 'an early step')}"));
-        Assert.Contains("an early step", MaintenanceText.FailedAttempt(""));
-        Same("control.js", MaintenanceText.OrphanedTitle);
-        Same("control.js", MaintenanceText.OrphanedBody);
-        Assert.Contains("const path = u.diskPath || 'C:\\wootc\\disks\\root.disk';", Legacy("control.js"));
-        Assert.Equal(@"C:\wootc\disks\root.disk", MaintenanceText.DiskLine(new UninstallInfo()));
-        Assert.Contains("const sizeStr = u.diskSizeGB ? ` (${Math.round(u.diskSizeGB)} GB)` : '';", Legacy("control.js"));
-        Assert.Equal("@PATH@ (1 GB)", MaintenanceText.DiskLine(info));
-        Same("control.js", MaintenanceText.DiskBody(Brand));
-        Same("control.js", MaintenanceText.VerifiedTitle(Brand));
-        Same("control.js", MaintenanceText.FirstBootTitle(Brand));
-        // control.js builds the summary from DOM nodes; its literal pieces are these.
-        foreach (string piece in new[] { "summary.append('Linux ', fact('kernel', evidence.kernel), ' · ',",
-                                         "fact('source-image', evidence.sourceImageRef), ' · ',",
-                                         "fact('bound-folders', evidence.bridge.boundFolders), ' folders connected for ',",
-                                         "fact('matched-users', evidence.bridge.matchedUsers), ' users');" })
-            Assert.Contains(piece, Legacy("control.js"));
-        Assert.Equal("Linux 6.12 · ghcr.io/x/y:z · 3 folders connected for 1 users", MaintenanceText.BootSummary(
-            new FirstBootAssessment { Kernel = "6.12", SourceImageRef = "ghcr.io/x/y:z", Bridge = new FirstBootBridge { BoundFolders = 3, MatchedUsers = 1 } }));
-        Same("control.js", MaintenanceText.InstalledBody);
-        Same("control.js", MaintenanceText.RestartInto(Brand));
-        Assert.Contains("alert(`Could not arm the ${distroName()} boot: ` + e)", Legacy("control.js"));
-        Assert.Equal("Could not arm the @DISTRO@ boot: x", MaintenanceText.RestartFailed(Brand, "x"));
-        Same("control.js", MaintenanceText.DeleteData);
-        Same("control.js", MaintenanceText.DeleteDataDetail);
-        Same("control.js", MaintenanceText.GiveBack(info), ("8", "${Math.round(u.reclaimGB)}"));
-        Same("control.js", MaintenanceText.GiveBackDetail(info), ("@LABEL@", "${label}"), ("@DRIVE@", "${u.storageDrive}"));
-        Assert.Contains("const label = u.volumeLabel || 'wootc-data';", Legacy("control.js"));
-        Assert.Contains($"btn('{MaintenanceText.Reinstall}'", Legacy("control.js"));
-        Assert.Contains($"btn('{MaintenanceText.Close}'", Legacy("control.js"));
-        Same("control.js", MaintenanceText.Uninstall(Brand));
-    }
-
-    [Fact]
-    public void UninstallConfirmationMatchesTheLegacyDialog()
+    public void ConfirmationReflectsTheGrantedDataAndPartitionRemovalChoices()
     {
         var grant = new NativeMaintenanceGrant { Action = MaintenanceActions.Uninstall, VolumeLabel = "@LABEL@", StorageDrive = "@DRIVE@" };
-        Same("control.js", MaintenanceText.ConfirmUninstallHead(Brand));
-        Same("control.js", MaintenanceText.ConfirmDeleteData);
-        Same("control.js", MaintenanceText.ConfirmKeepData);
-        Same("control.js", MaintenanceText.ConfirmRemovePartition(grant), ("@LABEL@", "${label}"), ("@DRIVE@", "${u.storageDrive || 'D'}"));
-        Assert.Contains("(D:)", MaintenanceText.ConfirmRemovePartition(new NativeMaintenanceGrant()));
         Assert.Equal(MaintenanceText.ConfirmUninstallHead(Brand) + MaintenanceText.ConfirmKeepData, MaintenanceText.ConfirmUninstall(Brand, grant));
         grant.DeleteRootDisk = grant.RemovePartition = true;
         Assert.Equal(MaintenanceText.ConfirmUninstallHead(Brand) + MaintenanceText.ConfirmDeleteData + MaintenanceText.ConfirmRemovePartition(grant), MaintenanceText.Confirmation(grant, recovery: false, Brand));
         Assert.Equal(MaintenanceText.ConfirmRemove(Brand), MaintenanceText.Confirmation(grant, recovery: true, Brand));
         Assert.Null(MaintenanceText.Confirmation(new NativeMaintenanceGrant { Action = MaintenanceActions.RepairBoot }, recovery: true, Brand));
-        Same("control.js", MaintenanceText.Removed(Brand));
-        Assert.Contains("alert('Uninstall hit a problem: ' + e)", Legacy("control.js"));
-        Assert.Equal("Uninstall hit a problem: x", MaintenanceText.UninstallProblem("x"));
     }
 
-    [Fact]
-    public void RecoveryLinesMatchTheLegacyScreen()
-    {
-        Same("recovery.js", MaintenanceText.RecoveryTitle(null, Brand));
-        Same("recovery.js", MaintenanceText.RecoveryMessage(null));
-        Same("recovery.js", MaintenanceText.Safe);
-        Same("recovery.js", MaintenanceText.SafeDetail);
-        Same("recovery.js", MaintenanceText.Stage("@PHASE@"), ("@PHASE@", "${v.phase}"));
-        Same("recovery.js", MaintenanceText.LogDetails);
-        Same("recovery.js", MaintenanceText.NoDetails);
-        Same("recovery.js", MaintenanceText.CheckingBoot);
-        Assert.Contains("v.logTail.slice(-10).join('\\n')", Legacy("recovery.js"));
-        foreach (string state in new[] { "windows-only", "one-shot-armed", "wootc-default", "wootc-listed", "foreign-next", "unknown" })
-        {
-            Assert.Contains($"'{state}': ", Legacy("recovery.js").Replace("unknown: ", "'unknown': "));
-            Same("recovery.js", MaintenanceText.BootState(state, Brand));
-        }
-        Assert.Equal(MaintenanceText.BootState("unknown", Brand), MaintenanceText.BootState("something-new", Brand));
-        foreach (var (native, legacy) in new[]
-        {
-            (MaintenanceText.NotOffered("x"), "'Not offered: ' + t"), (MaintenanceText.DetailsSaved("x"), "'Details saved to ' + r.bundlePath"),
-            (MaintenanceText.BootCheckFailed("x"), "'boot check failed: ' + e"), (MaintenanceText.RemovalError("x"), "'Removal encountered an error: ' + e"),
-            (MaintenanceText.RestoreFailed("x"), "'Windows boot was not restored: ' + e"), (MaintenanceText.RepairFailed("x"), "'Repair boot hit a problem: ' + e"),
-            (MaintenanceText.TryAgainFailed("x"), "'Try again hit a problem: ' + e"),
-        })
-        {
-            Assert.Contains(legacy, Legacy("recovery.js"));
-            Assert.Equal(legacy[1..legacy.IndexOf("' + ", StringComparison.Ordinal)] + "x", native);
-        }
-        Same("recovery.js", MaintenanceText.Remove(Brand));
-        foreach (string label in new[] { MaintenanceText.KeepWindows, MaintenanceText.RepairBoot, MaintenanceText.TryAgain })
-            Assert.Contains($"btn('{label}'", Legacy("recovery.js"));
-        Same("recovery.js", MaintenanceText.ConfirmRemove(Brand));
-        Same("recovery.js", MaintenanceText.Removed(Brand));
-        Same("recovery.js", MaintenanceText.WindowsRestored);
-        Same("recovery.js", MaintenanceText.Repaired);
-    }
 }

@@ -29,6 +29,7 @@ var DTOStructs = []string{
 	"ReleaseNotice",
 	"Image",
 	"InstallConfig",
+	"ProfileAccount",
 	"ProgressEvent",
 	"StepDefinition",
 	"RecoveryVerdict",

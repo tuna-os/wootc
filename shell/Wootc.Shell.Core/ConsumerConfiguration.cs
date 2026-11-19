@@ -55,6 +55,9 @@ public sealed class ConsumerConfiguration
     private ConfigurationImage? selected;
     private ConfigurationStorage? storage;
     private readonly HashSet<string> mappedDirectives = new(StringComparer.Ordinal);
+    private List<ProfileAccount>? profileAccounts;
+    public IReadOnlyList<ProfileAccount> ProfileAccounts => profileAccounts ?? (IReadOnlyList<ProfileAccount>)Array.Empty<ProfileAccount>();
+    public IReadOnlyList<string> ProfileWarnings { get; private set; } = Array.Empty<string>();
     public string Username { get; set; } = "";
     public string Password { private get; set; } = "";
     public string PasswordConfirmation { private get; set; } = "";
@@ -117,6 +120,8 @@ public sealed class ConsumerConfiguration
         selected = null;
         ImageMismatch = false;
         installSpaces.Clear();
+        profileAccounts = null;
+        ProfileWarnings = Array.Empty<string>();
     }
 
     public bool SelectImage(string id)
@@ -181,6 +186,13 @@ public sealed class ConsumerConfiguration
             if (ImageMismatch) return "The requested image does not match an available variant.";
             if (selected is null) return "Choose a variant above.";
             if (!selected.Admitted) return selected.AdmissionBlockedReason;
+            if (profileAccounts is not null)
+            {
+                var names = new HashSet<string>(StringComparer.Ordinal) { Username };
+                foreach (var account in profileAccounts)
+                    if (!Regex.IsMatch(account.LinuxUser, "^[a-z_][a-z0-9_-]{0,31}$") || !names.Add(account.LinuxUser))
+                        return "Each Windows profile needs a unique Linux username (up to 32 lowercase letters, digits, - or _), different from your primary account.";
+            }
             if (Username.Length == 0) return "Enter a Linux username.";
             if (!Regex.IsMatch(Username, "^[a-z_][a-z0-9_-]*$")) return "Username must be lowercase letters, digits, - or _.";
             if (Password.Length == 0) return "Set a password.";
@@ -215,7 +227,21 @@ public sealed class ConsumerConfiguration
         return new InstallConfig { ImageRef = selected!.ImageRef, Username = Username, Password = Password,
             Hostname = Hostname, DiskSizeGB = DiskSizeGb, Encryption = Encryption, LuksPassphrase = LuksPassphrase,
             WindowsLook = WindowsLook, Bootloader = catalogue!.Defaults.Bootloader,
-            ComposeFs = catalogue.Defaults.ComposeFs, StorageDrive = storage!.DriveLetter };
+            ComposeFs = catalogue.Defaults.ComposeFs, StorageDrive = storage!.DriveLetter,
+            ProfileAccounts = profileAccounts?.Select(account => new ProfileAccount { WindowsDir = account.WindowsDir, LinuxUser = account.LinuxUser }).ToList() };
+    }
+
+    public void ApplyProfileAccounts(NativeInstallGrant grant)
+    {
+        profileAccounts = grant.ProfileAccounts.Select(account => new ProfileAccount { WindowsDir = account.WindowsDir, LinuxUser = account.LinuxUser }).ToList();
+        ProfileWarnings = grant.ProfileWarnings.ToArray();
+    }
+
+    public void EditProfileAccount(string windowsDir, string linuxUser)
+    {
+        var account = profileAccounts?.SingleOrDefault(account => account.WindowsDir == windowsDir)
+            ?? throw new InvalidOperationException("This Windows profile was not observed by the engine");
+        account.LinuxUser = linuxUser;
     }
 
     public DriveMappingObservation ApplyDriveMapping(InstallDriveMapping directive, string currentRunId)

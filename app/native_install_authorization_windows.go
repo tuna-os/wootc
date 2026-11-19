@@ -34,6 +34,9 @@ type nativeInstallConfirmation struct {
 }
 
 func copyNativeInstallConfiguration(config InstallConfig) InstallConfig {
+	if config.ProfileAccounts != nil {
+		config.ProfileAccounts = append([]ProfileAccount{}, config.ProfileAccounts...)
+	}
 	if config.SessionConsent != nil {
 		original := config.SessionConsent
 		config.SessionConsent = make(map[string]bool, len(original))

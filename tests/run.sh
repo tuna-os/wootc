@@ -63,6 +63,9 @@ run_fast() {
     # against short/zero-byte QGA writes never ran in CI — a test nothing
     # executes is not a test.
     if command -v python3 >/dev/null; then
+        echo "── reviewed image catalog and synchronization controls ──"
+        python3 app/catalog_sync.py --check || rc=1
+        python3 -m unittest discover -s app -p catalog_sync_test.py || rc=1
         echo "── python unit tests (tests/unit/test_*.py) ──"
         for t in tests/unit/test_*.py; do
             [ -e "$t" ] || continue

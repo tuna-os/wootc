@@ -1,4 +1,5 @@
 using Wootc.Shell.Core;
+using Wootc.Shell.Engine;
 using Xunit;
 
 namespace Wootc.Shell.Tests;
@@ -37,6 +38,45 @@ public sealed class ConsumerConfigurationTests
         model.Username = "linux_user";
         model.Password = model.PasswordConfirmation = "public fixture password";
         return model;
+    }
+
+    [Fact]
+    public void ProfileAccountsAreShownEditedAndCopiedIntoTheNextPlan()
+    {
+        var model = Complete();
+        Assert.Null(model.CreateDraft().ProfileAccounts);
+        var observed = new ProfileAccount { WindowsDir = "田中", LinuxUser = "user1" };
+        model.ApplyProfileAccounts(new NativeInstallGrant
+        {
+            ProfileAccounts = new() { observed },
+            ProfileWarnings = new() { "Windows profile 田中 needs a generated Linux account; review user1 before installing." },
+        });
+        Assert.Equal("田中", Assert.Single(model.ProfileAccounts).WindowsDir);
+        Assert.Contains("generated", Assert.Single(model.ProfileWarnings));
+        model.EditProfileAccount("田中", "tanaka");
+        Assert.Equal("user1", observed.LinuxUser);
+        var draft = model.CreateDraft();
+        Assert.Equal("tanaka", Assert.Single(draft.ProfileAccounts!).LinuxUser);
+        model.EditProfileAccount("田中", "other");
+        Assert.Equal("tanaka", Assert.Single(draft.ProfileAccounts!).LinuxUser);
+        Assert.Throws<InvalidOperationException>(() => model.EditProfileAccount("unobserved", "user2"));
+        model.EditProfileAccount("田中", new string('a', 32));
+        Assert.Empty(model.FormProblem);
+        Assert.Equal(new string('a', 32), Assert.Single(model.CreateDraft().ProfileAccounts!).LinuxUser);
+    }
+
+    [Theory]
+    [InlineData("linux_user")]
+    [InlineData("Root")]
+    [InlineData("../escape")]
+    [InlineData("")]
+    public void InvalidOrPrimaryCollidingProfileNamesBlockThePlan(string edited)
+    {
+        var model = Complete();
+        model.ApplyProfileAccounts(new NativeInstallGrant { ProfileAccounts = new() { new() { WindowsDir = "田中", LinuxUser = "user1" } } });
+        model.EditProfileAccount("田中", edited);
+        Assert.Contains("unique Linux username", model.FormProblem);
+        Assert.Throws<InvalidOperationException>(() => model.CreateDraft());
     }
 
     [Fact]

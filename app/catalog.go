@@ -26,7 +26,11 @@ func imageNeedsMok(ref string) bool {
 // GetImages resolves enterprise overrides, offline bundles, branding, and the
 // active release-channel gate into the catalog exposed through Wails.
 func (a *App) GetImages() ([]Image, error) {
-	custom := filepath.Join(wootcDir(), "images.json")
+	return imagesAt(wootcDir())
+}
+
+func imagesAt(root string) ([]Image, error) {
+	custom := filepath.Join(root, "images.json")
 	if data, err := os.ReadFile(custom); err == nil {
 		var override []Image
 		if json.Unmarshal(data, &override) == nil && len(override) > 0 {
@@ -34,7 +38,7 @@ func (a *App) GetImages() ([]Image, error) {
 		}
 	}
 
-	return resolveImageCatalogue(brandFS, brandID, effectiveBranding(), a.GetSupportPolicy(), readBundleInfo())
+	return resolveImageCatalogue(brandFS, brandID, effectiveBrandingAt(root), supportPolicyAt(root), readBundleInfoAt(filepath.Join(root, "bundle")))
 }
 
 // Resolve the existing catalogue with explicit metadata observations. Both
@@ -82,7 +86,8 @@ func resolveImageCatalogue(assets fs.FS, id string, brand Branding, policy Suppo
 func catalogForBrand(assets fs.FS, id string) ([]Image, error) {
 	data, err := fs.ReadFile(assets, "branding/"+id+"/images.json")
 	if errors.Is(err, fs.ErrNotExist) {
-		data = catalogJSON
+		// Callers filter in place; never expose the cached canonical slice.
+		return append([]Image(nil), embeddedCatalog...), embeddedCatalogErr
 	} else if err != nil {
 		return nil, err
 	}

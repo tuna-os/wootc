@@ -14,6 +14,11 @@ Drop a `brand.json` next to the installer (or push it via MDM to
 `C:\wootc\brand.json`). Any field you omit falls back to the wootc
 default; you only specify what you want to change.
 
+Brand JSON and the brand table from `packaging/brand.py` use **UTF-8**,
+independent of the host's ANSI locale. Save names, taglines and emoji as UTF-8.
+The shared loader/generator needs no change to Windows' system code page
+and no UTF-8 environment override.
+
 ```json
 {
   "name": "Acme Switch",
@@ -47,6 +52,16 @@ default; you only specify what you want to change.
 The palette is applied as CSS custom properties at startup, so a single
 accent change re-skins every button, chip, and highlight consistently.
 See the branded screenshot in [gui-walkthrough.md](gui-walkthrough.md).
+
+In the legacy Wails frontend, `applyBranding` derives input/hover surfaces
+from an explicit `brand.card`. It derives muted/dim text from an explicit
+`brand.text` when a complete theme does not supply those tokens.
+This prevents light input backgrounds with light text in a partial palette.
+
+The frontend applies full `brand-theme` CSS last.
+That CSS will override the derived defaults, even after repeated brand changes.
+This describes source behavior, not native WinUI styles.
+It does not prove every theme's contrast/accessibility.
 
 ## `brand.css` — deep restyle
 
@@ -124,11 +139,13 @@ provisioner stage differs.
 
 ## What is NOT themeable (on purpose)
 
-The honesty rules are not configurable: the "nothing is deleted from
-Windows" reassurance, the per-app truthful session outcomes, and the
-BitLocker/data-safety warnings are part of the product's trust contract,
-not the skin. A branded migrator can look like anything; it cannot lie
-about what happens to the user's data.
+The honesty rules are not configurable. The trust contract includes truthful
+session outcomes, BitLocker/data-safety warnings, changes before reboot, and
+limits of cleanup/recovery. A theme cannot change these rules.
+
+A brand must not turn a data-preservation goal into a guarantee.
+It cannot promise that no operation deletes data or that failed cleanup restores every setting.
+It must not hide a partial result or lie about what happens to the person's data.
 
 ## Testing a brand
 

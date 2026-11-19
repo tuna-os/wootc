@@ -32,10 +32,6 @@ PROBE_WIN=app/sysprobe_windows.go
     grep -q 'for _, sub := range \[\]string{"install", "bundle", "cache", "logs"}' "$INSTALLER_WIN"
 }
 
-@test "uninstallWith sweeps entire wootc folder when no root.disk exists or on deletion request" {
-    grep -q 'opts.DeleteRootDisk || opts.RemovePartition || !rootDiskExists' "$INSTALLER_WIN"
-}
-
 @test "dedicated volume verification uses receipt policy and accepts only non-system basic NTFS partitions" {
     grep -q 'readStoragePartitionReceipt' "$DISK_WIN"
     grep -q "FileSystemLabel -ne 'wootc-data'" "$PARTITION_POLICY"

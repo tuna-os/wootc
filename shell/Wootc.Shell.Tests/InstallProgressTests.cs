@@ -50,6 +50,20 @@ public sealed class InstallProgressTests
     }
 
     [Fact]
+    public void HardwareWarningsRemainVisibleAfterLaterStepsAndCompletion()
+    {
+        var progress = new InstallProgress(Catalogue());
+        const string warning = "Hardware compatibility WARNING — Wi-Fi: coverage is unknown";
+        progress.Apply(new ProgressEvent { Step = "Checking your PC", Message = warning });
+        progress.Apply(new ProgressEvent { Step = "Checking your PC", Message = warning });
+        progress.Apply(new ProgressEvent { Step = "Saving settings", Message = "Continuing", Percent = 80 });
+        Assert.Equal(warning, Assert.Single(progress.HardwareWarnings));
+        Assert.Contains(warning, InstallProgressText.Notes(progress, "D", Brand));
+        progress.Apply(new ProgressEvent { Message = "Ready", Percent = 100, Done = true });
+        Assert.Equal(warning, Assert.Single(progress.HardwareWarnings));
+    }
+
+    [Fact]
     public void ASuccessfulRunMarksEarlierStepsDoneAndEndsDone()
     {
         var atBitLocker = Run("success.ndjson", update => update.PhaseId == InstallProgress.BitLockerStep);

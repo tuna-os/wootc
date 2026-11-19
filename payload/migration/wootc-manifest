@@ -95,15 +95,18 @@ def builtin_cat_files(user):
 
 
 def builtin_cat_browsers(user):
-    items = []
-    ad = os.path.join(HOST, "Users", user, "AppData")
-    if os.path.exists(os.path.join(ad, "Roaming", "Mozilla", "Firefox", "profiles.ini")):
-        items.append(_item(os.path.join(ad, "Roaming", "Mozilla", "Firefox"), "firefox", "Firefox", "profile + logins"))
-    if os.path.exists(os.path.join(ad, "Local", "Google", "Chrome", "User Data", "Default", "Bookmarks")):
-        items.append(_item(os.path.join(ad, "Local", "Google", "Chrome", "User Data"), "chrome", "Chrome", "bookmarks + history"))
-    if os.path.exists(os.path.join(ad, "Local", "Microsoft", "Edge", "User Data", "Default", "Bookmarks")):
-        items.append(_item(os.path.join(ad, "Local", "Microsoft", "Edge", "User Data"), "edge", "Edge", "bookmarks + history"))
-    return bool(items), items, ", ".join(i["label"] for i in items)
+    """Use the same read-only detector as the bundled browsers plugin."""
+    env = dict(os.environ)
+    env["WOOTC_HOST"] = HOST
+    env["WOOTC_WIN_USER"] = user
+    env["WOOTC_WIN_USER_DIR"] = os.path.join(HOST, "Users", user)
+    proc = subprocess.run(
+        [os.path.join(SCRIPT_DIR, "wootc-detect-apps"), "--detect-browsers"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, timeout=10, check=True,
+    )
+    result = json.loads(proc.stdout)
+    return result["detected"], result["items"], result["summary"]
 
 
 def builtin_cat_office(user):

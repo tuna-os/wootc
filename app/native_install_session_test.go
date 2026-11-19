@@ -113,6 +113,27 @@ func TestNativeInstallSessionPlanDecodeRefusesAmbiguousOrForeignFields(t *testin
 	}
 }
 
+func TestDecodeNativeInstallPlanProfileAccounts(t *testing.T) {
+	withAccounts := func(accounts string) json.RawMessage {
+		return json.RawMessage(strings.TrimSuffix(nativeInstallPlanFixture, "}") + `,"profileAccounts":` + accounts + `}`)
+	}
+	plan, err := decodeNativeInstallPlan(withAccounts(`[{"windowsDir":"田中","linuxUser":"tanaka"}]`))
+	if err != nil || len(plan.ProfileAccounts) != 1 || plan.ProfileAccounts[0].WindowsDir != "田中" || plan.ProfileAccounts[0].LinuxUser != "tanaka" {
+		t.Fatalf("editable profile mapping did not decode: %+v %v", plan.ProfileAccounts, err)
+	}
+	for _, invalid := range []string{
+		`null`, `{}`, `[null]`, `[{"windowsDir":"田中"}]`,
+		`[{"windowsDir":"田中","linuxUser":null}]`,
+		`[{"windowsDir":"田中","linuxUser":"one","linuxUser":"two"}]`,
+		`[{"WindowsDir":"田中","linuxUser":"tanaka"}]`,
+		`[{"windowsDir":"田中","linuxUser":"tanaka","unknown":true}]`,
+	} {
+		if _, err := decodeNativeInstallPlan(withAccounts(invalid)); err == nil {
+			t.Errorf("accepted malformed profile mapping %s", invalid)
+		}
+	}
+}
+
 func TestNativeInstallSessionHoldsOnePlanAndOneConfirmation(t *testing.T) {
 	authority := &fakeNativeInstallAuthority{intent: "0123456789abcdef0123456789abcdef", expected: `{"kind":"confirm-install"}`}
 	var plans []InstallConfig

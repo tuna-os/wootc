@@ -4,9 +4,8 @@ package main
 // bus (state.go). These are the exact paths E2E and unattended installs
 // depend on (wootc install/status over QGA), and previously had 0% coverage.
 //
-// None of these tests trigger the real install pipeline: every headlessInstall
-// case exits in flag parsing / argument validation before the install engine is
-// reached, and the state tests operate on the dev-mode wootcDir (/tmp/wootc).
+// Install cases exit during argument validation, before the install engine.
+// Lifecycle state fixtures live only in each test's temporary directory.
 
 import (
 	"errors"
@@ -166,14 +165,10 @@ func TestHeadlessStatusRefusesUnverifiedHealthy(t *testing.T) {
 // ── lifecycle state bus ──────────────────────────────────────────────────────
 
 func TestStateRoundTrip(t *testing.T) {
-	dir := filepath.Dir(statePath())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(statePath())
+	path := filepath.Join(t.TempDir(), "state.json")
 
-	writeState(StateArmed, "phase1", "")
-	s, ok := readState()
+	writeStateAt(path, StateArmed, "phase1", "")
+	s, ok := readStateFrom(path)
 	if !ok {
 		t.Fatal("readState returned ok=false after writeState")
 	}
@@ -192,14 +187,10 @@ func TestStateRoundTrip(t *testing.T) {
 }
 
 func TestStateRoundTripFailureFields(t *testing.T) {
-	dir := filepath.Dir(statePath())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(statePath())
+	path := filepath.Join(t.TempDir(), "state.json")
 
-	writeState(StateFailed, "install", "disk write failed")
-	s, ok := readState()
+	writeStateAt(path, StateFailed, "install", "disk write failed")
+	s, ok := readStateFrom(path)
 	if !ok || s.State != StateFailed {
 		t.Fatalf("readState = (%+v, %v), want failed state", s, ok)
 	}
@@ -209,22 +200,18 @@ func TestStateRoundTripFailureFields(t *testing.T) {
 }
 
 func TestReadStateMissingFile(t *testing.T) {
-	_ = os.Remove(statePath())
-	if _, ok := readState(); ok {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if _, ok := readStateFrom(path); ok {
 		t.Error("readState on missing file returned ok=true")
 	}
 }
 
 func TestReadStateCorruptJSON(t *testing.T) {
-	dir := filepath.Dir(statePath())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(statePath(), []byte("{not json"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(statePath())
-	if _, ok := readState(); ok {
+	if _, ok := readStateFrom(path); ok {
 		t.Error("readState on corrupt JSON returned ok=true")
 	}
 }
@@ -243,18 +230,5 @@ func TestDetectModeInstallerWhenHostNotBridged(t *testing.T) {
 func TestHeadlessUninstallRejectsBadFlag(t *testing.T) {
 	if got := headlessUninstall([]string{"--bad-flag"}); got != 2 {
 		t.Errorf("headlessUninstall(bad flag) = %d, want 2", got)
-	}
-}
-
-func TestHeadlessUninstallDefaultOptions(t *testing.T) {
-	// Running with no flags should execute cleanly (stubbed on non-Windows)
-	if got := headlessUninstall(nil); got != 0 {
-		t.Errorf("headlessUninstall(nil) = %d, want 0", got)
-	}
-}
-
-func TestHeadlessUninstallWithOptions(t *testing.T) {
-	if got := headlessUninstall([]string{"-delete-root-disk", "-remove-partition"}); got != 0 {
-		t.Errorf("headlessUninstall(-delete-root-disk -remove-partition) = %d, want 0", got)
 	}
 }

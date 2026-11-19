@@ -40,7 +40,8 @@ func uninstallEntryValues(b Branding, target, installLocation string) map[string
 // Windows does (case-insensitively, either separator).
 func pathWithin(path, dir string) bool {
 	norm := func(p string) string {
-		return strings.ToLower(filepath.Clean(strings.ReplaceAll(p, `\`, "/")))
+		// Clean restores native separators on Windows; compare in slash form.
+		return strings.ToLower(filepath.ToSlash(filepath.Clean(strings.ReplaceAll(p, `\`, "/"))))
 	}
 	p, d := norm(path), norm(dir)
 	if d == "" || d == "." {

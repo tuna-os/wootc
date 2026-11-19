@@ -386,10 +386,14 @@ func (a *App) runBuilderVM(ctx context.Context, cap VMCapability, state *VMState
 	return nil
 }
 
-// InstallPreviewForReal remains unavailable until VM shutdown, exclusive disk
-// ownership and same-image native boot compatibility are proven (ADR 0004).
+// InstallPreviewForReal prepares target-matched native inputs without modifying
+// the VM image. Arming a host boot remains gated on the independent native
+// hardware, encryption, trust, recovery and same-image acceptance checks.
 func (a *App) InstallPreviewForReal(cfg InstallConfig) error {
-	return fmt.Errorf("native promotion is not available yet: keep your VM disk; shutdown and boot compatibility checks are still required")
+	if err := a.prepareVMNativeExport(); err != nil {
+		return err
+	}
+	return fmt.Errorf("native boot inputs are exported and verified; native promotion is not armed: host storage, Secure Boot and recovery checks still need a verified handoff")
 }
 
 func haxmAvailable() bool {

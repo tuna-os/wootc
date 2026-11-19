@@ -4,8 +4,7 @@ package main
 // end to end on the Go side: identity, catalog, channel gate, MOK warning,
 // offline preload, the Windows-facing strings, and assets that never reach
 // for the network. Each test sets brandID itself, exactly as the ldflag does,
-// and clears the runtime overlay files in wootcDir() that would otherwise
-// mask the embedded brand.
+// and resolves runtime overlays from an owned temporary directory.
 
 import (
 	"bytes"
@@ -17,8 +16,7 @@ import (
 // asBazziteBuild makes this test binary behave like Bazzite-Installer.exe.
 func asBazziteBuild(t *testing.T) {
 	t.Helper()
-	// The runtime overlays win over the embedded brand; asBrandBuild clears
-	// them so these tests assert the build, not a leftover overlay.
+	// Select the compiled identity without moving any installed overlay.
 	asBrandBuild(t, "bazzite")
 	t.Setenv("WOOTC_PRELOAD", "")
 	t.Setenv("WOOTC_E2E_DRIVE", "")
@@ -26,7 +24,7 @@ func asBazziteBuild(t *testing.T) {
 
 func TestBazziteBuild_WearsItsOwnIdentity(t *testing.T) {
 	asBazziteBuild(t)
-	b := effectiveBranding()
+	b := effectiveBrandingAt(t.TempDir())
 	if b.Name != "Bazzite" || b.ProductName != "Bazzite Installer" || b.ExeName != "Bazzite-Installer" {
 		t.Fatalf("bazzite build identity = %q / %q / %q", b.Name, b.ProductName, b.ExeName)
 	}
@@ -63,7 +61,7 @@ func TestBazziteBuild_OffersOnlyBazziteImages(t *testing.T) {
 	}
 	for _, channel := range []string{"beta", "stable"} {
 		t.Setenv("WOOTC_CHANNEL", channel)
-		got, err := NewApp().GetImages()
+		got, err := imagesAt(t.TempDir())
 		if err != nil {
 			t.Fatalf("%s: GetImages: %v", channel, err)
 		}
@@ -88,11 +86,11 @@ func TestBazziteBuild_OffersOnlyBazziteImages(t *testing.T) {
 				t.Errorf("%s: imageNeedsMok(%s) = false; the deployer would not queue the enrollment", channel, img.ImageRef)
 			}
 		}
-		if pol := NewApp().GetSupportPolicy(); pol.CustomImageAllowed {
+		if pol := supportPolicyAt(t.TempDir()); pol.CustomImageAllowed {
 			t.Errorf("%s: bazzite build allows a custom image ref: %+v", channel, pol)
 		}
 	}
-	if d := effectiveBranding().DefaultImage; d != "bazzite" {
+	if d := effectiveBrandingAt(t.TempDir()).DefaultImage; d != "bazzite" {
 		t.Errorf("default image = %q, want bazzite", d)
 	}
 }
@@ -104,18 +102,18 @@ func TestBazziteBuild_OffersOnlyBazziteImages(t *testing.T) {
 func TestBazziteBuild_DefaultChannelStillOffersTheDefaultImage(t *testing.T) {
 	asBazziteBuild(t)
 	t.Setenv("WOOTC_CHANNEL", "")
-	if c := supportChannel(); c != "alpha" {
+	if c := supportChannelAt(t.TempDir()); c != "alpha" {
 		t.Fatalf("default channel = %q; this test pins the alpha gate", c)
 	}
-	got, err := NewApp().GetImages()
+	got, err := imagesAt(t.TempDir())
 	if err != nil {
 		t.Fatalf("GetImages: %v", err)
 	}
 	if len(got) == 0 {
 		t.Fatal("the Bazzite installer offers no image on the default channel")
 	}
-	if got[0].ID != effectiveBranding().DefaultImage {
-		t.Errorf("first offered image = %s, want the brand default %s", got[0].ID, effectiveBranding().DefaultImage)
+	if got[0].ID != effectiveBrandingAt(t.TempDir()).DefaultImage {
+		t.Errorf("first offered image = %s, want the brand default %s", got[0].ID, effectiveBrandingAt(t.TempDir()).DefaultImage)
 	}
 	for _, img := range got {
 		if img.Status != "green" {
@@ -131,7 +129,7 @@ func TestBazziteBuild_DefaultChannelStillOffersTheDefaultImage(t *testing.T) {
 // deployer has no Wi-Fi. WOOTC_PRELOAD=0 is the harness's off switch only.
 func TestBazziteBuild_PreloadsTheImageOnWindows(t *testing.T) {
 	asBazziteBuild(t)
-	b := effectiveBranding()
+	b := effectiveBrandingAt(t.TempDir())
 	if !shouldPreloadImage(b) {
 		t.Error("bazzite build does not preload its image; the deployer would need a network")
 	}
@@ -154,7 +152,7 @@ func TestBazziteBuild_PreloadsTheImageOnWindows(t *testing.T) {
 // the restart notice. Neither may say a word the Bazzite user never saw.
 func TestBazziteBuild_WindowsSurfacesNeverSayWootc(t *testing.T) {
 	asBazziteBuild(t)
-	b := effectiveBranding()
+	b := effectiveBrandingAt(t.TempDir())
 	if got := uninstallDisplayName(b); got != "Bazzite" {
 		t.Errorf("Add/Remove entry = %q, want Bazzite", got)
 	}

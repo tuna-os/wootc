@@ -132,3 +132,37 @@ func TestManagedVMShutdownContract(t *testing.T) {
 		})
 	}
 }
+
+func TestManagedVMFailedStartPreservesLaunchableState(t *testing.T) {
+	for _, phase := range []string{vmReady, vmStopped} {
+		t.Run(phase, func(t *testing.T) {
+			root := t.TempDir()
+			disk, diskID := vmTestDisk(t)
+			statePath := filepath.Join(root, "state.json")
+			state := VMState{SchemaVersion: 1, InstallID: "install-123", DiskPath: disk, DiskID: diskID, Phase: phase}
+			if err := writeVMState(statePath, state); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(filepath.Join(root, "missing-qemu"))
+			session, err := startManagedVM(cmd, statePath, state, func() {
+				t.Error("failed launch consumed caller's image lease")
+			}, func(*exec.Cmd) (io.Closer, error) {
+				t.Error("failed launch attempted process ownership")
+				return noopVMJob{}, nil
+			})
+			if err == nil || session != nil {
+				t.Fatal("missing executable was accepted")
+			}
+			recorded, err := readVMState(statePath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if recorded.Phase != phase || recorded.PID != 0 {
+				t.Fatalf("unstarted process changed installation state: %+v", recorded)
+			}
+			if err := vmLaunchAllowed(recorded, disk); err != nil {
+				t.Fatalf("verified image cannot be retried: %v", err)
+			}
+		})
+	}
+}

@@ -194,7 +194,6 @@ public sealed class MaintenanceGate : IAsyncDisposable
 
 // The legacy Manage and Recovery screens' own words
 // (app/frontend/src/screens/control.js and recovery.js), HTML removed.
-// MaintenanceTextTests compares every line with those files.
 public static class MaintenanceText
 {
     private static string Round(double value) => Math.Round(value, MidpointRounding.AwayFromZero).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -315,7 +314,7 @@ public static class MaintenanceText
         grant.Action == MaintenanceActions.Uninstall ? (recovery ? ConfirmRemove(brand) : ConfirmUninstall(brand, grant)) : null;
 }
 
-public sealed record MaintenanceLine(string Id, string Text);
+public sealed record MaintenanceLine(string Id, string Text, bool ReadOnlyValue = false);
 public sealed record MaintenanceButton(string Id, string Label, bool Enabled);
 public sealed record MaintenanceView(IReadOnlyList<MaintenanceLine> Lines, IReadOnlyList<MaintenanceButton> Buttons, bool OfferDeleteData, bool OfferPartition, string Status);
 
@@ -368,6 +367,14 @@ public static class MaintenanceScreen
                     lines.Add(new("ManageInstalledTitle", info.Deployed ? MaintenanceText.VerifiedTitle(brand) : MaintenanceText.FirstBootTitle(brand)));
                     lines.Add(new("ManageInstalledBody", MaintenanceText.InstalledBody));
                     if (info.BootEvidence is not null) lines.Add(new("ManageBootEvidence", MaintenanceText.BootSummary(info.BootEvidence)));
+                    if (info.BootEvidence is { Verdict: "verified" } evidence)
+                    {
+                        if (!string.IsNullOrEmpty(evidence.SourceImageRef)) lines.Add(new("InstalledBootSource", evidence.SourceImageRef, true));
+                        if (!string.IsNullOrEmpty(evidence.Kernel)) lines.Add(new("InstalledBootKernel", evidence.Kernel, true));
+                        if (!string.IsNullOrEmpty(evidence.BootId)) lines.Add(new("InstalledBootId", evidence.BootId, true));
+                        if (evidence.Bridge is { } bridge)
+                            lines.Add(new("InstalledBootBridge", $"boundFolders={bridge.BoundFolders};matchedUsers={bridge.MatchedUsers};bitlockerUnlocked={bridge.BitlockerUnlocked.ToString().ToLowerInvariant()}", true));
+                    }
                     buttons.Add(new("RestartIntoLinux", MaintenanceText.RestartInto(brand), open));
                 }
                 offerDelete = open;

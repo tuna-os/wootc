@@ -15,6 +15,10 @@ export function GetInstallSpace(arg1) {
   return window['go']['main']['App']['GetInstallSpace'](arg1);
 }
 
+export function GetProfileAccountPlan(primary) {
+  return window['go']['main']['App']['GetProfileAccountPlan'](primary);
+}
+
 export function GetBranding() {
   return window['go']['main']['App']['GetBranding']();
 }
@@ -109,6 +113,10 @@ export function GetOfficeMigration() {
 
 export function SetSessionConsent(arg1, arg2) {
   return window['go']['main']['App']['SetSessionConsent'](arg1, arg2);
+}
+
+export function ImportAppSession(request) {
+  return window['go']['main']['App']['ImportAppSession'](request);
 }
 
 export function ReinstallApps() {

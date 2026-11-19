@@ -26,6 +26,11 @@ $package=[IO.Path]::GetFullPath($PackageDirectory)
 $output=[IO.Path]::GetFullPath($OutputDirectory)
 $scratch=[IO.Path]::GetFullPath($ScratchDirectory)
 if (-not (Test-Path -LiteralPath (Join-Path $package 'native-package.json') -PathType Leaf)) { throw 'Native package has no manifest' }
+$brandTool=Join-Path $PSScriptRoot '../../packaging/brand.py'
+$identityJson=& python $brandTool identity --brand $BrandId
+if ($LASTEXITCODE -ne 0) { throw 'Brand publisher policy refused this package' }
+$identity=$identityJson | ConvertFrom-Json
+if ([string]::IsNullOrWhiteSpace($identity.publisher)) { throw 'Brand publisher policy returned no publisher' }
 [IO.Directory]::CreateDirectory($output) | Out-Null
 [IO.Directory]::CreateDirectory($scratch) | Out-Null
 
@@ -64,7 +69,7 @@ if ($LASTEXITCODE -ne 0 -or $compilerVersion -cne '7.1.0') { throw 'Compiler eng
 $brand=Get-Content -LiteralPath (Join-Path $PSScriptRoot "../../app/branding/$BrandId/brand.json") -Raw | ConvertFrom-Json
 $iss=if ($isRelease) { Join-Path $PSScriptRoot 'setup.iss' } else { Join-Path $PSScriptRoot 'preview.iss' }
 $setupBaseName=if ($brand.exeName -eq 'wootc') { 'wootc-Installer-Setup' } else { "$($brand.exeName)-Setup" }
-$arguments=@("/DSourceDir=$package","/DOutputDir=$output","/DBrandId=$BrandId","/DProductName=$($brand.productName)","/DPublisher=$($brand.publisher)","/DBuildId=$BuildId")
+$arguments=@("/DSourceDir=$package","/DOutputDir=$output","/DBrandId=$BrandId","/DProductName=$($brand.productName)","/DPublisher=$($identity.publisher)","/DBuildId=$BuildId")
 if ($isRelease) {
     $arguments += "/DVersion=$ReleaseTag"
     $arguments += "/DOutputBaseName=$setupBaseName"

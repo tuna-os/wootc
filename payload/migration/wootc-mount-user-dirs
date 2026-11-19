@@ -77,8 +77,10 @@ bitlocker_key_file() {
 # the host key alone otherwise. --tpm2-pcrs= binds to the TPM itself, not to
 # the boot state: a firmware or Secure Boot update must not lock the user out
 # of their own folders, while a copy of the disk still cannot be unsealed on
-# another machine. The plaintext goes only after the sealed copy decrypts to
-# the same bytes; on any failure it stays, and the next boot tries again.
+# another machine when TPM-backed. Host-only sealing is weaker: the host key
+# is on the same disk and cannot defeat an offline disk-image attacker.
+# The plaintext goes only after the sealed copy decrypts to the same bytes
+# and its file and directory entry are durable; any failure keeps plaintext.
 seal_bitlocker_key() {
     local key="$WOOTC_ETC/bitlocker-key" cred="$WOOTC_ETC/bitlocker-key.cred" want
     [[ -f "$key" ]] || return 0
@@ -88,14 +90,21 @@ seal_bitlocker_key() {
     fi
     want=$(sha256sum < "$key") || return 0
     rm -f "$cred.partial"
-    # Some systemd builds refuse an empty PCR list without a TPM; their
-    # default policy is the fallback, never the plaintext staying forever.
+    # A fallback must never silently add default PCR bindings: that would
+    # lose access after firmware/Secure Boot changes. Only a machine without
+    # usable TPM2 may retry with the explicitly weaker host-only policy.
     if { ( umask 077 && systemd-creds encrypt --with-key=auto --tpm2-pcrs= --name=bitlocker-key "$key" "$cred.partial" ) 2>/dev/null ||
-         ( umask 077 && systemd-creds encrypt --with-key=auto --name=bitlocker-key "$key" "$cred.partial" ) 2>/dev/null; } &&
+         { ! systemd-creds has-tpm2 --quiet >/dev/null 2>&1 &&
+           ( umask 077 && systemd-creds encrypt --with-key=host --name=bitlocker-key "$key" "$cred.partial" ) 2>/dev/null; }; } &&
        [[ "$(systemd-creds decrypt --name=bitlocker-key "$cred.partial" - 2>/dev/null | sha256sum)" == "$want" ]] &&
-       mv -f "$cred.partial" "$cred"; then
+       sync -f "$cred.partial" &&
+       mv -f "$cred.partial" "$cred" &&
+       sync -f "$WOOTC_ETC"; then
         shred -u "$key" 2>/dev/null || rm -f "$key"
-        log "BitLocker recovery key sealed to this machine (${cred}); plaintext copy shredded"
+        log "BitLocker recovery key sealed (${cred}); plaintext copy removed"
+        if ! systemd-creds has-tpm2 --quiet >/dev/null 2>&1; then
+            warn "no usable TPM2: host-only sealing does not protect the recovery key against a copied Linux disk"
+        fi
         return 0
     fi
     rm -f "$cred.partial"
@@ -117,8 +126,8 @@ bitlocker_key_material() {
 # accepts as one: eight groups of six digits joined by hyphens (55 chars).
 # The 48 bare digits are a different passphrase that never unlocks the
 # recovery protector (cryptsetup: "No key available with this passphrase").
-# Phase 1 stores the digits without hyphens and the E2E fixture stores them
-# with, so both are read: keep only the digits, require exactly 48, check each
+# Current staging stores canonical hyphenated passwords; older Phase-1 files
+# may contain bare digits. Read both: require exactly 48 digits, check each
 # group the way BitLocker does (a multiple of 11 below 65536 * 11), and put the
 # hyphens back. Anything else is refused rather than guessed at.
 bitlocker_recovery_password() {
@@ -400,7 +409,10 @@ bind_profile() {
                 copied=$((copied + 1))
                 continue
             fi
-            warn "Documents copy was not completed for $luser; keeping the original read-only"
+            warn "Documents copy was not completed for $luser; leaving Linux Documents untouched. The Windows original is still read-only at $src"
+            # Never hide a previous Linux workspace under a read-only bind
+            # when a new import fails (full disk, permissions, missing helper).
+            continue
         fi
 
         mkdir -p "$dst"

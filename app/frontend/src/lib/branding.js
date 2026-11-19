@@ -18,13 +18,20 @@ export function applyBranding(b) {
   const inject = (id, css) => {
     let s = document.getElementById(id);
     if (!css) { if (s) s.remove(); return; }
-    if (!s) { s = document.createElement('style'); s.id = id; document.head.appendChild(s); }
+    if (!s) { s = document.createElement('style'); s.id = id; }
     s.textContent = css;
+    document.head.appendChild(s);
   };
   inject('brand-font', b.fontDataUri && b.fontFamily
     ? `@font-face{font-family:'${b.fontFamily}';src:url(${b.fontDataUri}) format('woff2');font-weight:100 900;font-display:swap}` +
       `html,body{font-family:'${b.fontFamily}','Inter',system-ui,sans-serif}`
     : '');
+  // A palette without a full theme must not inherit light-OS input colors
+  // beside its own dark text/surfaces (or the reverse). Deep themes come last.
+  const palette = [];
+  if (b.card) palette.push('--bg-input:var(--bg-card);--bg-hover:var(--bg-card);');
+  if (b.text) palette.push('--text-muted:var(--text);--text-dim:var(--text);');
+  inject('brand-palette', palette.length ? `:root{${palette.join('')}}` : '');
   inject('brand-theme', b.themeCss || '');
 
   document.title = `${b.productName || b.name} — ${b.tagline}`;

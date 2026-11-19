@@ -23,11 +23,14 @@
 # fields come from a slurp.json the Windows installer writes; WOOTC_SLURP
 # overrides its location for tests. WOOTC_HOME / WOOTC_AS_DIR override the Linux
 # home and the AccountsService dir so `apply` runs against fixtures.
+import contextlib
 import json
 import os
-import shutil
+import pwd
+import stat
 import subprocess
 import sys
+import uuid
 
 HOST = os.environ.get("WOOTC_HOST", "/run/wootc/host")
 
@@ -60,7 +63,8 @@ def _avatar(user):
     if not os.path.isdir(d):
         return None
     imgs = [os.path.join(d, f) for f in os.listdir(d)
-            if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp"))]
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp"))
+            and not os.path.islink(os.path.join(d, f))]
     if not imgs:
         return None
     return max(imgs, key=lambda p: os.path.getsize(p) if os.path.exists(p) else 0)
@@ -131,6 +135,85 @@ def _resolve_winuser(winuser, linuxuser):
     return users[0] if len(users) == 1 else winuser
 
 
+def _open_picture(path):
+    """Open the account picture for reading. The Windows profile belongs to the
+    person being migrated, so no link in it may choose what root reads: every
+    component below HOST is opened without following, and only a regular file
+    is accepted."""
+    relative = os.path.relpath(path, HOST).split(os.sep)
+    if any(part in ("", ".", "..") for part in relative):
+        raise OSError("account picture is outside the Windows volume")
+    fd = os.open(HOST, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for name in relative[:-1]:
+            child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = child
+        picture = os.open(relative[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
+    finally:
+        os.close(fd)
+    if not stat.S_ISREG(os.fstat(picture).st_mode):
+        os.close(picture)
+        raise OSError("account picture is not a regular file")
+    return picture
+
+
+def _copy_picture(picture, out):
+    os.lseek(picture, 0, os.SEEK_SET)
+    while True:
+        chunk = os.read(picture, 1024 * 1024)
+        if not chunk:
+            return
+        view = memoryview(chunk)
+        while view:
+            view = view[os.write(out, view):]
+
+
+@contextlib.contextmanager
+def _as_home_owner(linuxuser):
+    """Everything below a home is the user's to arrange, links included. Root
+    takes that user's credentials for the write, so a planted link reaches only
+    what the user could already write. Without root there is nothing to drop."""
+    if os.geteuid() != 0:
+        yield
+        return
+    account = pwd.getpwnam(linuxuser)
+    group, groups = os.getegid(), os.getgroups()
+    try:
+        os.setgroups([])
+        os.setegid(account.pw_gid)
+        os.seteuid(account.pw_uid)
+        yield
+    finally:
+        os.seteuid(0)
+        os.setegid(group)
+        os.setgroups(groups)
+
+
+def _write_face(picture, home, linuxuser):
+    """Replace ~/.face with the picture, as the home's owner. The new file is
+    created under a fresh name and renamed into place, so an existing .face
+    that is a link is replaced, never written through."""
+    with _as_home_owner(linuxuser):
+        directory = os.open(home, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            if os.fstat(directory).st_uid != os.geteuid():
+                raise OSError("home is not owned by the target user")
+            temporary = ".face.wootc-" + uuid.uuid4().hex
+            out = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                          0o644, dir_fd=directory)
+            try:
+                _copy_picture(picture, out)
+                os.replace(temporary, ".face", src_dir_fd=directory, dst_dir_fd=directory)
+            except OSError:
+                os.unlink(temporary, dir_fd=directory)
+                raise
+            finally:
+                os.close(out)
+        finally:
+            os.close(directory)
+
+
 def cmd_apply(winuser, linuxuser):
     """Copy the non-secret identity — account picture + full name — onto the
     Linux user. Best-effort per piece; never fails the migration."""
@@ -141,22 +224,35 @@ def cmd_apply(winuser, linuxuser):
     applied = []
 
     av = info["avatar"]
-    if av and os.path.isfile(av):
-        if home and os.path.isdir(home):
-            try:
-                shutil.copyfile(av, os.path.join(home, ".face"))
-                applied.append("face")
-            except OSError:
-                pass
+    picture = None
+    if av:
         try:
-            icons = os.path.join(as_dir, "icons")
-            os.makedirs(icons, exist_ok=True)
-            dst = os.path.join(icons, linuxuser)
-            shutil.copyfile(av, dst)
-            _set_as_icon(as_dir, linuxuser, dst, info["fullName"])
-            applied.append("accountsservice")
+            picture = _open_picture(av)
         except OSError:
             pass
+    if picture is not None:
+        try:
+            if home and os.path.isdir(home):
+                try:
+                    _write_face(picture, home, linuxuser)
+                    applied.append("face")
+                except (OSError, KeyError):
+                    pass
+            try:
+                icons = os.path.join(as_dir, "icons")
+                os.makedirs(icons, exist_ok=True)
+                dst = os.path.join(icons, linuxuser)
+                out = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o644)
+                try:
+                    _copy_picture(picture, out)
+                finally:
+                    os.close(out)
+                _set_as_icon(as_dir, linuxuser, dst, info["fullName"])
+                applied.append("accountsservice")
+            except OSError:
+                pass
+        finally:
+            os.close(picture)
 
     if info["fullName"]:
         # GECOS full name via chfn (root); non-fatal if unavailable.

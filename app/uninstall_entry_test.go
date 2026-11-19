@@ -50,6 +50,11 @@ func TestUninstallRemovesImageWhenRunFromTheStagedCopy(t *testing.T) {
 		{`C:\wootc\install\wootc.exe`, true},
 		{`c:\WOOTC\Install\WOOTC.EXE`, true},
 		{`D:\wootc\install\wootc.exe`, true},
+		{`D:/wootc\install/wootc.exe`, true},
+		{`D:\wootc\install\staged\..\wootc.exe`, true},
+		{`D:\wootc\install\..\wootc.exe`, false},
+		{`D:\wootc\install\..\installer\wootc.exe`, false},
+		{`E:\wootc\install\wootc.exe`, false},
 		{`C:\wootc\wootc.exe`, false},
 		{`C:\wootc\installer\wootc.exe`, false},
 		{`C:\Program Files\wootc Native Preview\example\bundle\wootc-engine.exe`, false},
@@ -61,5 +66,24 @@ func TestUninstallRemovesImageWhenRunFromTheStagedCopy(t *testing.T) {
 	}
 	if uninstallRemovesImage(`C:\wootc\install\wootc.exe`, []string{""}) {
 		t.Error("an empty directory must not contain everything")
+	}
+}
+
+func TestUninstallRemovesImageUsesOnlyTheSuppliedRoot(t *testing.T) {
+	// Explicit roots keep this classification independent of the selected
+	// storage drive or anything installed on the machine running the test.
+	removed := []string{`D:\wootc\install\.\`}
+	for _, c := range []struct {
+		self string
+		want bool
+	}{
+		{`d:/WOOTC/Install/wootc.exe`, true},
+		{`C:\wootc\install\wootc.exe`, false},
+		{`D:\wootc\installer\wootc.exe`, false},
+		{`D:\wootc\install\..\foreign\wootc.exe`, false},
+	} {
+		if got := uninstallRemovesImage(c.self, removed); got != c.want {
+			t.Errorf("uninstallRemovesImage(%q, %q) = %v, want %v", c.self, removed, got, c.want)
+		}
 	}
 }
