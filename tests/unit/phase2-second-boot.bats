@@ -112,7 +112,7 @@ drive() {
 
 @test "an unlocked C: without the seeded original does not count as the key" {
     BIND=ABSENT DIAG_EXTRA="$SEALED" ORIGINAL='' drive linux "wootc-e2e-userdata run-2nd-boot"
-    grep -q '^warn .*did not exercise the recovery key' "$CALLS"
+    grep -q '^warn .*BitLocker unlock was not observed' "$CALLS"
     absent -q 'sealed to this machine' "$CALLS"
 }
 
