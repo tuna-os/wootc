@@ -118,7 +118,7 @@ phase2_second_boot_check() {
         fi
         if [ "${WOOTC_E2E_GUI_DOCUMENTS:-0}" = 1 ]; then
             if ! python3 "$SCRIPT_DIR/gui-document-proof.py" reopen --runtime "$DOCKER" \
-                --container "$CONTAINER_NAME" --path "$userdata_path" --run-id "$RUN_ID" \
+                --container "$CONTAINER_NAME" --path "$path" --run-id "$RUN_ID" \
                 --output "$ARTIFACT_DIR/gui-documents/second-boot" \
                 > "$ARTIFACT_DIR/gui-documents-second.json"; then
                 product_fail "GUI Documents: editor could not reopen saved bytes after the environment restart"
@@ -129,7 +129,7 @@ phase2_second_boot_check() {
             fi
         fi
     else
-        product_fail "Second Phase 2 boot: Windows Documents file NOT readable at $userdata_path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
+        product_fail "Second Phase 2 boot: Windows Documents file NOT readable at $path (expected RUN_ID $RUN_ID) — the recovery key did not survive the first shutdown"
     fi
 
     # The key that unlocked C: on this boot is the copy sealed to this
