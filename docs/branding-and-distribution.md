@@ -123,7 +123,7 @@ fields:
   in normal use, and renaming them per brand would fork the E2E surface.
   (Revisit if a partner requires path-level rebranding.)
 
-**Build selection.** `app/branding/embed.go` embeds `branding/*/brand.json`
+**Build selection.** `app/branding_embed.go` embeds `branding/*/brand.json`
 via `go:embed`; `-ldflags "-X main.brandID=bazzite"` picks one (default
 `wootc`). `GetBranding()` resolution order: embedded brand → overlay
 `C:\wootc\brand.json` → hardcoded defaults. The frontend already consumes
