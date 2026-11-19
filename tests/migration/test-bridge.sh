@@ -458,6 +458,25 @@ bash /scripts/wootc-copy-windows-documents "$BL_DOCS" /home/dave dave >/dev/null
 check 'runuser -u dave -- test -w "/home/dave/Documents/From Windows/Projects/notes.txt" && [ "$(stat -c %u /home/dave/Documents)" = "$(id -u dave)" ]' \
     "#427: the ordinary user safely replaces an empty legacy root-owned mountpoint"
 
+# Identity: the account picture lands below a home its user controls and comes
+# from a Windows profile that user filled. Root must not write through a link
+# planted in the home, nor read through one in the profile.
+ID_HOST=/tmp/identity-host
+ID_PICTURES="$ID_HOST/Users/dave/AppData/Roaming/Microsoft/Windows/AccountPictures"
+mkdir -p "$ID_PICTURES"
+printf 'PICTURE' > "$ID_PICTURES/tile.png"
+ln -s /etc/shadow "$ID_PICTURES/larger.png"
+printf 'canary\n' > /tmp/identity-canary
+runuser -u dave -- ln -s /tmp/identity-canary /home/dave/.face
+WOOTC_HOST="$ID_HOST" WOOTC_AS_DIR=/tmp/identity-accounts \
+    python3 /scripts/wootc-identity apply dave dave >/dev/null
+check '[ "$(cat /tmp/identity-canary)" = canary ]' \
+    "identity: root does not write through a ~/.face link the user planted"
+check '[ ! -L /home/dave/.face ] && [ "$(cat /home/dave/.face)" = PICTURE ] && [ "$(stat -c %U /home/dave/.face)" = dave ]' \
+    "identity: ~/.face is replaced by the picture and belongs to the user"
+check '[ "$(cat /tmp/identity-accounts/icons/dave)" = PICTURE ]' \
+    "identity: a linked picture in the Windows profile is never read"
+
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
 INNER
