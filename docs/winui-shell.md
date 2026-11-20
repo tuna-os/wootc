@@ -341,6 +341,12 @@ The second observation also selects the state root again, and the grant contract
 Run 38857241312 passed, but it did not record the margin.
 If a slow disk causes a timeout, measure each part before you change a limit.
 
+The shell waits 110 seconds for `ConfirmNativeInstall`.
+In that time the engine observes the storage again, and `StartInstall` validates the plan again.
+This validation reads only the plan facts and does not analyze the defragmentation of C:.
+In native gate probe 44764569187, the plan check took about 85 seconds.
+A wait of 60 seconds for the confirmation then stopped the install with "A task was canceled.".
+
 ### Drive reports during the plan check
 
 In runs 38923119161 and 38931058878 the harness read no drive report for about two minutes.
