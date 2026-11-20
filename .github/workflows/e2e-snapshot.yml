@@ -64,7 +64,8 @@ jobs:
         run: |
           ls -l /dev/kvm || { echo "::error::no /dev/kvm on this runner"; exit 1; }
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qemu-kvm qemu-utils podman podman-compose python3-pip
+          # Ubuntu 26.04 dropped the qemu-kvm transitional package.
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils podman podman-compose python3-pip
           pip install --quiet podman-compose || true
           sudo usermod -aG kvm "$USER" || true
           sudo chmod 0666 /dev/kvm

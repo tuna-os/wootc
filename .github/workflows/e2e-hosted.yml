@@ -263,8 +263,9 @@ jobs:
           # wimlib-imagex + 7z let the harness READ the installer ISO's image
           # names and fill /IMAGE/NAME correctly instead of guessing (#58).
           # Both are small; without them the harness simply sends no name, which
-          # is the pre-#58 behaviour.
-          sudo apt-get install -y -qq qemu-kvm podman podman-compose python3-pip wimtools p7zip-full
+          # is the pre-#58 behaviour. qemu-system-x86 + qemu-utils: Ubuntu 26.04
+          # (ubuntu-latest since 2026-11) dropped the qemu-kvm transitional package.
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils podman podman-compose python3-pip wimtools p7zip-full
           pip install --quiet podman-compose || true
           # let the unprivileged runner user open /dev/kvm
           sudo usermod -aG kvm "$USER" || true
