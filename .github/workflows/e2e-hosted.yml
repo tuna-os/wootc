@@ -267,8 +267,9 @@ jobs:
           # wimlib-imagex + 7z let the harness READ the installer ISO's image
           # names and fill /IMAGE/NAME correctly instead of guessing (#58).
           # Both are small; without them the harness simply sends no name, which
-          # is the pre-#58 behaviour.
-          sudo apt-get install -y -qq qemu-kvm podman podman-compose python3-pip wimtools p7zip-full
+          # is the pre-#58 behaviour. qemu-system-x86 + qemu-utils: Ubuntu 26.04
+          # (ubuntu-latest since 2026-11) dropped the qemu-kvm transitional package.
+          sudo apt-get install -y -qq qemu-system-x86 qemu-utils podman podman-compose python3-pip wimtools p7zip-full
           pip install --quiet podman-compose || true
           # let the unprivileged runner user open /dev/kvm
           sudo usermod -aG kvm "$USER" || true
@@ -617,7 +618,7 @@ jobs:
 
       - name: Upload bound native GUI proof
         if: ${{ inputs.native_proof }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: native-gui-soak-proof-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -631,7 +632,7 @@ jobs:
 
       - name: Upload observed packaged native executable
         if: ${{ inputs.native_proof }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: native-shell-build-${{ github.run_id }}-${{ github.run_attempt }}
           path: tests/e2e/wootc-files/native-shell/Wootc.Shell.exe
