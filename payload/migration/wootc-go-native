@@ -422,11 +422,29 @@ native_install_staged() {
     return "$rc"
 }
 
+# stage_progress <disk> — while the pull and the install run, log every
+# GN_PROGRESS_SECS what the scratch holds and what has reached <disk>, but
+# only when one of them moved. Neither `podman pull` without a terminal nor
+# bootc's deploy prints anything for minutes: gate probe 44791710524 showed
+# one "Starting … migrate" line for 15 minutes and could not tell a slow pull
+# from a hang. A silent log now means nothing moved.
+GN_PROGRESS_SECS=30
+stage_progress() {
+    local disk=${1#/dev/} last="" now used written
+    while sleep "$GN_PROGRESS_SECS" >/dev/null 2>&1; do
+        used=$(df -BM --output=used /var/fisherman-tmp 2>/dev/null | tail -1 | tr -d ' ' || true)
+        written=$(awk '{ print int($7 / 2048) }' "$GN_SYSFS/block/$disk/stat" 2>/dev/null || true)
+        now="scratch ${used:-?} used, ${written:-?} MiB written to /dev/$disk"
+        [[ "$now" == "$last" ]] || log "progress: $now"
+        last=$now
+    done
+}
+
 # cmd_staged_install — runs in native_install_staged's private mount
 # namespace: every mount here disappears with it, and `mount -o loop` sets
 # autoclear, so the loop device detaches too.
 cmd_staged_install() {
-    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt
+    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt disk progress_pid
     mkdir -p /var/fisherman-tmp
     mount -o loop "$scratch" /var/fisherman-tmp || die "cannot mount the scratch $scratch"
     mkdir -p /var/fisherman-tmp/host-containers /var/fisherman-tmp/var-tmp \
@@ -439,6 +457,12 @@ cmd_staged_install() {
     # store, not this one.
     mount -t tmpfs tmpfs /run/containers
     mount -t tmpfs tmpfs /run/libpod
+
+    disk=$(grep -oP '"disk":\s*"\K[^"]+' "$recipe" 2>/dev/null || true)
+    stage_progress "$disk" &
+    progress_pid=$!
+    # shellcheck disable=SC2064  # the PID is fixed now
+    trap "kill $progress_pid 2>/dev/null" EXIT
 
     # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
     # the image container, exactly how the deployer installed root.disk — the

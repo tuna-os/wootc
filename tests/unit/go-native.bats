@@ -667,3 +667,59 @@ find_host() {
     [ "$status" -ne 0 ]
     [ -z "$output" ]
 }
+
+# ── Phase-3 progress (gate probe 44791710524: 15 minutes of one status line) ─
+
+@test "Phase-3 logs the scratch and target-disk totals only when they move" {
+    mkdir -p "$TMP/sys/block/sdb"
+    echo "0 0 0 0 0 0 0 0" >"$TMP/sys/block/sdb/stat"
+    printf '#!/bin/bash\necho Used\necho 1234M\n' >"$STUBDIR/df"; chmod +x "$STUBDIR/df"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SYSFS="$3"; GN_PROGRESS_SECS=0.1
+        stage_progress /dev/sdb 2>"$4" & pid=$!
+        sleep 1; echo "0 0 0 0 0 0 4096 0" >"$3/block/sdb/stat"; sleep 1
+        kill "$pid"' _ "$GN" "$STUBDIR" "$TMP/sys" "$TMP/log"
+    cat "$TMP/log"
+    [ "$(grep -c 'progress: ' "$TMP/log")" -eq 2 ]
+    grep -Fxq '[wootc-go-native] progress: scratch 1234M used, 0 MiB written to /dev/sdb' "$TMP/log"
+    grep -Fxq '[wootc-go-native] progress: scratch 1234M used, 2 MiB written to /dev/sdb' "$TMP/log"
+}
+
+@test "Phase-3 staged install stops its progress log when it fails" {
+    # A progress loop left running holds the dispatcher's output pipe open, and
+    # the result file would never be written.
+    for tool in mkdir chmod mount podman; do
+        printf '#!/bin/bash\nexit 0\n' >"$STUBDIR/$tool"
+    done
+    printf '#!/bin/bash\nexit 1\n' >"$STUBDIR/fisherman"
+    chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/podman "$STUBDIR"/fisherman
+    printf '{ "disk": "/dev/sdb" }\n' >"$TMP/r.json"
+    run timeout 20 bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/scratch.img img:tag "$3" 2>&1 | cat' \
+        _ "$GN" "$STUBDIR" "$TMP/r.json"
+    echo "$output"
+    [ "$status" -ne 124 ]
+    [[ "$output" == *"fisherman native install failed"* ]]
+}
+
+@test "Phase-3 dispatcher streams the migration output to the progress file" {
+    local block
+    block=$(sed -n '/^run_migration 2>&1 | while/,/^rc=\${PIPESTATUS\[0\]}$/p' "$DISPATCH")
+    [ -n "$block" ]
+    run bash -c 'PROGRESS=$1; TMP=$2
+        run_migration() { echo one; printf two; return 7; }
+        eval "$3"; echo "rc=$rc"' _ "$TMP/progress" "$TMP/result" "$block"
+    [ "$output" = "rc=7" ]
+    [ "$(cat "$TMP/result")" = "$(printf 'one\ntwo')" ]
+    [ "$(wc -l <"$TMP/progress")" -eq 2 ]
+    grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z one$' "$TMP/progress"
+    grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z two$' "$TMP/progress"
+}
+
+@test "E2E bounds Phase 3 by progress, not a fixed count of polls" {
+    run grep -F 'seq 1 180' "$E2E_RUNNER"
+    [ "$status" -ne 0 ]
+    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}' "$E2E_RUNNER"
+    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}' "$E2E_RUNNER"
+    grep -Fq "stat -c %s /run/wootc-e2e-phase3.progress" "$E2E_RUNNER"
+    grep -Fq 'rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress;' "$E2E_RUNNER"
+    grep -Fq '> "$ARTIFACT_DIR/phase3-progress.log"' "$E2E_RUNNER"
+}
