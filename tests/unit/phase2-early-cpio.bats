@@ -125,13 +125,13 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     # kernels lack ntfs3 AND whose target ntfs-3g install failed, so only
     # they exercise this fallback).
     #
-    # The '@' must be HARDCODED, not propagated: `exec -a "\$0"` looked
-    # right and run 32538672432 proved it wrong — shebang handling replaces
-    # argv[0] with the script path before the wrapper runs, so \$0 never
-    # carries the caller's '@mount.ntfs-3g'. The assertion is textual
-    # because the honest end-to-end check needs a real binary loader: a
-    # script stand-in would itself go through shebang argv replacement and
-    # could not demonstrate the '@' reaching /proc/PID/cmdline.
+    # The '@' must be set IN the wrapper, not propagated: `exec -a "\$0"`
+    # looked right and run 32538672432 proved it wrong — shebang handling
+    # replaces argv[0] with the script path before the wrapper runs, so \$0
+    # never carries the caller's '@mount.ntfs-3g'. The wrapper is POSIX sh
+    # (no `exec -a`): it reaches the loader through a symlink named
+    # '@ntfs-3g'. tests/unit/phase2-hook-posix.bats runs it under dash with
+    # a real loader and reads the '@' back from /proc/PID/cmdline.
     tmp="$BATS_TEST_TMPDIR/fallback"
     mkdir -p "$tmp/root" "$tmp/ovl" "$tmp/bin"
     printf '#!/bin/sh\necho fake\n' > "$tmp/bin/ntfs-3g"
@@ -148,9 +148,10 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     [ "$status" -eq 0 ]
     wrapper="$tmp/ovl/usr/bin/ntfs-3g"
     [ -x "$wrapper" ]
-    # bash, not sh: `exec -a` is a bashism, and /bin/sh may be dash.
-    head -1 "$wrapper" | grep -q bash
-    grep -q 'exec -a "@ntfs-3g" ' "$wrapper"
+    # sh, not bash: the base initrd may ship only dash (tunaOS#4818).
+    head -1 "$wrapper" | grep -qx '#!/bin/sh'
+    grep -q '^exec @ntfs-3g ' "$wrapper"
+    [ "$(readlink "$tmp/ovl/usr/lib/wootc/ntfs3g/argv0/@ntfs-3g")" = ../ld-linux-fake.so.2 ]
     # The trap this test exists to block: never "propagate" \$0 again.
     run grep 'exec -a "\$0"' "$wrapper"
     [ "$status" -ne 0 ]
@@ -164,12 +165,12 @@ make_overlay() { # <dir> — a complete wootc overlay tree
     echo unit > "$1/usr/lib/systemd/system/wootc-attach.service"
     ln -sf ../wootc-attach.service \
         "$1/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-    printf '#!/bin/bash\n' > "$1/usr/lib/wootc/wootc-attach-loop.sh"
+    printf '#!/bin/sh\n' > "$1/usr/lib/wootc/wootc-attach-loop.sh"
     chmod +x "$1/usr/lib/wootc/wootc-attach-loop.sh"
     # The Phase-2 shutdown pair, without which build_phase2_initrd refuses to
     # pack — a Phase 2 that boots but hands Windows back a mounted rw NTFS.
     # See tests/unit/phase2-clean-ntfs-umount.bats.
-    printf '#!/bin/bash\n' > "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
+    printf '#!/bin/sh\n' > "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
     printf '#!/bin/sh\n' > "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
     chmod +x "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" \
              "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
@@ -187,27 +188,40 @@ make_base_initrd() { # <out> [tools...] — a gzip cpio shipping the named tools
 @test "behavioral: a complete overlay + complete base initrd builds and verifies" {
     command -v cpio >/dev/null || skip "cpio unavailable"
     ovl="$BATS_TEST_TMPDIR/ovl-ok"; make_overlay "$ovl"
-    make_base_initrd "$BATS_TEST_TMPDIR/base.img" bash losetup udevadm mount
+    make_base_initrd "$BATS_TEST_TMPDIR/base.img" sh losetup udevadm mount
     run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base.img' '$BATS_TEST_TMPDIR/out.img'"
     [ "$status" -eq 0 ]
     # Output must start with the overlay's uncompressed newc cpio magic.
     head -c 6 "$BATS_TEST_TMPDIR/out.img" | grep -q 070701
 }
 
-@test "behavioral: a base initrd without bash is REFUSED (mutation test)" {
+@test "behavioral: a base initrd without sh is REFUSED (mutation test)" {
     command -v cpio >/dev/null || skip "cpio unavailable"
-    ovl="$BATS_TEST_TMPDIR/ovl-nobash"; make_overlay "$ovl"
-    make_base_initrd "$BATS_TEST_TMPDIR/base-nobash.img" losetup udevadm mount
-    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-nobash.img' '$BATS_TEST_TMPDIR/out2.img'"
+    ovl="$BATS_TEST_TMPDIR/ovl-nosh"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-nosh.img" bash losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-nosh.img' '$BATS_TEST_TMPDIR/out2.img'"
     [ "$status" -ne 0 ]
-    echo "$output" | grep -q 'lacks: bash'
+    echo "$output" | grep -q 'lacks: sh'
+}
+
+@test "behavioral: a dash-only base initrd without bash builds and verifies (tunaOS#4818)" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    # grouper and flounder-sid: dash provides /usr/bin/sh, and there is no
+    # bash. The old gate refused these images although the hook needs only sh.
+    ovl="$BATS_TEST_TMPDIR/ovl-dash"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-dash.img" dash losetup udevadm mount
+    ln -s dash "$BATS_TEST_TMPDIR/base-tree/usr/bin/sh"
+    ( cd "$BATS_TEST_TMPDIR/base-tree" && find . | cpio -o -H newc --quiet ) | gzip > "$BATS_TEST_TMPDIR/base-dash.img"
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-dash.img' '$BATS_TEST_TMPDIR/out-dash.img'"
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q 'base initrd verified'
 }
 
 @test "behavioral: an overlay with a missing wants edge is refused before packing" {
     command -v cpio >/dev/null || skip "cpio unavailable"
     ovl="$BATS_TEST_TMPDIR/ovl-dangling"; make_overlay "$ovl"
     rm "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-    make_base_initrd "$BATS_TEST_TMPDIR/base3.img" bash losetup udevadm mount
+    make_base_initrd "$BATS_TEST_TMPDIR/base3.img" sh losetup udevadm mount
     run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base3.img' '$BATS_TEST_TMPDIR/out3.img'"
     [ "$status" -ne 0 ]
     [ ! -e "$BATS_TEST_TMPDIR/out3.img" ]
@@ -238,12 +252,12 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     # every dakota deploy (run 30700616717) on an initrd holding all four.
     ovl="$BATS_TEST_TMPDIR/ovl-uc"; make_overlay "$ovl"
     base="$BATS_TEST_TMPDIR/base-uc.img"
-    make_base_initrd "$base" bash losetup udevadm mount
+    make_base_initrd "$base" sh losetup udevadm mount
     prepend_microcode "$base"
     # Guard the premise: the naive single-archive listing really is blind here.
     run bash -c "cpio -it --quiet < '$base'"
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -q bash
+    ! echo "$output" | grep -q 'bin/sh'
     echo "$output" | grep -q microcode
 
     run run_helpers "build_phase2_initrd '$ovl' '$base' '$BATS_TEST_TMPDIR/out-uc.img'"
@@ -260,7 +274,7 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     prepend_microcode "$base"
     run run_helpers "build_phase2_initrd '$ovl' '$base' '$BATS_TEST_TMPDIR/out-uc2.img'"
     [ "$status" -ne 0 ]
-    echo "$output" | grep -q 'lacks: bash'
+    echo "$output" | grep -q 'lacks: sh'
 }
 
 @test "behavioral: a microcode-only image is unverifiable, not a failure" {

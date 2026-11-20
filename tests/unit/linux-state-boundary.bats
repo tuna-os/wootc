@@ -49,13 +49,16 @@ teardown() { chmod -R u+rwx "$T"; rm -rf "$T"; }
 printf 'ntfs-3g %s\n' "$*" >> "$CALLS"
 SH
     chmod +x "$T/bin/ntfs-3g"
-    run env FAIL_NTFS3=1 bash -c '
-        source <(sed -n "/^mount_host() {/,/^}/p" "$1")
+    # dash: the hook runs from initrds that ship no bash (tunaOS#4818).
+    sed -n '/^exec_storage_daemon() {/,/^}/p; /^mount_host() {/,/^}/p' \
+        "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh" > "$T/mount-host.sh"
+    run env FAIL_NTFS3=1 WOOTC_ARGV0_DIR="$T/argv0" dash -c '
+        . "$1"
         say() { :; }
         HOST_DEV=/dev/windows; HOST_MNT=/run/initramfs/wootc-host; NTFS_DRIVER=""
         mount_host
         printf "%s\n" "$NTFS_DRIVER"
-    ' bash "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh"
+    ' dash "$T/mount-host.sh"
     [ "$status" -eq 0 ]
     [ "$output" = "fuse-ntfs-3g" ]
     grep -q 'ntfs-3g -o rw,umask=000 /dev/windows /run/initramfs/wootc-host' "$CALLS"
@@ -81,13 +84,15 @@ printf 'mount %s\n' "$*" >> "$CALLS"
 if [[ "$*" == *'ntfs3'* ]]; then exit 1; fi
 SH
     chmod +x "$T/bin/mount"
-    run bash -c '
-        source <(sed -n "/^mount_host() {/,/^}/p" "$1")
+    sed -n '/^exec_storage_daemon() {/,/^}/p; /^mount_host() {/,/^}/p' \
+        "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh" > "$T/mount-host.sh"
+    run env WOOTC_ARGV0_DIR="$T/argv0" dash -c '
+        . "$1"
         say() { :; }
         HOST_DEV=/dev/windows; HOST_MNT=/run/initramfs/wootc-host; NTFS_DRIVER=""
         mount_host
         printf "%s\n" "$NTFS_DRIVER"
-    ' bash "$ROOT/platform/dracut/99wootc-boot/wootc-attach-loop.sh"
+    ' dash "$T/mount-host.sh"
     [ "$status" -eq 0 ]
     [ "$output" = "kernel-ntfs" ]
     grep -q 'mount -t ntfs -o rw,umask=000 /dev/windows /run/initramfs/wootc-host' "$CALLS"

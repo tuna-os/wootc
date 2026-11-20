@@ -1707,7 +1707,7 @@ stage_ntfs3g_closure() {
         fi
         # The wrapper the attach hook's mount_host() will find as `ntfs-3g`.
         #
-        # The hardcoded `exec -a "@ntfs-3g"` is load-bearing, not cosmetic:
+        # The '@' argv[0] is load-bearing, not cosmetic:
         # the FUSE daemon this wrapper becomes must carry an argv[0] whose
         # first byte is '@' so systemd's initrd switch-root killing spree
         # spares it (systemd's ROOT STORAGE DAEMONS contract). Without it the
@@ -1718,21 +1718,28 @@ stage_ntfs3g_closure() {
         # survives, which is why el10 was green while the target-image
         # ntfs-3g install still succeeded.
         #
-        # The '@' must be hardcoded HERE; propagating the caller's name via
-        # `exec -a "\$0"` does not work (run 32538672432 proved it): this is
+        # The '@' must be set HERE; propagating the caller's name does not
+        # work (run 32538672432 proved it): this is
         # a shebang script, and Linux shebang handling REPLACES argv[0] with
         # the script path when it builds the interpreter's argv — the
         # caller's '@mount.ntfs-3g' is discarded before this script runs, so
         # \$0 is always the plain script path. /proc/PID/cmdline — what the
-        # killing spree reads — is fixed at execve time, so the hardcoded '@'
+        # killing spree reads — is fixed at execve time, so the '@'
         # survives both ld.so's argv shift and ntfs-3g's daemonizing fork.
         # Unconditional '@' is harmless in every other context (argv[0] only
-        # feeds ntfs-3g's usage messages). Needs bash for `exec -a`, which
-        # the attach hook (bash) already requires present.
-        mkdir -p "$ovl/usr/bin" "$ovl/usr/sbin"
+        # feeds ntfs-3g's usage messages).
+        #
+        # POSIX sh, not bash: the base initrd may ship only dash
+        # (tunaOS#4818), and sh has no `exec -a`. A shell passes the command
+        # word it looked up in PATH as argv[0], so the loader is reached
+        # through a symlink named "@ntfs-3g" (same trick as the attach hook's
+        # exec_storage_daemon).
+        mkdir -p "$ovl/usr/bin" "$ovl/usr/sbin" "$ovl/$pdir/argv0"
+        ln -sf "../$ldso" "$ovl/$pdir/argv0/@ntfs-3g"
         cat > "$ovl/usr/bin/ntfs-3g" <<NTFSWRAP
-#!/bin/bash
-exec -a "@ntfs-3g" /$pdir/$ldso --library-path /$pdir /$pdir/ntfs-3g "\$@"
+#!/bin/sh
+PATH="/$pdir/argv0:\$PATH"
+exec @ntfs-3g --library-path /$pdir /$pdir/ntfs-3g "\$@"
 NTFSWRAP
         chmod 0755 "$ovl/usr/bin/ntfs-3g"
         ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
@@ -1892,7 +1899,8 @@ build_phase2_initrd() {
     rm -f "$ovl.cpio"
     # The overlay supplies unit+hook (+ possibly ntfs-3g); everything else the
     # hook needs at runtime must come from the BASE initrd: its interpreter
-    # (bash — the hook's shebang), losetup, udevadm, mount. Listing walks every
+    # (sh — the unit runs the hook with /bin/sh), losetup, udevadm, mount.
+    # Listing walks every
     # segment of the image; an empty result just means "unverifiable here",
     # which must WARN, not fail a deploy that may be good.
     local listing=""
@@ -1909,7 +1917,7 @@ build_phase2_initrd() {
         return 0
     fi
     local missing=() tool found
-    for tool in bash losetup udevadm mount; do
+    for tool in sh losetup udevadm mount; do
         found=0
         grep -qE "(^|/)(usr/)?s?bin/$tool$" <<<"$listing" && found=1
         # busybox-style initrds provide tools as applet symlinks with the
@@ -1922,7 +1930,7 @@ build_phase2_initrd() {
         err "         (every segment listed and a bin/ tree was found, so this is proof, not a probe failure; the image's initrd must ship these or the hook must be rewritten against what it ships)"
         return 1
     fi
-    log "  early-cpio: base initrd verified (bash/losetup/udevadm/mount present)"
+    log "  early-cpio: base initrd verified (sh/losetup/udevadm/mount present)"
     return 0
 }
 
