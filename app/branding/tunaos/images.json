@@ -12,5 +12,33 @@
     "composeFs": false,
     "family": "el10",
     "status": "green"
+  },
+  {
+    "id": "yellowfin-kde",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "kde",
+    "desktopName": "KDE Plasma",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:kde",
+    "description": "KDE Plasma desktop on Enterprise Linux.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10",
+    "status": "green"
+  },
+  {
+    "id": "yellowfin-xfce",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "xfce",
+    "desktopName": "XFCE",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:xfce",
+    "description": "Lightweight, classic XFCE desktop on Enterprise Linux. Great on older PCs.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10",
+    "status": "green"
   }
 ]

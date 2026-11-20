@@ -58,9 +58,12 @@
     "description": "KDE Plasma desktop on Enterprise Linux.",
     "bootloader": "grub2",
     "family": "el10",
-    "status": "experimental",
+    "status": "green",
     "source": {
       "image": "Yellowfin KDE"
+    },
+    "evidence": {
+      "run": 44673307377
     }
   },
   {
@@ -103,11 +106,14 @@
     "description": "Lightweight, classic XFCE desktop on Enterprise Linux. Great on older PCs.",
     "bootloader": "grub2",
     "family": "el10",
-    "status": "experimental",
+    "status": "green",
     "source": {
       "family": "Yellowfin",
       "desktop": "xfce",
       "suffix": ""
+    },
+    "evidence": {
+      "run": 44673316081
     }
   },
   {
