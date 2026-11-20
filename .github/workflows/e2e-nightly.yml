@@ -31,8 +31,12 @@ permissions:
   packages: read                 # granted through to the reusable e2e-hosted (base-image pull)
   actions: read                  # e2e-hosted's native jobs list this run's artifacts
 
+# One group per image: a group holds one running and one pending run, and a
+# newer pending run cancels the older one. A shared group made a batch of
+# dispatches for new catalog candidates cancel each other. The scheduled run
+# keeps its own group.
 concurrency:
-  group: e2e-nightly
+  group: e2e-nightly-${{ github.event.inputs.image || 'scheduled' }}
   cancel-in-progress: false
 
 jobs:

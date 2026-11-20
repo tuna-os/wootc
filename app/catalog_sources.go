@@ -53,6 +53,14 @@ type reviewedCatalogPolicy struct {
 	// images must not carry second, potentially drifting identity/backend fields.
 	LocalImageRef  *string `json:"imageRef,omitempty"`
 	LocalComposeFS *bool   `json:"composeFs,omitempty"`
+	// Evidence names the passing wootc install run behind a green entry. The
+	// TunaOS brand shows only proven images (catalog_sync.py generates its
+	// catalog); the shared catalog keeps gating on status.
+	Evidence *catalogInstallEvidence `json:"evidence,omitempty"`
+}
+
+type catalogInstallEvidence struct {
+	Run int64 `json:"run"`
 }
 
 type catalogSourceIndex struct {
@@ -199,6 +207,9 @@ func resolveReviewedCatalog(sourceJSON, policyJSON []byte) ([]Image, error) {
 		image := entry.Image
 		if image.ID == "" || image.Name == "" || ids[image.ID] {
 			return nil, fmt.Errorf("invalid or duplicate wootc catalog ID %q", image.ID)
+		}
+		if entry.Evidence != nil && (entry.Evidence.Run <= 0 || image.Status != "green") {
+			return nil, fmt.Errorf("%s: install evidence needs a run ID and green status", image.ID)
 		}
 		backend := "ostree"
 		if entry.Source != nil {

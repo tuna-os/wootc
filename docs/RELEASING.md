@@ -22,6 +22,11 @@ Two places consume that status, and they must agree:
 
 When a matrix cell passes, update its `status` and the applicable policy flag.
 Include those changes in the PR that records the run that passed. Never open a gate before its evidence.
+For a TunaOS image, also add `"evidence": {"run": <run ID>}` to its entry in
+`app/data/catalog-policy.json` and run `python3 app/catalog_sync.py`. The TunaOS
+brand shows only entries with evidence (see
+[architecture-boundary.md](architecture-boundary.md)). Use a run whose job log
+still shows the pass banner of `run-e2e.sh`.
 
 ## Channels
 
@@ -166,6 +171,10 @@ brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and
 `Aurora-Installer-Setup.exe`. Each setup installs the WinUI shell beside its
 protected Go engine and carries the release's public verification key.
+A full release also attaches each setup under the name that earlier releases
+used for that brand: `TunaOS-Installer.exe`, `wootc.exe`, and so on.
+External pages link `releases/latest/download/TunaOS-Installer.exe`, so this
+name must stay on the current setup.
 
 The cut-over release is configured to publish the Wails build once as `wootc-legacy.exe`.
 It is a compatibility fallback, not a branded primary installer. It needs

@@ -36,6 +36,8 @@ qga_call() {{
  powershell)
  if [[ "$2" == *LastBootUpTime* ]]; then
   count=$(cat "$COUNT"); printf '%s' "$((count+1))" > "$COUNT"
+  if [ "$count" -lt "$BASELINE_MISSES" ]; then return 7; fi
+  count=$((count - BASELINE_MISSES))
   if [ "$count" -eq 0 ]; then printf '%s' "$BEFORE"; return "$BEFORE_RC"; fi
   printf '%s' "$AFTER"; return "$AFTER_RC"
  fi
@@ -46,7 +48,7 @@ qga_call() {{
  esac
 }}
 '''
-            defaults=dict(BEFORE=receipt(),AFTER=receipt(NEW),BEFORE_RC='0',AFTER_RC='0',
+            defaults=dict(BEFORE=receipt(),AFTER=receipt(NEW),BEFORE_RC='0',AFTER_RC='0',BASELINE_MISSES='0',
                           REQUEST_RC='0',REQUEST_REPLY='windows-restart-requested',IDENTITY='Windows_NT',IDENTITY_RC='0',LINUX='',LINUX_RC='1',PING_RC='0')
             result=subprocess.run(['bash','-c',prefix+body],text=True,capture_output=True,timeout=4,
                                   env={**os.environ,**defaults,**env,'CALLS':str(calls),'COUNT':str(count),'CLOCK':str(clock)})
@@ -75,6 +77,21 @@ qga_call() {{
             self.assertNotEqual(result.returncode,0)
             self.assertNotIn('restart',calls)
             self.assertEqual(count,1)
+
+    def test_missed_baseline_reads_are_retried_before_the_single_request(self):
+        result,calls,count=self.shell('qga_restart_windows test 600; echo COMPLETED',BASELINE_MISSES='2')
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertIn('COMPLETED',result.stdout)
+        self.assertEqual(calls.splitlines().count('restart'),1)
+        self.assertEqual(count,4)
+
+    def test_baseline_retries_stop_after_sixty_seconds_without_a_request(self):
+        result,calls,count=self.shell('qga_restart_windows test 600; echo COMPLETED; cat "$CLOCK"',BASELINE_MISSES='1000')
+        self.assertNotEqual(result.returncode,0)
+        self.assertNotIn('COMPLETED',result.stdout)
+        self.assertIn('baseline is unknown',result.stdout)
+        self.assertNotIn('restart',calls)
+        self.assertEqual(count,12)
 
     def test_failed_new_boot_token_command_never_establishes_return(self):
         result,calls,count=self.shell('qga_restart_windows test 1; echo COMPLETED',AFTER_RC='7')

@@ -357,7 +357,7 @@ PY
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence' "$MODULE_SETUP"
     grep -q 'inst /usr/lib/wootc/migration/wootc-firstboot-evidence.service' "$MODULE_SETUP"
     # One collector: the deployer proves the target's Python loads it.
-    grep -q 'import wootc_firstboot_evidence' "$DEPLOY"
+    grep -q 'target_python_imports wootc_firstboot_evidence;' "$DEPLOY"
     run grep -rl 'wootc-collect-firstboot' "$REPO_ROOT/payload"
     [ "$status" -ne 0 ]
     grep -q 'wootc-firstboot-evidence.service' "$DEPLOY"

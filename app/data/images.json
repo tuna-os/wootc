@@ -54,7 +54,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "el10",
-    "status": "experimental"
+    "status": "green"
   },
   {
     "id": "bonito-gnome",
@@ -82,7 +82,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "green"
   },
   {
     "id": "yellowfin-xfce",
@@ -96,7 +96,7 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "el10",
-    "status": "experimental"
+    "status": "green"
   },
   {
     "id": "bonito-xfce",
@@ -124,7 +124,35 @@
     "bootloader": "grub2",
     "composeFs": false,
     "family": "fedora",
-    "status": "experimental"
+    "status": "green"
+  },
+  {
+    "id": "skipjack-gnome",
+    "name": "Skipjack",
+    "emoji": "🍣",
+    "base": "CentOS Stream 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/skipjack:gnome",
+    "description": "GNOME on CentOS Stream 10, the upstream of the next RHEL.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10",
+    "status": "green"
+  },
+  {
+    "id": "albacore-gnome",
+    "name": "Albacore",
+    "emoji": "🐟",
+    "base": "AlmaLinux 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/albacore:gnome",
+    "description": "GNOME on AlmaLinux 10. Enterprise Linux with long-term stability.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10",
+    "status": "green"
   },
   {
     "id": "marlin-niri",

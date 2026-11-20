@@ -69,3 +69,36 @@ func TestParsePriorPower_OnlyExactOneMeansRestore(t *testing.T) {
 		}
 	}
 }
+
+// recordPriorPowerState reads HibernateEnabled, and HibernateEnabledDefault
+// when HibernateEnabled is absent, which is what Windows itself applies.
+func TestEffectiveHibernate(t *testing.T) {
+	for _, tc := range []struct {
+		name, observed, want string
+	}{
+		{"explicit on", `{"enabled":"1","default":"1"}`, "1"},
+		{"explicit off overrides an enabled default", `{"enabled":"0","default":"1"}`, "0"},
+		{"never toggled: only the default exists", `{"enabled":"","default":"1"}`, "1"},
+		{"never toggled, default off", `{"enabled":"","default":"0"}`, "0"},
+		{"PowerShell trailing newline", "{\"enabled\":\"\",\"default\":\"1\"}\r\n", "1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := effectiveHibernate(tc.observed)
+			if err != nil || got != tc.want {
+				t.Errorf("effectiveHibernate(%q) = (%q, %v), want %q", tc.observed, got, err, tc.want)
+			}
+		})
+	}
+	// Unknown stays a refusal: nothing is recorded as the state to restore.
+	for _, observed := range []string{
+		`{"enabled":"","default":""}`,
+		`{"enabled":"2","default":"1"}`,
+		`{"enabled":"","default":"10"}`,
+		``,
+		`not json`,
+	} {
+		if got, err := effectiveHibernate(observed); err == nil {
+			t.Errorf("effectiveHibernate(%q) = %q, want an error", observed, got)
+		}
+	}
+}

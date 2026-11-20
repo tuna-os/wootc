@@ -31,7 +31,7 @@ public sealed class E2EDriveTests
     {
         var directive = E2EDriveDirective.Parse(Golden("directive-install.json"));
         Assert.Equal((1, Run, Id, "install", Reference), (directive.SchemaVersion, directive.RunId, directive.DirectiveId, directive.Action, directive.Image));
-        Assert.Equal(("wootc", "wootc-test", "", "C:", 0), (directive.Username, directive.Hostname, directive.Encryption, directive.StorageId, directive.DiskSizeGb));
+        Assert.Equal(("wootc", "wootc-test", "", "C:", 30), (directive.Username, directive.Hostname, directive.Encryption, directive.StorageId, directive.DiskSizeGb));
         Assert.DoesNotContain("wootc-e2e-pass", directive.ToString());
         var mapping = directive.ToInstallMapping();
         Assert.Equal("wootc-e2e-pass", mapping.Password);

@@ -2,5 +2,11 @@
   "repository": "https://github.com/tuna-os/bootc-migrate",
   "revision": "b2564052279b7075c5c2e082413300e208ce98be",
   "path": "catalog/sources.json",
-  "sha256": "9568b9ec3298e6205190c46e2c376a1094e9c044c4b0a43f538aa796fd8fac17"
+  "sha256": "9568b9ec3298e6205190c46e2c376a1094e9c044c4b0a43f538aa796fd8fac17",
+  "tunaosSnapshot": {
+    "url": "https://iso.tunaos.org/catalog-snapshot.json",
+    "generatedAt": "2026-11-20T02:50:40Z",
+    "snapshotDigest": "sha256:b43b4240caff19b2ed2cb1b3d4934d432d42209bc6d6143c3bd1d1ada836a5c4",
+    "sha256": "da7b275080c09ec4abd7f618137ee3f9eae8df9f0e0ec373ac6cae19bfb9e11d"
+  }
 }
