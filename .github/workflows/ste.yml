@@ -18,6 +18,7 @@ name: Prose
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     # .ste-budget and this file are in the filters on purpose: a change to
     # the number a job is measured against must trigger that job.
     paths:
@@ -43,4 +44,9 @@ concurrency:
 
 jobs:
   ste:
-    uses: tuna-os/.github/.github/workflows/ste-lint.yml@4078f531ac74703f203bde835ef6c25e9321b97b # main # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
+    uses: tuna-os/.github/.github/workflows/ste-lint.yml@8ecf20e5800fd80bde03d572ab1e3bbcb5b2cf17 # main # zizmor: ignore[ref-version-mismatch] pinned to a reviewed main commit; Renovate bumps the digest, so main may be ahead
+    # ratchet: the budget is exact. A count under it fails and names the new
+    # number for .ste-budget; a pull request that raises it needs the
+    # `ratchet-raise` label (labeled/unlabeled above re-run the check).
+    with:
+      ratchet: true
