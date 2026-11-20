@@ -372,16 +372,28 @@ host_wootc_dir() {
 # namespace). Refuses with the numbers, before writing anything, when the
 # Windows volume cannot hold the scratch.
 native_install_staged() {
-    local img=$1 recipe=$2 hostdir scratch need free rc=0
+    local img=$1 recipe=$2 hostdir scratch need free dfout rc=0
     hostdir=$(host_wootc_dir) \
         || die "cannot locate the Windows volume that holds root.disk (no loop backing file under /sysroot or /)"
     scratch="$hostdir/cache/native-scratch.img"
     rm -f "$scratch"
     need=$(graduation_scratch_gib "$(image_layer_bytes "$img")")
-    free=$(df -B1 --output=avail "$hostdir" 2>/dev/null | tail -1 | tr -d ' ' || true)
-    [[ "$free" =~ ^[0-9]+$ ]] || free=0
+    # An unreadable free-space figure is its own failure, never "0 GiB free"
+    # (gate probe 44771739639 refused with "the drive has 0 GiB free" and no
+    # way to tell an empty df from a full drive).
+    dfout=$(df -B1 --output=avail "$hostdir" 2>&1) \
+        || die "cannot read the free space of the Windows drive at $hostdir: $(tr '\n' ' ' <<<"$dfout")"
+    free=$(tail -1 <<<"$dfout" | tr -d ' ')
+    [[ "$free" =~ ^[0-9]+$ ]] \
+        || die "cannot read the free space of the Windows drive at $hostdir (df printed: $(tr '\n' ' ' <<<"$dfout"))"
     # Keep 1 GiB beyond the scratch: Windows still writes to this volume.
-    (( free >= ((need + 1) << 30) )) || die "$img needs about ${need} GiB of temporary space on the Windows drive to unpack (freed afterwards); the drive has $(( free >> 30 )) GiB free. Free up space in Windows and try again."
+    if (( free < ((need + 1) << 30) )); then
+        # Name what holds the space so the refusal can be checked against
+        # the drive: the volume totals and the largest files wootc keeps there.
+        log "Windows drive at $hostdir: $(df -h --output=size,used,avail "$hostdir" 2>&1 | tail -1)"
+        log "largest files under $hostdir: $(find "$hostdir" -xdev -type f -size +1G -printf '%p %s bytes; ' 2>&1 | head -c 2000)"
+        die "$img needs about ${need} GiB of temporary space on the Windows drive to unpack (freed afterwards); the drive has $(( free >> 30 )) GiB free. Free up space in Windows and try again."
+    fi
     log "Staging $img in a ${need} GiB scratch on the Windows drive ($scratch)…"
     mkdir -p "$hostdir/cache"
     if ! truncate -s "${need}G" "$scratch" || ! mkfs.ext4 -q -F "$scratch"; then

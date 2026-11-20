@@ -4174,6 +4174,13 @@ else
     capture_lifecycle_failure deployed
     product_fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
 fi
+# Phase 3 stages its image in a scratch beside root.disk (wootc-go-native),
+# so its space refusal reads against what the deploy left on C:. Gate probe
+# 44771739639 refused with "0 GiB free" after "58 GiB free before the
+# install" and a 30 GiB root.disk, with no record of C: in between.
+# shellcheck disable=SC2016
+C_AFTER_DEPLOY=$(qga_powershell '$d=Get-PSDrive C; "{0} GiB free of {1} GiB" -f [math]::Floor($d.Free/1GB), [math]::Floor(($d.Free+$d.Used)/1GB); Get-ChildItem -LiteralPath C:\wootc -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object Length -gt 1GB | ForEach-Object { "  {0} {1} bytes" -f $_.FullName, $_.Length }' 2>/dev/null | tr -d '\r' || true)
+info "C: after the deploy: ${C_AFTER_DEPLOY:-unreadable}"
 
 # Match the existing 1800-second fixture drive-preparation deadline. Every
 # external QGA call and polling sleep consumes this same wall-clock budget.
