@@ -119,6 +119,29 @@ if [ -d "/lib/modules/$_kver" ] && [ ! -f "/lib/modules/$_kver/modules.alias" ];
     done
 fi
 
+# The kernel autoloads ntfs3 (mount -t ntfs3) and loop (/dev/loop-control)
+# by running the helper named in /proc/sys/kernel/modprobe. The composefs
+# Phase 2 boots the deployer's Fedora kernel, whose helper is
+# /usr/bin/modprobe, on the image's own initrd: Ubuntu's ships modprobe only
+# as /usr/sbin/modprobe. Every autoload then failed, so ntfs3 was "unknown",
+# the FUSE fallback mounted the host, and losetup found no loop driver (run
+# 44762315453, grouper: "loop module loaded=0"). Point the kernel at the
+# modprobe this initrd has. The setting outlives switch-root.
+# This names the helper; the hook itself still loads nothing.
+KMOD_HELPER_SYSCTL=/proc/sys/kernel/modprobe
+_khelper=$(cat "$KMOD_HELPER_SYSCTL" 2>/dev/null || true)
+if [ -n "$_khelper" ] && [ ! -x "$_khelper" ]; then
+    _ihelper=$(command -v modprobe) || _ihelper=""
+    case "$_ihelper" in
+        /*) if echo "$_ihelper" > "$KMOD_HELPER_SYSCTL" 2>/dev/null; then
+                say "kernel module helper $_khelper is absent from this initrd; using $_ihelper"
+            else
+                say "kernel module helper $_khelper is absent from this initrd and could not be set to $_ihelper"
+            fi ;;
+        *) say "kernel module helper $_khelper is absent from this initrd, which has none" ;;
+    esac
+fi
+
 HOST_DEV="/dev/disk/by-uuid/$(lower "$HOST_UUID")"
 # WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a
 # systemd oneshot (the ostree Phase-2 initramfs never drains a dracut initqueue),

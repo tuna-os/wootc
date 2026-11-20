@@ -40,6 +40,7 @@ make_sandbox() { # <block-device> — any real one; [ -b ] follows the symlink
         -e "s|/dev/disk/by-uuid|$T/by-uuid|g" \
         -e "s|/run/|$T/run/|g" \
         -e "s|/proc/cmdline|$T/cmdline|g" \
+        -e "s|/proc/sys/kernel/modprobe|$T/kernel-modprobe|g" \
         -e "s|/lib/dracut-lib.sh|$T/absent/dracut-lib.sh|g" \
         "$HOOK" > "$T/hook.sh"
     stub mountpoint 'exit 1'
@@ -216,4 +217,34 @@ wait_for_exec() { # <pid> <not-this-argv0> — the cmdline after exec, NUL-split
         dash -c '. "$1"; echo after-hook' dash "$STAGE"
     [ "$status" -eq 0 ]
     [ "$output" = after-hook ]
+}
+
+@test "behavioral: under dash the hook points an absent kernel module helper at the initrd's modprobe" {
+    # Run 44762315453 (grouper): the deployer's Fedora kernel runs
+    # /usr/bin/modprobe to autoload modules, and Ubuntu's initrd has only
+    # /usr/sbin/modprobe. ntfs3 was "unknown filesystem type", and losetup
+    # found no loop driver: "loop module loaded=0".
+    blk=$(block_device) || skip "no block device to stand in for the host NTFS"
+    make_sandbox "$blk"
+    stub modprobe 'printf "modprobe %s\n" "$*" >> "$CALLS"'
+    echo "$T/absent/usr/bin/modprobe" > "$T/kernel-modprobe"
+    run run_hook UUID=0A1B2C3D-4E5F
+    [ "$status" -eq 0 ]
+    [ "$(cat "$T/kernel-modprobe")" = "$T/bin/modprobe" ]
+    echo "$output" | grep -qF "kernel module helper $T/absent/usr/bin/modprobe is absent from this initrd; using $T/bin/modprobe"
+    # The hook names the helper; it never runs it.
+    run grep -q '^modprobe' "$CALLS"
+    [ "$status" -ne 0 ]
+}
+
+@test "behavioral: under dash the hook leaves a present kernel module helper alone" {
+    blk=$(block_device) || skip "no block device to stand in for the host NTFS"
+    make_sandbox "$blk"
+    stub modprobe 'exit 0'
+    echo "$T/bin/blockdev" > "$T/kernel-modprobe"
+    run run_hook UUID=0A1B2C3D-4E5F
+    [ "$status" -eq 0 ]
+    [ "$(cat "$T/kernel-modprobe")" = "$T/bin/blockdev" ]
+    run grep -q 'kernel module helper' <<< "$output"
+    [ "$status" -ne 0 ]
 }
