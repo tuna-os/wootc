@@ -41,7 +41,8 @@ func TestReviewedCatalogMatchesGeneratedConsumerArtifact(t *testing.T) {
 	wantStatuses := map[string]string{
 		"bluefin": "green", "dakota": "green", "yellowfin-gnome": "green",
 		"yellowfin-kde": "green", "bonito-gnome": "green", "bonito-kde": "green",
-		"yellowfin-xfce": "green", "bonito-xfce": "experimental", "bonito-niri": "experimental",
+		"yellowfin-xfce": "green", "bonito-xfce": "experimental", "bonito-niri": "green",
+		"skipjack-gnome": "green", "albacore-gnome": "green",
 		"marlin-niri": "experimental", "marlin-gnome": "experimental", "aurora": "green",
 		"bazzite": "green", "bazzite-deck": "experimental", "flounder-gnome": "experimental",
 	}

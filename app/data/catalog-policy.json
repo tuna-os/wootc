@@ -79,6 +79,9 @@
     "status": "green",
     "source": {
       "image": "Bonito GNOME"
+    },
+    "evidence": {
+      "run": 44678870578
     }
   },
   {
@@ -146,11 +149,54 @@
     "description": "Modern scrollable-tiling Wayland compositor on Fedora. For keyboard-driven workflows.",
     "bootloader": "grub2",
     "family": "fedora",
-    "status": "experimental",
+    "status": "green",
     "source": {
       "family": "Bonito",
       "desktop": "niri",
       "suffix": ""
+    },
+    "evidence": {
+      "run": 44673333510
+    }
+  },
+  {
+    "id": "skipjack-gnome",
+    "name": "Skipjack",
+    "emoji": "🍣",
+    "base": "CentOS Stream 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "description": "GNOME on CentOS Stream 10, the upstream of the next RHEL.",
+    "bootloader": "grub2",
+    "family": "el10",
+    "status": "green",
+    "source": {
+      "family": "Skipjack",
+      "desktop": "gnome",
+      "suffix": ""
+    },
+    "evidence": {
+      "run": 44679774645
+    }
+  },
+  {
+    "id": "albacore-gnome",
+    "name": "Albacore",
+    "emoji": "🐟",
+    "base": "AlmaLinux 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "description": "GNOME on AlmaLinux 10. Enterprise Linux with long-term stability.",
+    "bootloader": "grub2",
+    "family": "el10",
+    "status": "green",
+    "source": {
+      "family": "Albacore",
+      "desktop": "gnome",
+      "suffix": ""
+    },
+    "evidence": {
+      "run": 44681673371
     }
   },
   {
