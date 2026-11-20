@@ -19,10 +19,7 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
-}
-
-extract_fn() {
-    awk "/^$1\(\) \{/,/^\}/" "$DEPLOY"
+    PHASE2_OVERLAY="${PHASE2_OVERLAY:-$REPO_ROOT/payload/deployer/phase2-overlay.sh}"
 }
 
 # Run stage_qemu_ga_into_target for real against a throwaway deployment tree,
@@ -39,7 +36,7 @@ run_stager() {
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(extract_fn stage_qemu_ga_into_target)
+        source '$PHASE2_OVERLAY'
         stage_qemu_ga_into_target
     "
 }
@@ -109,7 +106,7 @@ run_stager() {
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(extract_fn stage_qemu_ga_into_target)
+        source '$PHASE2_OVERLAY'
         stage_qemu_ga_into_target
     "
     [ "$status" -ne 0 ]
@@ -118,16 +115,17 @@ run_stager() {
 }
 
 @test "the deployer no longer installs the agent into the shadowed /usr" {
-    run grep -nE '^[^#]*DEPLOY_ROOT/usr(/bin/qemu-ga|/lib/systemd/system/qemu)' "$DEPLOY"
+    run grep -nE '^[^#]*DEPLOY_ROOT/usr(/bin/qemu-ga|/lib/systemd/system/qemu)' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
     # And the composefs early-cpio overlay stages no agent either: that tree
     # is the INITRAMFS and is discarded at switch-root, so a qemu-ga in it
     # cannot put an agent in the booted system.
-    run grep -nE '^[^#]*\$OVL[^ ]*qemu' "$DEPLOY"
+    run grep -nE '^[^#]*\$(OVL|ovl)[^ ]*qemu' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
 }
 
 @test "the real-root stager is called from the post-install stage" {
-    [ "$(grep -c '^stage_qemu_ga_into_target() {' "$DEPLOY")" -eq 1 ]
+    [ "$(grep -c '^stage_qemu_ga_into_target() {' "$PHASE2_OVERLAY")" -eq 1 ]
+    [ "$(grep -c '^stage_qemu_ga_into_target() {' "$DEPLOY")" -eq 0 ]
     grep -qE '^[^#]*[!;] *stage_qemu_ga_into_target;' "$DEPLOY"
 }
