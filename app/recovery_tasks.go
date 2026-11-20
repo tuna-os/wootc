@@ -7,10 +7,10 @@ import "strings"
 // either hijack another product's task or leave recovery pointed at the wrong
 // executable.
 type recoveryTaskIdentity struct {
-	Name         string `json:"name"`
-	Executable   string `json:"executable"`
-	Arguments    string `json:"arguments"`
-	Principal    string `json:"principal"`
+	Name       string `json:"name"`
+	Executable string `json:"executable"`
+	Arguments  string `json:"arguments"`
+	Principal  string `json:"principal"`
 	// PrincipalSID is the account or group the principal resolves to. Task
 	// Scheduler stores a group as its SID and reports it by a local name that
 	// need not be the BUILTIN\Users form wootc registered (it is localized on

@@ -41,8 +41,11 @@ func TestRecoveryTaskIdentityMatchesOnlyOwnedTask(t *testing.T) {
 			mutate: func(actual *recoveryTaskIdentity) { actual.Arguments = "recover --prompt" },
 		},
 		{
-			name:   "different principal is foreign",
-			mutate: func(actual *recoveryTaskIdentity) { actual.Principal = "BUILTIN\\Users" },
+			name: "different principal is foreign",
+			mutate: func(actual *recoveryTaskIdentity) {
+				actual.Principal = "BUILTIN\\Users"
+				actual.PrincipalSID = "S-1-5-32-545"
+			},
 		},
 		{
 			name: "different principal whose SID differs is foreign",
