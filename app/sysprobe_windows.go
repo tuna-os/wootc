@@ -185,7 +185,12 @@ func recordPriorPowerState() error {
 	} else {
 		missing = true
 		var err1, err2 error
-		hib, err1 = runPowerShellOutput(`$ErrorActionPreference='Stop'; (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" -Name HibernateEnabled).HibernateEnabled`)
+		var hibRaw string
+		hibRaw, err1 = runPowerShellOutput(`$ErrorActionPreference='Stop'; $p = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Power'; ` +
+			`[pscustomobject]@{enabled=[string]$p.HibernateEnabled; default=[string]$p.HibernateEnabledDefault} | ConvertTo-Json -Compress`)
+		if err1 == nil {
+			hib, err1 = effectiveHibernate(hibRaw)
+		}
 		hbb, err2 = runPowerShellOutput(`$ErrorActionPreference='Stop'; (Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name HiberbootEnabled).HiberbootEnabled`)
 		if err1 != nil || err2 != nil {
 			return fmt.Errorf("cannot observe prior hibernation/Fast Startup settings; no settings changed (hibernate: %v; Fast Startup: %v)", err1, err2)

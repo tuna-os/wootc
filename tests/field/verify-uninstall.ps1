@@ -328,8 +328,10 @@ function Get-EspFileMap {
 }
 
 function Get-PowerSettings {
-    $hibernate = (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' `
-        -Name HibernateEnabled -ErrorAction SilentlyContinue).HibernateEnabled
+    # The effective setting, as the app records it (effectiveHibernate):
+    # HibernateEnabled, else HibernateEnabledDefault.
+    $powerKey = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -ErrorAction SilentlyContinue
+    $hibernate = if ("$($powerKey.HibernateEnabled)" -ne '') { $powerKey.HibernateEnabled } else { $powerKey.HibernateEnabledDefault }
     $hiberboot = (Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' `
         -Name HiberbootEnabled -ErrorAction SilentlyContinue).HiberbootEnabled
     return @{ hibernate = "$hibernate"; hiberboot = "$hiberboot" }
