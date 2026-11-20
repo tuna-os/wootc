@@ -610,7 +610,7 @@ jobs:
 
       - name: Upload bound native GUI proof
         if: ${{ inputs.native_proof }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: native-gui-soak-proof-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -624,7 +624,7 @@ jobs:
 
       - name: Upload observed packaged native executable
         if: ${{ inputs.native_proof }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: native-shell-build-${{ github.run_id }}-${{ github.run_attempt }}
           path: tests/e2e/wootc-files/native-shell/Wootc.Shell.exe
