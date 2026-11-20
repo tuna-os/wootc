@@ -7,7 +7,10 @@ Prints the directive as base64 so the guest write can verify it byte for byte.
 The legacy Wails frontend gets exactly the directive it always got. The native
 shell refuses an install directive that names no target volume
 (shell/Wootc.Shell.Core/E2EDrive.cs), so its directive names C:, the system
-volume of every harness guest. The shared golden
+volume of every harness guest. It also names the Linux disk size: the shell's
+35 GB default plus the ~23 GB an image needs to unpack fills the 80 GB guest's
+~58 GB free exactly, and the engine's check at install time refused it by 1 GB
+(run 44720556894). The shared golden
 tests/unit/fixtures/e2e-drive/directive-install.json is these bytes.
 """
 import base64
@@ -17,6 +20,7 @@ import sys
 
 FRONTENDS = ('wails', 'native')
 NATIVE_TARGET = 'C:'
+NATIVE_DISK_GB = 30
 
 
 def install_directive(frontend, run_id, directive_id, image):
@@ -32,6 +36,7 @@ def install_directive(frontend, run_id, directive_id, image):
                  password='wootc-e2e-pass', hostname='wootc-test')
     if frontend == 'native':
         value['storageId'] = NATIVE_TARGET
+        value['diskSizeGb'] = NATIVE_DISK_GB
     return json.dumps(value, separators=(',', ':'))
 
 
