@@ -186,7 +186,8 @@ cmd_adopt() {
 # already there, claiming the path in the ownership manifest first.
 publish() {
     local src="$1" rel="$2"
-    if [[ -f "$ESP/$rel" ]] && cmp -s "$src" "$ESP/$rel"; then
+    # The deployer initramfs has no cmp: there every file is simply written.
+    if [[ -f "$ESP/$rel" ]] && cmp -s "$src" "$ESP/$rel" 2>/dev/null; then
         return 0
     fi
     esp_claim_before_write "$ESP" "$rel" || return 1
@@ -285,7 +286,7 @@ menuentry 'Windows' {
             IFS= read -r first < "$ESP/$rel" || true
             [[ "$first" == '# wootc'* ]] || continue
         fi
-        if [[ ! -f "$ESP/$rel" ]] || ! printf '%s' "$cfg" | cmp -s - "$ESP/$rel"; then
+        if [[ ! -f "$ESP/$rel" ]] || ! printf '%s' "$cfg" | cmp -s - "$ESP/$rel" 2>/dev/null; then
             printf '%s' "$cfg" > "$ESP/$rel.new"
             mv -f "$ESP/$rel.new" "$ESP/$rel"
             log "updated $rel ($index Linux entr$( ((index == 1)) && echo y || echo ies))"
