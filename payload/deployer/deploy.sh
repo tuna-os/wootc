@@ -2785,6 +2785,18 @@ QGAEOF
                     # Load essential modules before wootc-attach via a
                     # systemd service (dracut pre-udev hooks may not fire
                     # in the UKI initrd's minimal init).
+                    #
+                    # fat and vfat load here too, although nothing in the
+                    # initrd mounts FAT. The deployer kernel's modules exist
+                    # only in this initrd: after switch-root the OS has its
+                    # own kernel's tree, so a filesystem module that loads on
+                    # demand later fails with ENODEV. `bootc status` mounts
+                    # root.disk's ESP to read the boot entries; on grouper
+                    # it stopped with "Mounting /dev/loop0p1: No such device
+                    # (os error 19)" (run 44781343011), so the first-boot
+                    # record was never written. fat comes first: insmod does
+                    # not resolve dependencies. Codepage 437 and ascii are
+                    # built into the Fedora kernel.
                     mkdir -p "$OVL/usr/lib/systemd/system" \
                              "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
                     cat > "$OVL/usr/lib/systemd/system/wootc-load-modules.service" <<'SMOD'
@@ -2806,7 +2818,7 @@ SMOD
 #!/bin/sh
 echo "wootc: load-modules starting (kver=$(uname -r))" > /dev/console
 _kver=$(uname -r)
-for _mod in virtio_pci virtio_scsi ahci sd_mod; do
+for _mod in virtio_pci virtio_scsi ahci sd_mod fat vfat; do
     _path=$(find "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
     if [ -n "$_path" ] && [ -f "$_path" ]; then
         echo "wootc: insmod $_mod ($_path)" > /dev/console

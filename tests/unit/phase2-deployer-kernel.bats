@@ -45,3 +45,14 @@ teardown() {
     [ "$add" -lt "$first_use" ]
     grep -q 'PHASE2_LSM_KARG=$(phase2_lsm_karg "$DEPLOY_ROOT")' "$DEPLOY"
 }
+
+# The deployer kernel's modules exist only in the Phase-2 initrd; after
+# switch-root the OS has its own kernel's tree. `bootc status` mounts
+# root.disk's ESP and stopped with "Mounting /dev/loop0p1: No such device
+# (os error 19)" on grouper (run 44781343011). The initrd loads fat and vfat.
+@test "the composefs Phase-2 initrd loads fat before vfat" {
+    local script list
+    script=$(sed -n "/cat > \"\$OVL\/usr\/lib\/wootc\/load-modules.sh\" <<'SMODSH'/,/^SMODSH\$/p" "$DEPLOY")
+    list=$(grep -m1 '^for _mod in ' <<<"$script")
+    [[ "$list" =~ \ fat\ vfat\; ]]
+}
