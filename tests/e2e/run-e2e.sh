@@ -4623,23 +4623,68 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # --phase3 builds and activates a narrow systemd path unit. PID 1 performs
     # the same guarded migration and publishes an explicit result under /run.
     qga_call exec /bin/sh -c \
-        "rm -f /run/wootc-e2e-phase3.result; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
+        "rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
         >/dev/null
+    # The migration pulls the image over the guest's network, then installs
+    # it; how long that takes depends on the runner and the image. A fixed
+    # count of polls (180 x 5 s) failed gate probe 44791710524 with no way to
+    # tell a slow pull from a hang. Bound it by progress instead: the
+    # dispatcher appends every line the migration prints to the progress
+    # file, and go-native logs the scratch and target-disk totals each 30 s
+    # while either moves. No new progress for P3_STALL_SECS is a hang;
+    # P3_MAX_SECS caps a migration that keeps moving and never finishes.
+    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}
+    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}
+    P3_START=$(date +%s)
+    P3_DEADLINE=$(deadline_in "$P3_MAX_SECS")
     P3_RESULT=""
-    for i in $(seq 1 180); do
+    P3_SIZE=""
+    P3_MOVED=$P3_START
+    P3_WHY=""
+    i=0
+    while :; do
+        i=$((i + 1))
         P3_RESULT=$(qga_call exec /bin/sh -c \
             'cat /run/wootc-e2e-phase3.result 2>/dev/null || true' 2>/dev/null || true)
         echo "$P3_RESULT" | grep -q '^EXIT=' && break
+        P3_NOW_SIZE=$(qga_call exec /bin/sh -c \
+            'stat -c %s /run/wootc-e2e-phase3.progress 2>/dev/null || echo 0' 2>/dev/null \
+            | tr -d '\r\n ' || true)
+        if [[ "$P3_NOW_SIZE" =~ ^[0-9]+$ && "$P3_NOW_SIZE" != "$P3_SIZE" ]]; then
+            P3_SIZE=$P3_NOW_SIZE
+            P3_MOVED=$(date +%s)
+        fi
         if [ $((i % 6)) -eq 0 ]; then
             P3_PROG=$(qga_call exec /bin/sh -c \
                 'tail -n 1 /run/wootc-e2e-phase3.progress 2>/dev/null || systemctl is-active wootc-e2e-phase3.service 2>/dev/null || true' 2>/dev/null || true)
-            info "Phase 3: waiting for graduation... (${i}x5s) status: ${P3_PROG:-polling}"
+            info "Phase 3: waiting for graduation... ($(( $(date +%s) - P3_START ))s) status: ${P3_PROG:-polling}"
+        fi
+        if [ $(( $(date +%s) - P3_MOVED )) -ge "$P3_STALL_SECS" ]; then
+            P3_WHY="the migration printed nothing for ${P3_STALL_SECS}s"
+            break
+        fi
+        if past_deadline "$P3_DEADLINE"; then
+            P3_WHY="the migration was still running after ${P3_MAX_SECS}s"
+            break
         fi
         sleep 5
     done
+    # Keep the whole progress log, pass or fail: its timestamps are the
+    # throughput record for this runner.
+    qga_call exec /bin/sh -c 'cat /run/wootc-e2e-phase3.progress 2>/dev/null || true' \
+        2>/dev/null > "$ARTIFACT_DIR/phase3-progress.log" || true
+    info "Phase 3: finished waiting after $(( $(date +%s) - P3_START ))s; progress log: $ARTIFACT_DIR/phase3-progress.log"
+    if [ -n "$P3_WHY" ]; then
+        tail -n 40 "$ARTIFACT_DIR/phase3-progress.log" 2>/dev/null || true
+        qga_call exec /bin/sh -c \
+            'systemctl status --no-pager -l wootc-e2e-phase3.service 2>&1 | head -40; ps -eo pid,ppid,etime,stat,args --forest 2>&1 | grep -E "wootc|podman|fisherman|bootc|skopeo|mkfs|unshare" | grep -v grep' \
+            2>/dev/null || true
+        fail "Phase 3: privileged migration service timed out: $P3_WHY"
+        exit 1
+    fi
     printf '%s\n' "$P3_RESULT" | tail -40
     if ! echo "$P3_RESULT" | grep -q '^EXIT=0$'; then
-        fail "Phase 3: privileged migration service failed or timed out"
+        fail "Phase 3: privileged migration service failed ($(echo "$P3_RESULT" | grep '^EXIT=' | tail -1))"
         exit 1
     fi
     if qga_call exec /bin/sh -c \

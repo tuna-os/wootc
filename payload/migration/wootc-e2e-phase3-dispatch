@@ -55,9 +55,16 @@ run_migration() {
         /var/usrlocal/bin/wootc-go-native migrate --to-disk "$target" --execute
 }
 
+# Every line the migration prints also goes, timestamped, to the progress file
+# the harness polls. The result file appears only at the end, so with the
+# output held there the harness saw one "Starting … migrate" line for the
+# whole migration (gate probe 44791710524) and could not tell slow from hung.
 set +e
-run_migration > "$TMP" 2>&1
-rc=$?
+run_migration 2>&1 | while IFS= read -r line || [[ -n "$line" ]]; do
+    printf '%s\n' "$line"
+    printf '%s %s\n' "$(date -u +%FT%TZ)" "$line" >> "$PROGRESS" 2>/dev/null || true
+done > "$TMP"
+rc=${PIPESTATUS[0]}
 set -e
 log_kmsg "Migration process completed with exit code $rc"
 echo "EXIT=$rc" >> "$TMP"
