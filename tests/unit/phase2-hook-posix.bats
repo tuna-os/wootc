@@ -142,28 +142,33 @@ wait_for_exec() { # <pid> <not-this-argv0> — the cmdline after exec, NUL-split
 @test "behavioral: exec_storage_daemon gives a real binary the '@' argv[0] systemd spares" {
     # systemd's initrd switch-root reads /proc/PID/cmdline and spares only
     # processes whose argv[0] starts with '@'. A real binary, not a script:
-    # shebang handling would replace argv[0] and prove nothing.
+    # shebang handling would replace argv[0] and prove nothing. dash, not
+    # sleep: a multicall coreutils (uutils) refuses an argv[0] it does not
+    # know. `read` on a fifo opened read-write blocks until the kill.
     sed -n '/^exec_storage_daemon() {/,/^}/p' "$HOOK" > "$T/fn.sh"
     [ -s "$T/fn.sh" ]
-    WOOTC_ARGV0_DIR="$T/argv0" dash -c '. "$1"; exec_storage_daemon sleep 30' dash "$T/fn.sh" &
+    mkfifo "$T/fifo"
+    WOOTC_ARGV0_DIR="$T/argv0" dash -c '. "$1"; exec_storage_daemon dash -c "read x"' dash "$T/fn.sh" \
+        0<>"$T/fifo" 3>&- &
     pid=$!
     argv0=$(wait_for_exec "$pid" dash) || { kill "$pid"; false; }
     kill "$pid" 2>/dev/null || true
-    [ "$argv0" = "@sleep" ]
+    [ "$argv0" = "@dash" ]
 }
 
 @test "behavioral: the deployer's ntfs-3g wrapper runs under dash with the '@' argv[0]" {
-    # The real loader, the real binary (sleep standing in for ntfs-3g), the
-    # real wrapper text — only its absolute /usr/lib/wootc/ntfs3g prefix is
-    # moved into the overlay so it runs outside an initrd.
+    # The real loader, a real binary standing in for ntfs-3g, the real
+    # wrapper text — only its absolute /usr/lib/wootc/ntfs3g prefix is moved
+    # into the overlay so it runs outside an initrd. bash stands in: it
+    # answers the staging's `--version` check and ignores its argv[0].
     command -v ldd >/dev/null || skip "ldd unavailable"
-    sleep_bin=$(command -v sleep)
-    ldso=$(ldd "$sleep_bin" | awk '$1 ~ /ld-linux|ld64\.so/ {print $1; exit}')
-    [ -n "$ldso" ] && [ -f "$ldso" ] || skip "no dynamic loader found for sleep"
+    stand_in=/bin/bash   # the distro's, so ldd names the system loader
+    ldso=$(ldd "$stand_in" | awk '$1 ~ /ld-linux|ld64\.so/ {print $1; exit}')
+    [ -n "$ldso" ] && [ -f "$ldso" ] || skip "no dynamic loader found for bash"
     DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
     INITRAMFS_LIB="$REPO_ROOT/payload/deployer/initramfs-lib.sh"
     mkdir -p "$T/root" "$T/ovl" "$T/nbin"
-    cp "$sleep_bin" "$T/nbin/ntfs-3g"
+    cp "$stand_in" "$T/nbin/ntfs-3g"
     run bash -c "
         set -e
         log() { echo \"LOG: \$*\"; }
@@ -179,7 +184,8 @@ wait_for_exec() { # <pid> <not-this-argv0> — the cmdline after exec, NUL-split
     wrapper="$T/ovl/usr/bin/ntfs-3g"
     head -1 "$wrapper" | grep -qx '#!/bin/sh'
     sed "s|/usr/lib/wootc/ntfs3g|$T/ovl/usr/lib/wootc/ntfs3g|g" "$wrapper" > "$T/wrapper.sh"
-    dash "$T/wrapper.sh" 30 &
+    mkfifo "$T/fifo"
+    dash "$T/wrapper.sh" -c 'read x' 0<>"$T/fifo" 3>&- &
     pid=$!
     argv0=$(wait_for_exec "$pid" dash) || { kill "$pid"; false; }
     kill "$pid" 2>/dev/null || true
