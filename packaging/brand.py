@@ -116,8 +116,10 @@ def validate(root, brand):
         require(image.get('status') in ('green', 'experimental'), 'image status must be explicit')
         ids.add(image['id'])
     require(set(config.get('catalog', [])) <= ids, 'catalog references an unknown image')
+    # A brand offers its catalog list, else every image of its own images.json.
+    offered = config.get('catalog') or (ids if catalog_file.exists() else ())
     if config.get('defaultImage'):
-        require(config['defaultImage'] in config.get('catalog', []), 'defaultImage must be in catalog')
+        require(config['defaultImage'] in offered, 'defaultImage must be in catalog')
     decision = read(directory / 'blessing.json')
     require(decision.get('brand') == brand, 'ownership record names another brand')
     answers = decision.get('decisions', {})

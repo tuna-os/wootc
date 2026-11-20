@@ -110,7 +110,10 @@ fields:
 
 - `catalog`: image ids from `app/data/images.json` this brand offers.
   Empty = full catalog (wootc generic). The Bluefin brand lists
-  `["bluefin", "dakota"]`. Its default is `bluefin`.
+  `["bluefin", "dakota"]`. Its default is `bluefin`. A brand with its own
+  `app/branding/<brand>/images.json` can omit `catalog`. TunaOS does this:
+  `catalog_sync.py` generates its list with only the proven images (see
+  [architecture-boundary.md](architecture-boundary.md)).
 - `defaultImage`: pre-selected card.
 - `hideCustomImage`: branded builds hide the custom-OCI field regardless of
   support policy.
