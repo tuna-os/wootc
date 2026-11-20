@@ -518,3 +518,93 @@ NTFSINFO
         active { print }' "$GN")
     [[ "$unit" == *'TimeoutStartSec=60'* ]]
 }
+
+# ── Graduation scratch (run 44743470001) ─────────────────────────────────────
+# bluefin:stable's 4.6 GiB of compressed layers filled a 30 GiB root.disk on
+# every Phase-3 pull ("no space left on device" under /var/lib/containers).
+# The pull and fisherman now run in an image-sized ext4 scratch next to
+# root.disk on the Windows volume, as in the deployer.
+
+# graduation_stubs <avail bytes on the Windows volume>: skopeo reports the
+# bluefin:stable layer total (4,960,000,000 bytes = 4.62 GiB -> 21 GiB scratch).
+graduation_stubs() {
+    HOSTDIR="$TMP/host/wootc"; mkdir -p "$HOSTDIR/disks"
+    printf '#!/bin/bash\necho "skopeo $*" >>"%s"\necho "2480000000 2480000000 "\n' "$CALLED" >"$STUBDIR/skopeo"
+    printf '#!/bin/bash\necho "Avail"\necho "%s"\n' "$1" >"$STUBDIR/df"
+    for tool in truncate mkfs.ext4 unshare; do
+        printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
+    done
+    # The scratch must exist while the install runs; unshare checks it.
+    printf '#!/bin/bash\necho "truncate $*" >>"%s"\n: >"${@: -1}"\n' "$CALLED" >"$STUBDIR/truncate"
+    printf '#!/bin/bash\necho "unshare $* scratch-present=$([ -e "$7" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/unshare"
+    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/unshare
+}
+
+@test "Phase-3 scratch size matches the deployer's scratch formula" {
+    local deploy="$REPO_ROOT/payload/deployer/deploy.sh" bytes ours theirs
+    for bytes in "" 0 1073741824 4960000000 6760000000 12884901888; do
+        ours=$(bash -c 'source "$1"; graduation_scratch_gib "$2"' _ "$GN" "$bytes")
+        theirs=$(bash -c 'SCRATCH_MIN_GIB=20; eval "$(sed -n "/^scratch_need_gib() {/,/^}/p" "$1")"; scratch_need_gib "$2"' _ "$deploy" "$bytes")
+        [ "$ours" = "$theirs" ] || { echo "bytes=$bytes go-native=$ours deployer=$theirs"; return 1; }
+    done
+    [ "$(bash -c 'source "$1"; graduation_scratch_gib 4960000000' _ "$GN")" = 21 ]
+}
+
+@test "Phase-3 stages the image in a scratch on the Windows volume, then deletes it" {
+    graduation_stubs $(( 28 << 30 ))
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    echo "$output"; cat "$CALLED"
+    [ "$status" -eq 0 ]
+    grep -Fxq "truncate -s 21G $HOSTDIR/cache/native-scratch.img" "$CALLED"
+    grep -Fxq "mkfs.ext4 -q -F $HOSTDIR/cache/native-scratch.img" "$CALLED"
+    grep -Fxq "unshare --mount --propagation private -- $GN __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
+}
+
+@test "Phase-3 refuses before writing anything when the Windows volume cannot hold the scratch" {
+    graduation_stubs $(( 15 << 30 ))
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"needs about 21 GiB of temporary space on the Windows drive"* ]]
+    [[ "$output" == *"the drive has 15 GiB free"* ]]
+    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    [ "$status" -ne 0 ]
+    [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
+}
+
+@test "Phase-3 staged install mounts the scratch over podman's storage and /var/tmp before it pulls" {
+    for tool in mkdir chmod mount fisherman; do
+        printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
+    done
+    # Nothing is local in a fresh scratch: `podman image exists` fails.
+    printf '#!/bin/bash\necho "podman $*" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
+    chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/fisherman "$STUBDIR"/podman
+    run bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/wootc/cache/native-scratch.img img:tag /run/r.json' \
+        _ "$GN" "$STUBDIR"
+    echo "$output"; cat "$CALLED"
+    [ "$status" -eq 0 ]
+    local want=(
+        "mount -o loop /h/wootc/cache/native-scratch.img /var/fisherman-tmp"
+        "mount --bind /var/fisherman-tmp/host-containers /var/lib/containers"
+        "mount --bind /var/fisherman-tmp/var-tmp /var/tmp"
+        "mount -t tmpfs tmpfs /run/containers"
+        "podman pull img:tag"
+        "fisherman /run/r.json"
+    ) prev=0 line
+    for w in "${want[@]}"; do
+        line=$(grep -Fxn "$w" "$CALLED" | head -1 | cut -d: -f1)
+        [ -n "$line" ] || { echo "missing: $w"; return 1; }
+        [ "$line" -gt "$prev" ] || { echo "out of order: $w"; return 1; }
+        prev=$line
+    done
+}
+
+@test "Phase-3 finds the Windows volume from the root.disk loop backing file" {
+    grep -Fq 'findmnt -nvo SOURCE "$mp"' "$GN"
+    grep -Fq '/sys/block/$dev/loop/backing_file' "$GN"
+    # Real layout: /run/initramfs/wootc-host/wootc/disks/root.disk.
+    run bash -c 'source "$1"; dirname "$(dirname /run/initramfs/wootc-host/wootc/disks/root.disk)"' _ "$GN"
+    [ "$output" = /run/initramfs/wootc-host/wootc ]
+}

@@ -307,6 +307,137 @@ bootc_local_imgref() {
         || echo "ghcr.io/tuna-os/yellowfin:gnome"
 }
 
+# ── Graduation scratch ──────────────────────────────────────────────────────
+# fisherman's podman-run install needs the whole image in local
+# containers-storage. Pulled into root.disk's own /var, that copy comes on top
+# of the installed system: bluefin:stable (4.6 GiB of compressed layers) filled
+# a 30 GiB root.disk on all four pull attempts (run 44743470001, "no space left
+# on device" under /var/lib/containers). Stage it as the deployer does
+# instead: an ext4 file next to root.disk on the Windows volume, sized from the
+# image, mounted over /var/fisherman-tmp, /var/lib/containers and /var/tmp in a
+# private mount namespace (the running session keeps its own), and deleted
+# afterwards. root.disk keeps no second copy of the image.
+GN_SELF=$(readlink -f "${BASH_SOURCE[0]}")
+GN_SCRATCH_MIN_GIB=20
+
+# graduation_scratch_gib — GiB the scratch must hold for <compressed layer
+# bytes>: deploy.sh's scratch_need_gib formula (3.5x the compressed layers
+# covers blob staging plus the worst measured unpack ratio, +4 GiB ext4
+# metadata), so an image that deployed also graduates.
+graduation_scratch_gib() {
+    local bytes=$1 gib=$((1 << 30)) need
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]] || (( bytes == 0 )); then
+        echo "$GN_SCRATCH_MIN_GIB"
+        return 0
+    fi
+    need=$(( (bytes * 7 / 2 + gib - 1) / gib + 4 ))
+    (( need < GN_SCRATCH_MIN_GIB )) && need=$GN_SCRATCH_MIN_GIB
+    echo "$need"
+}
+
+# image_layer_bytes — the sum of <ref>'s compressed layers as the registry's
+# manifest states them (no download). Prints nothing when it cannot be read.
+image_layer_bytes() {
+    local sizes total=0 s
+    sizes=$(timeout 120 skopeo inspect --retry-times 3 \
+        --format '{{range .LayersData}}{{.Size}} {{end}}' "docker://$1" 2>/dev/null) || return 0
+    for s in $sizes; do
+        [[ "$s" =~ ^[0-9]+$ ]] && total=$(( total + s ))
+    done
+    (( total > 0 )) && echo "$total"
+    return 0
+}
+
+# host_wootc_dir — the wootc directory on the Windows volume: the parent of
+# the disks/ directory holding the root.disk loop file that backs this system.
+host_wootc_dir() {
+    if [[ -n "${WOOTC_GN_HOST_DIR:-}" ]]; then echo "$WOOTC_GN_HOST_DIR"; return 0; fi
+    local mp src dev backing
+    for mp in /sysroot /; do
+        src=$(findmnt -nvo SOURCE "$mp" 2>/dev/null || true)
+        [[ "$src" == /dev/* ]] || continue
+        dev=$(lsblk -no PKNAME "$src" 2>/dev/null | head -1 || true)
+        [[ -n "$dev" ]] || dev=${src#/dev/}
+        backing=$(cat "/sys/block/$dev/loop/backing_file" 2>/dev/null || true)
+        if [[ "$backing" == /* ]]; then
+            dirname "$(dirname "$backing")"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# native_install_staged — create the scratch, then pull <img> and run
+# fisherman <recipe> inside it (cmd_staged_install, in a private mount
+# namespace). Refuses with the numbers, before writing anything, when the
+# Windows volume cannot hold the scratch.
+native_install_staged() {
+    local img=$1 recipe=$2 hostdir scratch need free rc=0
+    hostdir=$(host_wootc_dir) \
+        || die "cannot locate the Windows volume that holds root.disk (no loop backing file under /sysroot or /)"
+    scratch="$hostdir/cache/native-scratch.img"
+    rm -f "$scratch"
+    need=$(graduation_scratch_gib "$(image_layer_bytes "$img")")
+    free=$(df -B1 --output=avail "$hostdir" 2>/dev/null | tail -1 | tr -d ' ' || true)
+    [[ "$free" =~ ^[0-9]+$ ]] || free=0
+    # Keep 1 GiB beyond the scratch: Windows still writes to this volume.
+    (( free >= ((need + 1) << 30) )) || die "$img needs about ${need} GiB of temporary space on the Windows drive to unpack (freed afterwards); the drive has $(( free >> 30 )) GiB free. Free up space in Windows and try again."
+    log "Staging $img in a ${need} GiB scratch on the Windows drive ($scratch)…"
+    mkdir -p "$hostdir/cache"
+    if ! truncate -s "${need}G" "$scratch" || ! mkfs.ext4 -q -F "$scratch"; then
+        rm -f "$scratch"
+        die "cannot create the ${need} GiB scratch $scratch"
+    fi
+    unshare --mount --propagation private -- "$GN_SELF" __staged-install "$scratch" "$img" "$recipe" || rc=$?
+    rm -f "$scratch"
+    return "$rc"
+}
+
+# cmd_staged_install — runs in native_install_staged's private mount
+# namespace: every mount here disappears with it, and `mount -o loop` sets
+# autoclear, so the loop device detaches too.
+cmd_staged_install() {
+    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt
+    mkdir -p /var/fisherman-tmp
+    mount -o loop "$scratch" /var/fisherman-tmp || die "cannot mount the scratch $scratch"
+    mkdir -p /var/fisherman-tmp/host-containers /var/fisherman-tmp/var-tmp \
+        /var/lib/containers /var/tmp /run/containers /run/libpod
+    chmod 1777 /var/fisherman-tmp/var-tmp
+    mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
+    # containers/image stages pull blobs in /var/tmp whatever the storage root.
+    mount --bind /var/fisherman-tmp/var-tmp /var/tmp
+    # A fresh runroot: the running system's podman state describes its own
+    # store, not this one.
+    mount -t tmpfs tmpfs /run/containers
+    mount -t tmpfs tmpfs /run/libpod
+
+    # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
+    # the image container, exactly how the deployer installed root.disk — the
+    # one path proven against every supported image. The two alternatives both
+    # failed live on bluefin:lts:
+    #   * direct mode without --source-imgref: "must be executed inside a
+    #     podman container" (run 20260723T0106);
+    #   * direct mode with --source-imgref containers-storage:<ref>:
+    #     "Multiple commit objects found" — the containers-storage transport
+    #     chokes on sealed/chunked images (run 20260723T0155).
+    # Pre-pull for visible progress; podman run then uses the local copy.
+    if ! podman image exists "$img" 2>/dev/null; then
+        log "Pulling $img into the scratch containers-storage for the native install…"
+        # Retry: this pull runs INSIDE the Phase-2 VM, over whatever network
+        # that guest has — flaky on a mirror-less hosted runner (bluefin
+        # phase3, GH matrix 20260724T1558: one 'network down?' died the whole
+        # graduation). Podman resumes copied layers, so retries are cheap.
+        for attempt in 1 2 3 4; do
+            if podman pull "$img"; then pull_ok=true; break; fi
+            log "  pull attempt $attempt failed (scratch: $(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3" used of "$2}')); retrying in $((attempt*15))s…"
+            sleep $((attempt*15))
+        done
+        [[ "$pull_ok" == true ]] || \
+            die "cannot stage $img locally after 4 attempts — native install needs its content"
+    fi
+    fisherman "$recipe" || die "fisherman native install failed"
+}
+
 # graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
 # fisherman (reusing the local image, same as the deployer), migrate /home, and let
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
@@ -324,31 +455,7 @@ graduate_to_disk_execute() {
     log "Installing $img onto $target as $filesystem (wipes $target only) via fisherman…"
     command -v fisherman >/dev/null || die "fisherman not found — deploy.sh must install it into the target root"
 
-    # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
-    # the image container, exactly how the deployer installed root.disk — the
-    # one path proven against every supported image. The two alternatives both
-    # failed live on bluefin:lts:
-    #   * direct mode without --source-imgref: "must be executed inside a
-    #     podman container" (run 20260723T0106);
-    #   * direct mode with --source-imgref containers-storage:<ref>:
-    #     "Multiple commit objects found" — the containers-storage transport
-    #     chokes on sealed/chunked images (run 20260723T0155).
-    # Pre-pull for visible progress; podman run then uses the local copy.
-    if ! podman image exists "$img" 2>/dev/null; then
-        log "Pulling $img into local containers-storage for the native install…"
-        # Retry: this pull runs INSIDE the Phase-2 VM, over whatever network
-        # that guest has — flaky on a mirror-less hosted runner (bluefin
-        # phase3, GH matrix 20260724T1558: one 'network down?' died the whole
-        # graduation). Podman resumes copied layers, so retries are cheap.
-        pull_ok=false
-        for attempt in 1 2 3 4; do
-            if podman pull "$img"; then pull_ok=true; break; fi
-            log "  pull attempt $attempt failed; retrying in $((attempt*15))s…"
-            sleep $((attempt*15))
-        done
-        [[ "$pull_ok" == true ]] || \
-            die "cannot stage $img locally after 4 attempts (network?) — native install needs its content"
-    fi
+    command -v unshare >/dev/null || die "unshare not found — the native install stages its image in a private mount namespace"
 
     # Mirror the running system's primary account into the native install.
     # A recipe without the user produced a native system holding the rsync'd
@@ -382,7 +489,7 @@ graduate_to_disk_execute() {
   "flatpaks": []$guserjson
 }
 EOF
-    fisherman "$recipe" || die "fisherman native install failed"
+    native_install_staged "$img" "$recipe"
     rm -f "$recipe"
 
     # Post-fisherman: write wootc-specific state into the new install.
@@ -749,11 +856,16 @@ print(json.dumps({
 PY
 }
 
+# Sourced (tests): define the functions only.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 case "${1:-plan}" in
     plan)    shift 2>/dev/null || true; cmd_plan "$@" ;;
     check)   shift; cmd_check "$@" ;;
     status)  shift; cmd_status "$@" ;;
     migrate) shift; cmd_migrate "$@" ;;
+    # Internal: native_install_staged re-enters here inside its private mount namespace.
+    __staged-install) shift; cmd_staged_install "$@" ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown subcommand: $1 (plan|check|status|migrate)" ;;
 esac
