@@ -63,6 +63,9 @@ full	fedora-gnome-win10pro	ghcr.io/tuna-os/bonito:gnome	10	pro	W269N-WFGWX-YVC9B
 full	el10-kde-win10pro	ghcr.io/tuna-os/yellowfin:kde	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	el10-xfce-win10pro	ghcr.io/tuna-os/yellowfin:xfce	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	fedora-kde-win10pro	ghcr.io/tuna-os/bonito:kde	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	fedora-niri-win10pro	ghcr.io/tuna-os/bonito:niri	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	skipjack-gnome-win10pro	ghcr.io/tuna-os/skipjack:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	albacore-gnome-win10pro	ghcr.io/tuna-os/albacore:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 
 full	bluefin-stable-win10pro	ghcr.io/projectbluefin/bluefin:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
@@ -70,6 +73,8 @@ full	el10-kde-win11pro	ghcr.io/tuna-os/yellowfin:kde	11	pro	W269N-WFGWX-YVC9B-4J
 full	el10-xfce-win11pro	ghcr.io/tuna-os/yellowfin:xfce	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	fedora-kde-win11pro	ghcr.io/tuna-os/bonito:kde	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	fedora-niri-win11pro	ghcr.io/tuna-os/bonito:niri	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	skipjack-gnome-win11pro	ghcr.io/tuna-os/skipjack:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	albacore-gnome-win11pro	ghcr.io/tuna-os/albacore:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	arch-gnome-win11pro	ghcr.io/tuna-os/marlin:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 full	debian-gnome-win11pro	ghcr.io/tuna-os/flounder:gnome	11	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── Branded-installer axis (#226) — one cell per brand image ──
