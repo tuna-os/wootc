@@ -53,14 +53,16 @@ function loadBrand(id) {
   return brand;
 }
 
-// Mirrors GetImages: a brand catalog restricts + orders; the generic build
-// offers the green (alpha-proven) set.
-function brandImages(brand) {
+// Mirrors GetImages: a brand's own images.json replaces the shared catalog,
+// a brand catalog restricts + orders, and alpha offers the green set.
+function brandImages(id, brand) {
+  const own = path.join(BRANDS_DIR, id, 'images.json');
+  const images = fs.existsSync(own) ? JSON.parse(fs.readFileSync(own, 'utf8')) : catalog;
   if (brand.catalog?.length) {
-    const byId = Object.fromEntries(catalog.map(i => [i.id, i]));
+    const byId = Object.fromEntries(images.map(i => [i.id, i]));
     return brand.catalog.map(id => byId[id]).filter(Boolean);
   }
-  return catalog.filter(i => i.status === 'green');
+  return images.filter(i => i.status === 'green');
 }
 
 async function boot(page, mock) {
@@ -96,7 +98,7 @@ async function fillForm(page) {
 for (const id of fs.readdirSync(BRANDS_DIR).filter(f =>
   fs.existsSync(path.join(BRANDS_DIR, f, 'brand.json')))) {
   const brand = loadBrand(id);
-  const images = brandImages(brand);
+  const images = brandImages(id, brand);
   const branded = !!brand.logoDataUri; // real-asset brands vs emoji (generic/TunaOS)
 
   test.describe(`walkthrough: ${id}`, () => {

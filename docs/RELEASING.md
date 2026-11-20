@@ -22,6 +22,11 @@ Two places consume that status, and they must agree:
 
 When a matrix cell passes, update its `status` and the applicable policy flag.
 Include those changes in the PR that records the run that passed. Never open a gate before its evidence.
+For a TunaOS image, also add `"evidence": {"run": <run ID>}` to its entry in
+`app/data/catalog-policy.json` and run `python3 app/catalog_sync.py`. The TunaOS
+brand shows only entries with evidence (see
+[architecture-boundary.md](architecture-boundary.md)). Use a run whose job log
+still shows the pass banner of `run-e2e.sh`.
 
 ## Channels
 

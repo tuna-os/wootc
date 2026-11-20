@@ -68,6 +68,12 @@ func TestReviewedCatalogSnapshotProvenance(t *testing.T) {
 		Revision   string `json:"revision"`
 		Path       string `json:"path"`
 		SHA256     string `json:"sha256"`
+		TunaOS     struct {
+			URL            string `json:"url"`
+			GeneratedAt    string `json:"generatedAt"`
+			SnapshotDigest string `json:"snapshotDigest"`
+			SHA256         string `json:"sha256"`
+		} `json:"tunaosSnapshot"`
 	}
 	if err := decodeReviewedCatalog(data, &provenance); err != nil {
 		t.Fatal(err)
@@ -79,6 +85,41 @@ func TestReviewedCatalogSnapshotProvenance(t *testing.T) {
 	digest := sha256.Sum256(catalogSourcesJSON)
 	if provenance.SHA256 != hex.EncodeToString(digest[:]) {
 		t.Fatal("embedded source bytes drifted from the reviewed provenance")
+	}
+	snapshot, err := os.ReadFile("data/tunaos-catalog-snapshot.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest = sha256.Sum256(snapshot)
+	if provenance.TunaOS.URL != "https://iso.tunaos.org/catalog-snapshot.json" || provenance.TunaOS.GeneratedAt == "" ||
+		!strings.HasPrefix(provenance.TunaOS.SnapshotDigest, "sha256:") || provenance.TunaOS.SHA256 != hex.EncodeToString(digest[:]) {
+		t.Fatalf("TunaOS snapshot drifted from its pin: %+v", provenance.TunaOS)
+	}
+}
+
+// The TunaOS brand shows only proven images: each entry of its generated
+// catalog is the shared reviewed entry, green, with a recorded install run.
+func TestTunaOSBrandCatalogShowsOnlyProvenReviewedImages(t *testing.T) {
+	brand, err := catalogForBrand(brandFS, "tunaos")
+	if err != nil || len(brand) == 0 {
+		t.Fatalf("TunaOS brand catalog: %v (%d images)", err, len(brand))
+	}
+	var policy []reviewedCatalogPolicy
+	if err := decodeReviewedCatalog(catalogPolicyJSON, &policy); err != nil {
+		t.Fatal(err)
+	}
+	proven := map[string]bool{}
+	for _, entry := range policy {
+		proven[entry.ID] = entry.Evidence != nil
+	}
+	shared := map[string]Image{}
+	for _, image := range embeddedCatalog {
+		shared[image.ID] = image
+	}
+	for _, image := range brand {
+		if !proven[image.ID] || image.Status != "green" || !reflect.DeepEqual(image, shared[image.ID]) {
+			t.Errorf("TunaOS brand offers %q without matching proven reviewed policy: %+v", image.ID, image)
+		}
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -130,8 +131,9 @@ func TestGetBranding_MissingFileUsesDefaults(t *testing.T) {
 
 // Every embedded brand config must parse and be internally consistent: its
 // catalog ids must exist in images.json (a typo would blank the launchpad),
-// its default must be in its catalog, and — the point of the whole system —
-// a branded build must never surface the word "wootc".
+// its default must be in what it offers (its catalog list, else its own
+// generated images.json), and — the point of the whole system — a branded
+// build must never surface the word "wootc".
 func TestEmbeddedBrands_ValidAndConsistent(t *testing.T) {
 	entries, err := brandFS.ReadDir("branding")
 	if err != nil {
@@ -171,16 +173,16 @@ func TestEmbeddedBrands_ValidAndConsistent(t *testing.T) {
 				t.Errorf("brand %s: catalog names unknown image %q", id, imgID)
 			}
 		}
-		if b.DefaultImage != "" {
-			found := false
-			for _, imgID := range b.Catalog {
-				if imgID == b.DefaultImage {
-					found = true
-				}
+		offered := b.Catalog
+		_, ownErr := brandFS.ReadFile("branding/" + id + "/images.json")
+		ownCatalog := ownErr == nil
+		if len(offered) == 0 && ownCatalog {
+			for _, img := range catalog {
+				offered = append(offered, img.ID)
 			}
-			if !found {
-				t.Errorf("brand %s: defaultImage %q not in its catalog", id, b.DefaultImage)
-			}
+		}
+		if b.DefaultImage != "" && !slices.Contains(offered, b.DefaultImage) {
+			t.Errorf("brand %s: defaultImage %q not in its catalog", id, b.DefaultImage)
 		}
 		if id == "wootc" {
 			continue // the generic build owns the word
@@ -193,8 +195,8 @@ func TestEmbeddedBrands_ValidAndConsistent(t *testing.T) {
 				t.Errorf("brand %s: %s %q contains 'wootc' — branded builds must not use the project name", id, field, v)
 			}
 		}
-		if !b.HideCustomImage || !b.PreloadImage || len(b.Catalog) == 0 {
-			t.Errorf("brand %s: branded builds must set catalog, hideCustomImage and preloadImage: %+v", id, b)
+		if !b.HideCustomImage || !b.PreloadImage || (len(b.Catalog) == 0 && !ownCatalog) {
+			t.Errorf("brand %s: branded builds must set catalog (or ship their own images.json), hideCustomImage and preloadImage: %+v", id, b)
 		}
 	}
 }

@@ -6,3 +6,4 @@ tests/unit/fixtures/native-vm/*.ndjson text eol=lf
 # Catalog provenance hashes the reviewed upstream snapshot's exact raw bytes.
 # Keep Windows checkout conversion from changing the embedded snapshot.
 app/data/catalog-sources.json text eol=lf
+app/data/tunaos-catalog-snapshot.json text eol=lf

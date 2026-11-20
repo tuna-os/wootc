@@ -1,0 +1,16 @@
+[
+  {
+    "id": "yellowfin-gnome",
+    "name": "Yellowfin",
+    "emoji": "🐠",
+    "base": "AlmaLinux Kitten 10",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/yellowfin:gnome",
+    "description": "Modern GNOME desktop on Enterprise Linux. Stable and reliable.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "el10",
+    "status": "green"
+  }
+]
