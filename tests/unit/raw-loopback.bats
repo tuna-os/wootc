@@ -216,8 +216,10 @@ setup() {
 @test "the EXIT device inventory cannot fall back to listing a directory" {
     # Under nullglob with zero matches, `ls` receives no arguments and lists
     # the current directory — an EXIT line once reported the initramfs root
-    # ("bin dev etc lib ...") as "present devices". Use set -- + "$*".
-    grep -q 'set -- /dev/sd\* /dev/nvme\* /dev/vd\*' "$HOOK"
+    # ("bin dev etc lib ...") as "present devices". Collect only names that
+    # exist: in sh an unmatched glob stays literal and -e rejects it.
+    grep -q 'for dev in /dev/sd\* /dev/nvme\* /dev/vd\*; do' "$HOOK"
+    grep -q '\[ -e "\$dev" \] && present_devs=' "$HOOK"
     run grep -nE '^[^#]*present_devs=\$\(ls ' "$HOOK"
     [ "$status" -ne 0 ]
 }

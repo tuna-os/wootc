@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 # shellcheck disable=SC1091  # dracut-lib.sh is provided by the initramfs
+# shellcheck disable=SC3043  # `local`: dash, busybox ash and bash all have it,
+#                            # and dracut's own sh scripts rely on it too.
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-attach-loop.sh
 # initqueue hook (PLAIN queue, not settled — see module-setup.sh): mount the
 # Windows NTFS partition and attach
@@ -10,6 +12,11 @@
 #
 # initqueue hooks are re-run until the queue finishes, so every early-exit
 # path returns 0 and the hook simply retries when devices appear later.
+
+# POSIX sh, not bash. This runs from the TARGET image's own initrd, and some
+# images ship only dash there (grouper, flounder-sid: tunaOS#4818). A bash
+# shebang made Phase 2 unbootable on them. tests/unit/phase2-hook-posix.bats
+# runs this file under dash.
 
 command -v getarg >/dev/null || . /lib/dracut-lib.sh
 
@@ -33,6 +40,13 @@ command -v getarg >/dev/null || . /lib/dracut-lib.sh
 say() {
     echo "wootc: $*" > /dev/console 2>/dev/null || true
     echo "<27>wootc: $*" > /dev/kmsg 2>/dev/null || true
+}
+
+# lower <text> — ASCII lowercase, as bash's ${var,,} did. sed, not tr: dracut's
+# base module always installs sed, and tr is not guaranteed in an initrd (the
+# log lines below use tr only for formatting).
+lower() {
+    printf '%s\n' "$1" | sed 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/'
 }
 
 say "attach-loop hook entered (initqueue)"
@@ -61,11 +75,15 @@ fi
 # THAT device unit activating. We check the UUID existence before declaring
 # the attach complete.
 ROOT_UUID=""
-if [[ "$ROOT_SPEC" =~ ^UUID=([a-fA-F0-9-]+)$ ]]; then
-    ROOT_UUID="${BASH_REMATCH[1],,}"
-elif [[ "$ROOT_SPEC" =~ ^PARTUUID=([a-fA-F0-9-]+)$ ]]; then
-    ROOT_UUID="${BASH_REMATCH[1],,}"
-fi
+case "$ROOT_SPEC" in
+    UUID=*) ROOT_UUID="${ROOT_SPEC#UUID=}" ;;
+    PARTUUID=*) ROOT_UUID="${ROOT_SPEC#PARTUUID=}" ;;
+esac
+# Hex digits and dashes only, as the old ^...([a-fA-F0-9-]+)$ match required.
+case "$ROOT_UUID" in
+    *[!a-fA-F0-9-]*) ROOT_UUID="" ;;
+esac
+ROOT_UUID=$(lower "$ROOT_UUID")
 
 # Permanent failures: this is a oneshot service — no initqueue retries.
 # Missing kernel args means the BLS entry is malformed; we will never succeed.
@@ -85,16 +103,16 @@ fi
 # staged in the early-cpio overlay.  Load them with insmod (full path — no
 # modprobe needed) so block devices appear before the NTFS wait.
 _kver=$(uname -r)
-if [[ -d "/lib/modules/$_kver" ]] && [[ ! -f "/lib/modules/$_kver/modules.alias" ]]; then
+if [ -d "/lib/modules/$_kver" ] && [ ! -f "/lib/modules/$_kver/modules.alias" ]; then
     # This is the deployer module tree (the UKI initrd modules have a
     # different kernel version and won't match uname -r).
     for _mod in virtio_pci virtio_scsi ahci sd_mod; do
         _kopath=$(find "/lib/modules/$_kver" -name "${_mod}.ko" -print -quit 2>/dev/null)
-        [[ -n "$_kopath" && -f "$_kopath" ]] && insmod "$_kopath" 2>/dev/null || true
+        [ -n "$_kopath" ] && [ -f "$_kopath" ] && insmod "$_kopath" 2>/dev/null || true
     done
 fi
 
-HOST_DEV="/dev/disk/by-uuid/${HOST_UUID,,}"
+HOST_DEV="/dev/disk/by-uuid/$(lower "$HOST_UUID")"
 # WAIT for the host NTFS to appear — do NOT assume a retry. This runs as a
 # systemd oneshot (the ostree Phase-2 initramfs never drains a dracut initqueue),
 # so there is exactly ONE invocation. The service is ordered After=
@@ -120,7 +138,7 @@ if [ ! -b "$HOST_DEV" ]; then
         sleep 1
         # Fallback probe if by-uuid symlink is missing from udev
         if [ ! -b "$HOST_DEV" ]; then
-            shopt -s nullglob
+            # An unmatched glob stays literal in sh; -b rejects it.
             for dev in /dev/sd* /dev/nvme* /dev/vd*; do
                 if [ -b "$dev" ] && blkid "$dev" 2>/dev/null | grep -qi "$HOST_UUID"; then
                     HOST_DEV="$dev"
@@ -128,19 +146,19 @@ if [ ! -b "$HOST_DEV" ]; then
                     break
                 fi
             done
-            shopt -u nullglob
         fi
     done
     _waited=$(( $(cut -d. -f1 /proc/uptime 2>/dev/null || { read -r _u _ < /proc/uptime; echo "${_u%.*}"; }) - _started ))
 fi
 if [ ! -b "$HOST_DEV" ]; then
-    # `set --` + "$*", NOT ls: under nullglob with zero matches, `ls` gets no
-    # args and lists the CURRENT DIRECTORY — a prior EXIT line reported the
-    # initramfs root ("bin dev etc lib ...") as "present devices".
-    shopt -s nullglob
-    set -- /dev/sd* /dev/nvme* /dev/vd*
-    present_devs="$*"
-    shopt -u nullglob
+    # Collect only names that exist, NOT `ls` the globs: with zero matches a
+    # nullglob `ls` got no args and listed the CURRENT DIRECTORY — a prior
+    # EXIT line reported the initramfs root ("bin dev etc lib ...") as
+    # "present devices".
+    present_devs=""
+    for dev in /dev/sd* /dev/nvme* /dev/vd*; do
+        [ -e "$dev" ] && present_devs="${present_devs:+$present_devs }$dev"
+    done
     say "EXIT: host NTFS $HOST_DEV (raw UUID $HOST_UUID) never appeared after ${_waited:-0}s (wall). Present devices: ${present_devs:-none}"
     exit 1
 fi
@@ -163,6 +181,22 @@ chmod 0700 /run/initramfs
 # Phase-2 mounts via the kernel (ntfs3, possibly built in with no .ko) or the
 # ntfs-3g FUSE fallback determines whether images need ntfs-3g injected at all.
 NTFS_DRIVER=""
+# exec_storage_daemon <cmd> <args...> — exec <cmd> with argv[0] "@<cmd>".
+# systemd's initrd switch-root SIGKILLs every process except root storage
+# daemons, which it recognises by an argv[0] that starts with '@'. A FUSE NTFS
+# daemon killed there takes the loop-backed root with it (EIO). POSIX sh has
+# no `exec -a`, but a shell passes the command word it looked up in PATH as
+# argv[0], so a symlink named "@<cmd>" at the front of PATH sets the same
+# /proc/PID/cmdline. WOOTC_ARGV0_DIR exists for the unit tests only.
+exec_storage_daemon() {
+    _sd_cmd="$1"; shift
+    _sd_bin=$(command -v "$_sd_cmd") || return 127
+    case "$_sd_bin" in /*) ;; *) return 127 ;; esac
+    _sd_dir="${WOOTC_ARGV0_DIR:-/run/wootc-argv0}"
+    mkdir -p "$_sd_dir" && ln -sf "$_sd_bin" "$_sd_dir/@$_sd_cmd" || return 126
+    PATH="$_sd_dir:$PATH"
+    exec "@$_sd_cmd" "$@"
+}
 mount_host() {
     local err_out
     if err_out=$(mount -t ntfs3 -o rw,force,umask=000 "$HOST_DEV" "$HOST_MNT" 2>&1); then
@@ -173,8 +207,8 @@ mount_host() {
     local drv
     for drv in ntfs-3g lowntfs-3g mount.ntfs-3g; do
         command -v "$drv" >/dev/null 2>&1 || continue
-        # Prefix argv[0] with '@' so systemd initrd switch-root does NOT SIGKILL the FUSE daemon!
-        if ( exec -a "@$drv" "$drv" -o rw,umask=000 "$HOST_DEV" "$HOST_MNT" 2>/dev/null ); then
+        # argv[0] '@' so systemd's initrd switch-root does NOT SIGKILL the FUSE daemon.
+        if ( exec_storage_daemon "$drv" -o rw,umask=000 "$HOST_DEV" "$HOST_MNT" 2>/dev/null ); then
             NTFS_DRIVER="fuse-$drv"; return 0
         fi
     done
