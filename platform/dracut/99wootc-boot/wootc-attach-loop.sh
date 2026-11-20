@@ -18,7 +18,13 @@
 # shebang made Phase 2 unbootable on them. tests/unit/phase2-hook-posix.bats
 # runs this file under dash.
 
-command -v getarg >/dev/null || . /lib/dracut-lib.sh
+# Source dracut-lib.sh only if it is there. In sh, `.` of a missing file
+# exits the shell, before the first say() line; bash only returned 1. Without
+# it, getarg is absent and the /proc/cmdline fallbacks below read the kargs.
+# Run 44742028340 (grouper) lost Phase 2 this way: the hook died silently.
+if ! command -v getarg >/dev/null && [ -r /lib/dracut-lib.sh ]; then
+    . /lib/dracut-lib.sh
+fi
 
 # say() — logging that is actually VISIBLE on the serial console.
 #
@@ -107,7 +113,8 @@ if [ -d "/lib/modules/$_kver" ] && [ ! -f "/lib/modules/$_kver/modules.alias" ];
     # This is the deployer module tree (the UKI initrd modules have a
     # different kernel version and won't match uname -r).
     for _mod in virtio_pci virtio_scsi ahci sd_mod; do
-        _kopath=$(find "/lib/modules/$_kver" -name "${_mod}.ko" -print -quit 2>/dev/null)
+        # .ko*: Fedora kernels ship modules compressed (.ko.xz).
+        _kopath=$(find "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
         [ -n "$_kopath" ] && [ -f "$_kopath" ] && insmod "$_kopath" 2>/dev/null || true
     done
 fi

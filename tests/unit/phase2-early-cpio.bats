@@ -298,3 +298,21 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     [ "$status" -eq 0 ]
     echo "$output" | grep -q 'could not list the base initrd'
 }
+
+@test "behavioral: an overlay with a top-level lib/ is refused (it would hide the base's /lib)" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    # Run 44742028340 (grouper): the composefs path staged modules at
+    # lib/modules, the base's lib -> usr/lib symlink could not replace it, and
+    # /lib/dracut-lib.sh vanished from Phase 2.
+    ovl="$BATS_TEST_TMPDIR/ovl-lib"; make_overlay "$ovl"
+    mkdir -p "$ovl/lib/modules/7.3.4"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-lib.img" sh losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-lib.img' '$BATS_TEST_TMPDIR/out-lib.img'"
+    [ "$status" -ne 0 ]
+    echo "$output" | grep -q 'top-level /lib'
+    [ ! -e "$BATS_TEST_TMPDIR/out-lib.img" ]
+    # And the composefs staging writes the module tree under usr/lib.
+    grep -q 'cp -a "/lib/modules/$_dkver" "$OVL/usr/lib/modules/"' "$DEPLOY"
+    run grep -n 'mkdir -p "$OVL/lib/modules"' "$DEPLOY"
+    [ "$status" -ne 0 ]
+}
