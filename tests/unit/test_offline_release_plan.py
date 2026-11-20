@@ -17,7 +17,7 @@ class PlanTests(unittest.TestCase):
     def test_current_catalogue_only(self):
         rows=json.loads((PATH.parents[2]/'app/data/images.json').read_text())
         self.assertEqual(M.select(rows,'yellowfin-gnome'),'ghcr.io/tuna-os/yellowfin:gnome')
-        for identity in ('yellowfin-kde','missing'):
+        for identity in ('marlin-gnome','missing'):
             with self.assertRaises(ValueError): M.select(rows,identity)
         with self.assertRaises(ValueError): M.select(rows+rows,'yellowfin-gnome')
     def test_exact_root_child_and_sizes(self):
