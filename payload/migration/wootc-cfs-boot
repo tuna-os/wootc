@@ -1,0 +1,315 @@
+#!/bin/bash
+# wootc-cfs-boot — bootc's composefs boot entries on a Phase-2 system that
+# boots through GRUB.
+#
+# The loader decides where bootc keeps its boot entries. bootc reads the
+# LoaderInfo EFI variable on every run: "systemd-boot" means the entries and
+# kernels live on the ESP (loader/entries, EFI/Linux/bootc_composefs-*);
+# anything else, or no variable, means GRUB, and they live in /sysroot/boot
+# (loader/entries, bootc_composefs-*), the layout GRUB's blscfg reads.
+#
+# A Windows-side install boots Phase 2 through the signed Fedora shim and
+# GRUB, under Secure Boot too: Ubuntu signs no systemd-boot at all, so a
+# systemd-boot chain cannot boot grouper there. Fedora's GRUB publishes
+# LoaderInfo ("GRUB 2.12", from its built-in bli module), so bootc on the
+# installed system sees GRUB. But `bootc install --bootloader systemd` put
+# the entries on root.disk's ESP, and `bootc status` stopped with "Getting
+# sorted Type1 boot entries: No such file or directory" in /sysroot/boot
+# (grouper run 44788137298, flounder:gnome-sid run 44788412620).
+#
+# So the entries go where bootc, told the truth about the loader, looks for
+# them, and the loader boots exactly those entries:
+#
+#   adopt  moves the Type 1 entries and their kernel/initrd directories from
+#          root.disk's ESP into /sysroot/boot, the layout `bootc install
+#          --bootloader grub` writes, and adds wootc's Phase-2 arguments to
+#          the entries' options. bootc carries those options into every
+#          entry it writes later (an upgrade copies the booted entry's).
+#   sync   renders those entries onto the Windows ESP, in the order bootc
+#          gives them for GRUB (file name, descending; the first is the
+#          default): each entry's initrd is copied there, and every wootc
+#          grub.cfg gets one menu entry per bootc entry. An upgrade (staged
+#          entries finalized at shutdown) and a rollback (entries renamed at
+#          once) therefore reach the next boot when sync runs after them,
+#          which wootc-esp-sync-shutdown.service does.
+#
+# One substitution remains, and it predates this file: the signed GRUB can
+# only start a kernel the Fedora shim trusts, so every entry boots the
+# deployer's Fedora kernel (EFI/wootc/deployer-vmlinuz) with wootc's overlay
+# (EFI/wootc/phase2-overlay.cpio: the root.disk attach hook and the modules
+# for that kernel) loaded ahead of the entry's own initrd. GRUB concatenates
+# the two exactly as the overlay used to be prepended to one file.
+#
+#   wootc-cfs-boot adopt --esp DIR --boot DIR [--kargs ARGS] [--drop ARGS]
+#   wootc-cfs-boot sync --boot DIR --esp DIR [--install]
+#
+# --install (the deployer) claims and writes all three wootc grub.cfg paths;
+# without it only the ones that exist and carry the "# wootc" marker are
+# rewritten. WOOTC_ESP_OWN overrides where the ESP ownership helpers are.
+
+set -Eeuo pipefail
+
+log() { printf '[wootc-cfs-boot] %s\n' "$*"; }
+warn() { printf '[wootc-cfs-boot] WARNING: %s\n' "$*" >&2; }
+die() { printf '[wootc-cfs-boot] ERROR: %s\n' "$*" >&2; exit 1; }
+
+# The directory bootc gives each Type 1 kernel/initrd pair
+# (TYPE1_BOOT_DIR_PREFIX in bootc's composefs_consts.rs).
+TYPE1_DIR_PREFIX=bootc_composefs-
+# The wootc grub.cfg paths: the signed GRUB's prefix and its fallbacks, the
+# same three the deployer writes for every Phase-2 chain.
+GRUB_CONFIGS=(EFI/fedora/grub.cfg EFI/redhat/grub.cfg EFI/wootc/grub.cfg)
+
+# entry_value FILE KEY — a BLS key's value (first occurrence), or nothing.
+entry_value() {
+    awk -v key="$2" '$1 == key { $1 = ""; sub(/^[ \t]+/, ""); print; exit }' "$1"
+}
+
+# entry_paths FILE KEY — every path of a key that may repeat or carry
+# several values (initrd), one per line.
+entry_paths() {
+    awk -v key="$2" '$1 == key { for (i = 2; i <= NF; i++) print $i }' "$1"
+}
+
+load_esp_own() {
+    local candidate
+    for candidate in "${WOOTC_ESP_OWN:-}" "${BASH_SOURCE[0]%/*}/wootc-esp-own" \
+        /var/usrlocal/lib/wootc/wootc-esp-own; do
+        if [[ -n "$candidate" && -f "$candidate" ]]; then
+            # shellcheck source=payload/migration/wootc-esp-own
+            source "$candidate"
+            return 0
+        fi
+    done
+    die "ESP ownership helpers (wootc-esp-own) not found"
+}
+
+cmd_adopt() {
+    local esp="" boot="" kargs="" drop=""
+    while (($#)); do
+        case "$1" in
+            --esp) esp="$2"; shift 2 ;;
+            --boot) boot="$2"; shift 2 ;;
+            --kargs) kargs="$2"; shift 2 ;;
+            --drop) drop="$2"; shift 2 ;;
+            *) die "adopt: unknown argument $1" ;;
+        esac
+    done
+    [[ -n "$esp" && -n "$boot" ]] || die "adopt needs --esp and --boot"
+    [[ -d "$boot" ]] || die "adopt: $boot is not a directory"
+
+    local entries=()
+    shopt -s nullglob
+    entries=("$esp"/loader/entries/*.conf)
+    shopt -u nullglob
+    ((${#entries[@]})) || die "no boot entries under $esp/loader/entries"
+
+    # Validate everything before moving anything: a half-adopted install has
+    # entries in neither place bootc looks.
+    local entry path dirs=()
+    for entry in "${entries[@]}"; do
+        if grep -qE '^(efi|uki)[[:space:]]' "$entry"; then
+            die "${entry##*/} is a UKI entry; only Type 1 entries move to /boot"
+        fi
+        [[ -n "$(entry_value "$entry" linux)" ]] || die "${entry##*/} has no linux line"
+        [[ -n "$(entry_value "$entry" options)" ]] || die "${entry##*/} has no options line"
+        while IFS= read -r path; do
+            [[ "$path" =~ ^/EFI/Linux/(${TYPE1_DIR_PREFIX}[^/]+)/[^/]+$ ]] ||
+                die "${entry##*/}: $path is not a bootc Type 1 path under /EFI/Linux"
+            [[ -f "$esp$path" ]] || die "${entry##*/}: $path is missing from the ESP"
+            dirs+=("${BASH_REMATCH[1]}")
+        done < <(entry_paths "$entry" linux; entry_paths "$entry" initrd)
+    done
+
+    mkdir -p "$boot/loader/entries" "$boot/grub2"
+    local dir
+    while IFS= read -r dir; do
+        rm -rf "$boot/$dir.tmp"
+        cp -r "$esp/EFI/Linux/$dir" "$boot/$dir.tmp"
+        rm -rf "${boot:?}/$dir"
+        mv "$boot/$dir.tmp" "$boot/$dir"
+        log "moved /EFI/Linux/$dir to /boot/$dir"
+    done < <(printf '%s\n' "${dirs[@]}" | sort -u)
+
+    local name
+    for entry in "${entries[@]}"; do
+        name="${entry##*/}"
+        awk -v kargs="$kargs" -v drop="$drop" '
+            BEGIN {
+                n = split(drop, d, " ")
+                for (i = 1; i <= n; i++) dropped[d[i]] = 1
+            }
+            $1 == "linux" || $1 == "initrd" {
+                line = $1
+                for (i = 2; i <= NF; i++) {
+                    p = $i
+                    sub(/^\/EFI\/Linux\//, "/boot/", p)
+                    line = line " " p
+                }
+                print line
+                next
+            }
+            $1 == "options" {
+                line = ""
+                for (i = 2; i <= NF; i++) {
+                    # Unexpanded BLS variables mean nothing to GRUB.
+                    if ($i ~ /\$/ || ($i in dropped)) continue
+                    have[$i] = 1
+                    line = line (line == "" ? "" : " ") $i
+                }
+                n = split(kargs, k, " ")
+                for (i = 1; i <= n; i++) {
+                    if (k[i] in have) continue
+                    have[k[i]] = 1
+                    line = line (line == "" ? "" : " ") k[i]
+                }
+                print "options " line
+                next
+            }
+            { print }
+        ' "$entry" > "$boot/loader/entries/$name.tmp"
+        mv "$boot/loader/entries/$name.tmp" "$boot/loader/entries/$name"
+        log "moved entry $name to /boot/loader/entries"
+    done
+    sync
+
+    # Only now leave the ESP: bootc must never find the same deployment in
+    # two places.
+    rm -f "${entries[@]}"
+    while IFS= read -r dir; do
+        rm -rf "${esp:?}/EFI/Linux/$dir"
+    done < <(printf '%s\n' "${dirs[@]}" | sort -u)
+    sync
+}
+
+# publish SRC RELATIVE — copy SRC to the ESP path RELATIVE unless it is
+# already there, claiming the path in the ownership manifest first.
+publish() {
+    local src="$1" rel="$2"
+    if [[ -f "$ESP/$rel" ]] && cmp -s "$src" "$ESP/$rel"; then
+        return 0
+    fi
+    esp_claim_before_write "$ESP" "$rel" || return 1
+    cp "$src" "$ESP/$rel.new" && mv -f "$ESP/$rel.new" "$ESP/$rel" || {
+        rm -f "$ESP/$rel.new"
+        return 1
+    }
+    log "updated $rel"
+}
+
+cmd_sync() {
+    local install=0
+    BOOT="" ESP=""
+    while (($#)); do
+        case "$1" in
+            --boot) BOOT="$2"; shift 2 ;;
+            --esp) ESP="$2"; shift 2 ;;
+            --install) install=1; shift ;;
+            *) die "sync: unknown argument $1" ;;
+        esac
+    done
+    [[ -n "$BOOT" && -n "$ESP" ]] || die "sync needs --boot and --esp"
+    [[ -f "$ESP/EFI/wootc/deployer-vmlinuz" ]] || die "EFI/wootc/deployer-vmlinuz is missing from the ESP"
+    [[ -f "$ESP/EFI/wootc/phase2-overlay.cpio" ]] || die "EFI/wootc/phase2-overlay.cpio is missing from the ESP"
+    load_esp_own
+
+    # bootc orders GRUB's Type 1 entries by file name, descending
+    # (get_sorted_type1_boot_entries); the first is the default.
+    local entries=()
+    mapfile -t entries < <(find "$BOOT/loader/entries" -maxdepth 1 -type f -name '*.conf' 2>/dev/null | LC_ALL=C sort -r)
+    ((${#entries[@]})) || die "no boot entries under $BOOT/loader/entries"
+
+    local menu="" entry index=0 title options path rel name initrds published=()
+    for entry in "${entries[@]}"; do
+        title=$(entry_value "$entry" title)
+        title="${title//\'/}"
+        [[ -n "$title" ]] || title=Linux
+        ((index == 0)) || title="$title (rollback)"
+        options=$(entry_value "$entry" options | tr ' ' '\n' | grep -v '\$' | tr '\n' ' ' | sed 's/  */ /g;s/ $//') || true
+        initrds=""
+        local ok=1
+        while IFS= read -r path; do
+            if [[ "$path" != /boot/* || "$path" == */../* ]] || [[ ! -f "$BOOT/${path#/boot/}" ]]; then
+                warn "${entry##*/}: initrd $path is not a file under $BOOT"
+                ok=0
+                break
+            fi
+            rel="${path#/boot/}"
+            name="${rel//\//-}"
+            if ! publish "$BOOT/$rel" "EFI/wootc/$name"; then
+                warn "${entry##*/}: could not copy $path to EFI/wootc/$name (ESP full?)"
+                ok=0
+                break
+            fi
+            published+=("$name")
+            initrds+=" /EFI/wootc/$name"
+        done < <(entry_paths "$entry" initrd)
+        [[ -n "$initrds" ]] || ok=0
+        if ((ok == 0)); then
+            # Without the default entry nothing would boot: keep the current
+            # configuration rather than publish one that cannot.
+            ((index > 0)) || die "the default entry ${entry##*/} cannot be published; ESP left unchanged"
+            warn "leaving ${entry##*/} out of the boot menu"
+            continue
+        fi
+        menu+="
+menuentry '${title}' {
+    linux /EFI/wootc/deployer-vmlinuz ${options}
+    initrd /EFI/wootc/phase2-overlay.cpio${initrds}
+}
+"
+        index=$((index + 1))
+    done
+
+    local cfg
+    cfg="# wootc Phase 2 (composefs): bootc's entries from /sysroot/boot/loader/entries
+# Generated by wootc-cfs-boot; every change is overwritten.
+set default=0
+set timeout=5
+${menu}
+menuentry 'Windows' {
+    insmod part_gpt
+    insmod chain
+    search --no-floppy --set=root --file /EFI/Microsoft/Boot/bootmgfw.efi
+    chainloader /EFI/Microsoft/Boot/bootmgfw.efi
+}
+"
+    local written=0 first=""
+    for rel in "${GRUB_CONFIGS[@]}"; do
+        if ((install)); then
+            esp_claim_before_write "$ESP" "$rel" || die "cannot claim $rel"
+            mkdir -p "$ESP/${rel%/*}"
+        else
+            [[ -f "$ESP/$rel" ]] || continue
+            first=""
+            IFS= read -r first < "$ESP/$rel" || true
+            [[ "$first" == '# wootc'* ]] || continue
+        fi
+        if [[ ! -f "$ESP/$rel" ]] || ! printf '%s' "$cfg" | cmp -s - "$ESP/$rel"; then
+            printf '%s' "$cfg" > "$ESP/$rel.new"
+            mv -f "$ESP/$rel.new" "$ESP/$rel"
+            log "updated $rel ($index Linux entr$( ((index == 1)) && echo y || echo ies))"
+        fi
+        written=$((written + 1))
+    done
+    ((written)) || die "no wootc grub.cfg on the ESP to update"
+
+    # Initrds of entries bootc has deleted.
+    local stale keep
+    shopt -s nullglob
+    for stale in "$ESP/EFI/wootc/$TYPE1_DIR_PREFIX"*; do
+        keep=0
+        for name in "${published[@]}"; do
+            [[ "${stale##*/}" == "$name" ]] && keep=1
+        done
+        ((keep)) || { rm -f "$stale"; log "removed ${stale#"$ESP"/}"; }
+    done
+    shopt -u nullglob
+    sync
+}
+
+case "${1:-}" in
+    adopt) shift; cmd_adopt "$@" ;;
+    sync) shift; cmd_sync "$@" ;;
+    *) die "usage: wootc-cfs-boot adopt --esp DIR --boot DIR [--kargs ARGS] [--drop ARGS] | sync --boot DIR --esp DIR [--install]" ;;
+esac

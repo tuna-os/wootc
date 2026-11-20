@@ -73,6 +73,16 @@ fi
 WOOTC_DIR="$ESP_MNT/EFI/wootc"
 [[ -d "$WOOTC_DIR" ]] || { log "no EFI/wootc on ESP; not a Phase-2 layout"; exit 0; }
 
+# ── composefs: bootc's entries in /sysroot/boot, GRUB on the Windows ESP ───
+# PHASE2_BOOT=composefs-bls is the deployer's record that bootc's entries
+# were moved into the GRUB layout (wootc-cfs-boot adopt). The menu is a
+# rendering of all of them, not one kernel pair, so wootc-cfs-boot owns it.
+if [[ "${PHASE2_BOOT:-}" == composefs-bls ]]; then
+    "${WOOTC_CFS_BOOT:-/var/usrlocal/bin/wootc-cfs-boot}" sync \
+        --boot "${WOOTC_BOOT_DIR:-/sysroot/boot}" --esp "$ESP_MNT"
+    exit 0
+fi
+
 # ── Discover the system's current default kernel/initramfs/cmdline ─────────
 KERNEL=""
 INITRD=""

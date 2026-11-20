@@ -143,6 +143,8 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         { echo "FATAL: first-boot evidence collector missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_import_safety.py" || \
         { echo "FATAL: import safety helper missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-cfs-boot" || \
+        { echo "FATAL: composefs boot-entry helper missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \
         { echo "FATAL: systemd-cryptsetup missing from initramfs"; exit 1; }
 

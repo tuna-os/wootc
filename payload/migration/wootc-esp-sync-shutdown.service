@@ -1,0 +1,25 @@
+[Unit]
+Description=Bring the Windows ESP boot menu up to date with bootc before shutdown
+# composefs installs only (the deployer enables this unit beside
+# PHASE2_BOOT=composefs-bls). bootc finalizes a staged upgrade when
+# bootc-finalize-staged.service stops, and writes a rollback at once; either
+# way the new default entry must reach the Windows ESP before the reboot that
+# should boot it, not one boot later. Units stop in reverse order: Before=
+# makes this one stop, and so sync, after bootc's finalize has run.
+ConditionPathExists=/etc/wootc/host-esp.conf
+DefaultDependencies=no
+After=local-fs.target
+Before=bootc-finalize-staged.service
+RequiresMountsFor=/sysroot /var/usrlocal/bin
+Conflicts=final.target
+Before=final.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+ExecStop=/var/usrlocal/bin/wootc-esp-sync
+TimeoutStopSec=5m
+
+[Install]
+WantedBy=multi-user.target
