@@ -49,10 +49,40 @@ teardown() {
 # The deployer kernel's modules exist only in the Phase-2 initrd; after
 # switch-root the OS has its own kernel's tree. `bootc status` mounts
 # root.disk's ESP and stopped with "Mounting /dev/loop0p1: No such device
-# (os error 19)" on grouper (run 44781343011). The initrd loads fat and vfat.
-@test "the composefs Phase-2 initrd loads fat before vfat" {
-    local script list
-    script=$(sed -n "/cat > \"\$OVL\/usr\/lib\/wootc\/load-modules.sh\" <<'SMODSH'/,/^SMODSH\$/p" "$DEPLOY")
-    list=$(grep -m1 '^for _mod in ' <<<"$script")
-    [[ "$list" =~ \ fat\ vfat\; ]]
+# (os error 19)" on grouper (run 44781343011), whose initrd loader also
+# reported every module "NOT FOUND" (it searched only /lib/modules).
+
+# loader <modprobe exit status>: the initrd's load-modules.sh, console output
+# on stdout, with modprobe/insmod/uname stubbed.
+loader() {
+    local bin="$ROOT/bin"
+    mkdir -p "$bin"
+    sed -n "/cat > \"\$OVL\/usr\/lib\/wootc\/load-modules.sh\" <<'SMODSH'/,/^SMODSH\$/p" "$DEPLOY" \
+        | sed '1d;$d' | sed 's#/dev/console#/dev/stdout#' > "$ROOT/load-modules.sh"
+    printf '#!/bin/sh\necho "modprobe $*" >>"%s"\nexit %s\n' "$ROOT/calls" "$1" > "$bin/modprobe"
+    printf '#!/bin/sh\necho "insmod $*" >>"%s"\nexit 0\n' "$ROOT/calls" > "$bin/insmod"
+    printf '#!/bin/sh\necho 7.3.4-test\n' > "$bin/uname"
+    chmod +x "$bin"/*
+    PATH="$bin:$PATH" sh "$ROOT/load-modules.sh"
+}
+
+@test "the composefs Phase-2 initrd modprobes fat, vfat and binfmt_misc" {
+    run loader 0
+    echo "$output"; cat "$ROOT/calls"
+    [ "$status" -eq 0 ]
+    local fat vfat
+    fat=$(grep -nFx 'modprobe fat' "$ROOT/calls" | cut -d: -f1)
+    vfat=$(grep -nFx 'modprobe vfat' "$ROOT/calls" | cut -d: -f1)
+    [ -n "$fat" ] && [ -n "$vfat" ] && [ "$fat" -lt "$vfat" ]
+    grep -qFx 'modprobe binfmt_misc' "$ROOT/calls"
+    [[ "$output" == *"wootc: modprobe vfat"* ]]
+    run grep -c '^insmod ' "$ROOT/calls"
+    [ "$output" = 0 ]
+}
+
+@test "the Phase-2 module loader says which module it could not load" {
+    run loader 1
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"wootc: module vfat NOT LOADED (kver 7.3.4-test, file: none)"* ]]
+    [[ "$output" != *"NOT FOUND in /lib/modules"* ]]
 }
