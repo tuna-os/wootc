@@ -211,6 +211,29 @@ make_base_initrd() { # <out> [tools...] — a gzip cpio shipping the named tools
     head -c 6 "$BATS_TEST_TMPDIR/out.img" | grep -q 070701
 }
 
+@test "behavioral: --overlay-only packs the overlay alone, for a loader given two initrds" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    # The composefs GRUB menu loads phase2-overlay.cpio ahead of each bootc
+    # entry's own initrd (payload/migration/wootc-cfs-boot).
+    ovl="$BATS_TEST_TMPDIR/ovl-only"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-only.img" sh losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-only.img' '$BATS_TEST_TMPDIR/overlay.cpio' --overlay-only"
+    [ "$status" -eq 0 ]
+    head -c 6 "$BATS_TEST_TMPDIR/overlay.cpio" | grep -q 070701
+    cpio -it --quiet < "$BATS_TEST_TMPDIR/overlay.cpio" | grep -qE '^(\./)?usr/lib/wootc/wootc-attach-loop\.sh$'
+    # No gzip member of the base inside (`! cmd` cannot fail a bats test).
+    [ "$(od -An -tx1 "$BATS_TEST_TMPDIR/overlay.cpio" | tr -d ' \n' | grep -c '1f8b08')" -eq 0 ]
+}
+
+@test "behavioral: --overlay-only still refuses a base initrd without sh" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    ovl="$BATS_TEST_TMPDIR/ovl-only-nosh"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-only-nosh.img" bash losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-only-nosh.img' '$BATS_TEST_TMPDIR/overlay2.cpio' --overlay-only"
+    [ "$status" -ne 0 ]
+    echo "$output" | grep -q 'lacks: sh'
+}
+
 @test "behavioral: a base initrd without sh is REFUSED (mutation test)" {
     command -v cpio >/dev/null || skip "cpio unavailable"
     ovl="$BATS_TEST_TMPDIR/ovl-nosh"; make_overlay "$ovl"

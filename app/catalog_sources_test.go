@@ -45,6 +45,7 @@ func TestReviewedCatalogMatchesGeneratedConsumerArtifact(t *testing.T) {
 		"skipjack-gnome": "green", "albacore-gnome": "green",
 		"marlin-niri": "experimental", "marlin-gnome": "experimental", "aurora": "green",
 		"bazzite": "green", "bazzite-deck": "experimental", "flounder-gnome": "experimental",
+		"grouper-gnome": "green", "flounder-gnome-sid": "green",
 	}
 	if len(got) != len(wantStatuses) {
 		t.Fatalf("catalog membership changed without wootc policy review: %d", len(got))

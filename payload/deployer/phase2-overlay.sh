@@ -285,15 +285,19 @@ QGAUNIT
     return 0
 }
 
-# build_phase2_initrd <ovl-dir> <base-initrd> <out-path>
+# build_phase2_initrd <ovl-dir> <base-initrd> <out-path> [--overlay-only]
 # Pack the overlay ahead of the base initrd and VERIFY the result by
 # inspection — "the concatenated file is non-empty" validated nothing (a
 # hookless or interpreter-less initramfs is non-empty too, and costs a full
 # VM run to diagnose). Fails closed on a defective overlay; base-initrd
 # introspection is best-effort (its compression varies by image) and only
 # fails when a successful listing PROVES a required piece missing.
+#
+# --overlay-only writes just the overlay cpio to <out-path>, for a loader
+# that is given the overlay and the base as two initrds (GRUB concatenates
+# them the same way); the checks, the base's included, are the same.
 build_phase2_initrd() {
-    local ovl="$1" base="$2" out="$3"
+    local ovl="$1" base="$2" out="$3" overlay_only="${4:-}"
     # The overlay must be verifiably complete BEFORE packing: unit file,
     # wants edge (a dangling wants is a proven silent no-op), executable hook.
     if [[ ! -f "$ovl/usr/lib/systemd/system/wootc-attach.service" ]] || \
@@ -323,8 +327,10 @@ build_phase2_initrd() {
             return 1
         fi
     done
-    if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$ovl.cpio" || \
-       ! cat "$ovl.cpio" "$base" > "$out" || [[ ! -s "$out" ]]; then
+    local packed="$ovl.cpio"
+    [[ "$overlay_only" != --overlay-only ]] || packed="$out"
+    if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$packed" || \
+       { [[ "$packed" != "$out" ]] && ! cat "$packed" "$base" > "$out"; } || [[ ! -s "$out" ]]; then
         rm -f "$ovl.cpio"
         err "  [FAIL] early-cpio: cpio prepend failed — Phase-2 initrd would be hookless"
         return 1

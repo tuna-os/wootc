@@ -612,6 +612,23 @@ phase2_lsm_karg() {
     fi
 }
 
+# phase2_host_loader — the loader that started this deployer: systemd-boot,
+# grub, or unknown. Read from LoaderInfo, the EFI variable a loader sets for
+# the OS (systemd's Boot Loader Interface; Fedora's signed GRUB sets it from
+# its built-in bli module). Phase 2 boots through the same chain the Windows
+# installer staged for this deployer, and bootc on the installed system reads
+# this same variable to decide where its boot entries live.
+phase2_host_loader() {
+    local var="${WOOTC_LOADER_INFO:-/sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f}" info=""
+    # efivarfs: 4 attribute bytes, then the UTF-16LE string.
+    [[ -r "$var" ]] && info=$(tail -c +5 "$var" | tr -d '\0')
+    case "${info,,}" in
+        *systemd-boot*) echo systemd-boot ;;
+        *grub*) echo grub ;;
+        *) echo unknown ;;
+    esac
+}
+
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
 # written by exactly the code that can hang, so a wedge must still leave a
@@ -2732,7 +2749,23 @@ QGAEOF
                     exit 1
                 fi
                 log "  composefs: Phase-2 kernel=$cfs_linux initrd=$cfs_initrd"
-                cp "$KSRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                # Where bootc's entries live follows the loader that boots
+                # Phase 2, because bootc decides by the same LoaderInfo
+                # variable (payload/migration/wootc-cfs-boot). The Windows
+                # installer's signed chain is GRUB: bootc then reads its
+                # entries from /sysroot/boot, so they move there and the
+                # Windows ESP gets a GRUB menu of exactly those entries. A
+                # systemd-boot chain keeps them on root.disk's ESP and boots
+                # loader/entries/wootc.conf.
+                PHASE2_HOST_LOADER=$(phase2_host_loader)
+                CFS_GRUB=1
+                [[ "$PHASE2_HOST_LOADER" != systemd-boot ]] || CFS_GRUB=0
+                if [[ "$CFS_GRUB" == 1 ]]; then
+                    log "  composefs: this deployer was started by $PHASE2_HOST_LOADER (LoaderInfo); bootc's entries move to /boot for GRUB"
+                else
+                    log "  composefs: this deployer was started by systemd-boot (LoaderInfo); bootc's entries stay on root.disk's ESP"
+                    cp "$KSRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                fi
                 # Inject wootc-boot: unit + wants symlink + loop script. PREPEND an
                 # uncompressed cpio ahead of the (compressed) base initrd — the
                 # kernel's early-cpio mechanism unpacks the leading 4-byte-padded
@@ -2845,6 +2878,50 @@ SMODSH
                     log "  Staged deployer kernel modules ($_dkver) for Phase 2"
                 fi
 
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ "$CFS_GRUB" == 1 ]]; then
+                # One overlay for every entry: GRUB loads it ahead of each
+                # entry's own initrd. Its checks run against this entry's.
+                esp_claim_before_write /mnt/esp EFI/wootc/phase2-overlay.cpio || exit 1
+                if build_phase2_initrd "$OVL" "$ISRC" /mnt/esp/EFI/wootc/phase2-overlay.cpio --overlay-only; then
+                    rm -rf "$OVL"
+                    log "  [PASS] composefs Phase-2 overlay packed (contents verified against the entry's initrd)"
+                else
+                    rm -rf "$OVL"
+                    err "  [FAIL] composefs: Phase-2 overlay build/verify failed — aborting before the ESP advertises an unbootable Phase 2"
+                    exit 1
+                fi
+                # The entries carry this machine's Phase-2 arguments from here
+                # on: bootc copies the booted entry's options into each new one.
+                mkdir -p /mnt/verify/boot
+                if ! /usr/lib/wootc/migration/wootc-cfs-boot adopt --esp "$TESP" --boot /mnt/verify/boot \
+                        --kargs "loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} ${PHASE2_CONSOLE_FULL} ${PHASE2_KARGS}" \
+                        --drop "quiet rhgb" ||
+                   ! /usr/lib/wootc/migration/wootc-cfs-boot sync --install --boot /mnt/verify/boot --esp /mnt/esp; then
+                    err "  [FAIL] composefs: could not move bootc's entries to /boot or write the GRUB menu of them"
+                    exit 1
+                fi
+                rm -f /mnt/esp/loader/entries/wootc-deployer.conf
+                # Day 2: the same sync after every boot and, once bootc has
+                # finalized an upgrade or written a rollback, before shutdown.
+                install -D -m755 /usr/lib/wootc/migration/wootc-cfs-boot \
+                    "$DEPLOY_ROOT/var/usrlocal/bin/wootc-cfs-boot"
+                install -D -m644 /usr/lib/wootc/migration/wootc-esp-own \
+                    "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc-esp-own"
+                install -D -m644 /usr/lib/wootc/migration/wootc-esp-sync-shutdown.service \
+                    "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync-shutdown.service"
+                mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+                ln -sf ../wootc-esp-sync-shutdown.service \
+                    "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync-shutdown.service"
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=grub2\nPHASE2_BOOT=composefs-bls\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
+                        "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                else
+                    err "  [WARN] no UUID for the Windows ESP $ESP_DEV: updates will not reach the boot menu"
+                fi
+                log "  [PASS] Phase-2 composefs entries in /boot and a GRUB menu of them on the Windows ESP"
+                else
                 if build_phase2_initrd "$OVL" "$ISRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
                     rm -rf "$OVL"
                     log "  [PASS] composefs Phase-2 initrd patched with wootc-boot (prepend-cpio, contents verified)"
@@ -2899,13 +2976,13 @@ menuentry "Windows" {
 GRUBCFGEOF
                 done
 
-                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
                     mkdir -p "$DEPLOY_ROOT/etc/wootc"
                     printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
                         "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
                 fi
                 log "  [PASS] Phase-2 composefs/systemd-boot entry written (root+composefs+loop kargs)"
+                fi   # close CFS_GRUB (systemd-boot chain)
                 CFS_HANDLED=1
             fi
 

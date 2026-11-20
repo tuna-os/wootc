@@ -161,6 +161,8 @@ install() {
     inst /usr/lib/wootc/migration/wootc-esp-sync
     inst /usr/lib/wootc/migration/wootc-esp-sync.service
     inst /usr/lib/wootc/migration/wootc-esp-sync.path
+    inst /usr/lib/wootc/migration/wootc-esp-sync-shutdown.service || return 1
+    inst /usr/lib/wootc/migration/wootc-cfs-boot || return 1
     inst_simple /usr/lib/wootc/migration/wootc-shim-trust || return 1
     chmod 0644 "$initdir/usr/lib/wootc/migration/wootc-shim-trust" || return 1
     inst_simple /usr/lib/wootc/migration/wootc-esp-control || return 1
