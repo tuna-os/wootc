@@ -8,6 +8,7 @@ func TestRecoveryTaskIdentityMatchesOnlyOwnedTask(t *testing.T) {
 		Executable:   `C:\wootc\install\wootc.exe`,
 		Arguments:    "recover --startup",
 		Principal:    "SYSTEM",
+		PrincipalSID: "S-1-5-18",
 		RunLevel:     "Highest",
 		Trigger:      "MSFT_TaskBootTrigger",
 		ActionCount:  1,
@@ -42,6 +43,28 @@ func TestRecoveryTaskIdentityMatchesOnlyOwnedTask(t *testing.T) {
 		{
 			name:   "different principal is foreign",
 			mutate: func(actual *recoveryTaskIdentity) { actual.Principal = "BUILTIN\\Users" },
+		},
+		{
+			name: "different principal whose SID differs is foreign",
+			mutate: func(actual *recoveryTaskIdentity) {
+				actual.Principal = "Users"
+				actual.PrincipalSID = "S-1-5-32-545"
+			},
+		},
+		{
+			name: "principal reported by another name but the same SID is ours",
+			mutate: func(actual *recoveryTaskIdentity) {
+				actual.Principal = "NT AUTHORITY\\SYSTEM"
+				actual.PrincipalSID = "S-1-5-18"
+			},
+			want: true,
+		},
+		{
+			name: "an unresolved principal name proves nothing",
+			mutate: func(actual *recoveryTaskIdentity) {
+				actual.Principal = "LocalSystem"
+				actual.PrincipalSID = ""
+			},
 		},
 		{
 			name:   "different trigger is foreign",
