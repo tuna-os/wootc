@@ -39,6 +39,8 @@ make_sandbox() { # <block-device> — any real one; [ -b ] follows the symlink
         -e "s|/dev/kmsg|/dev/null|g" \
         -e "s|/dev/disk/by-uuid|$T/by-uuid|g" \
         -e "s|/run/|$T/run/|g" \
+        -e "s|/proc/cmdline|$T/cmdline|g" \
+        -e "s|/lib/dracut-lib.sh|$T/absent/dracut-lib.sh|g" \
         "$HOOK" > "$T/hook.sh"
     stub mountpoint 'exit 1'
     stub mount 'printf "mount %s\n" "$*" >> "$CALLS"
@@ -100,6 +102,19 @@ block_device() {
     run run_hook 'UUID=0a1b;rm'
     [ "$status" -eq 0 ]
     echo "$output" | grep -q 'WARNING: no root=UUID on kernel cmdline'
+}
+
+@test "behavioral: under dash the hook runs without dracut-lib.sh, reading /proc/cmdline" {
+    # Run 44742028340 (grouper): /lib/dracut-lib.sh was missing, and in sh a
+    # `.` of a missing file exits the shell, so the hook died before its first
+    # line. Without dracut-lib.sh it must fall back to /proc/cmdline.
+    blk=$(block_device) || skip "no block device to stand in for the host NTFS"
+    make_sandbox "$blk"
+    printf 'BOOT_IMAGE=/x root=UUID=0A1B2C3D-4E5F rw loop=/wootc/disks/root.disk wootc.host_uuid=ABCD1234EF\n' > "$T/cmdline"
+    run env PATH="$T/bin:$PATH" dash "$T/hook.sh"
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q 'attach-loop hook entered'
+    echo "$output" | grep -q 'requested root UUID 0a1b2c3d-4e5f confirmed present'
 }
 
 @test "behavioral: under dash a missing loop= karg is still a hard failure" {

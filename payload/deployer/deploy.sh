@@ -1890,6 +1890,18 @@ build_phase2_initrd() {
         err "  [FAIL] early-cpio overlay carries no Phase-2 shutdown hooks — refusing to build a Phase-2 initrd that would reboot with the Windows NTFS still mounted rw"
         return 1
     fi
+    # Nothing at the top-level usr-merge names. On a usr-merged base those are
+    # symlinks (lib -> usr/lib), and the kernel unpacks this cpio FIRST: a
+    # real directory here cannot be replaced by the base's symlink, so every
+    # base file under /lib disappears. Run 44742028340 (grouper): no
+    # /lib/dracut-lib.sh, every dracut hook failed, root.disk never attached.
+    local top
+    for top in bin sbin lib lib64; do
+        if [[ -e "$ovl/$top" || -L "$ovl/$top" ]]; then
+            err "  [FAIL] early-cpio overlay has a top-level /$top — it would hide the base initrd's /$top (usr-merge symlink); stage under /usr/$top instead"
+            return 1
+        fi
+    done
     if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$ovl.cpio" || \
        ! cat "$ovl.cpio" "$base" > "$out" || [[ ! -s "$out" ]]; then
         rm -f "$ovl.cpio"
@@ -3077,9 +3089,21 @@ QGAEOF
                 # and are signed with the Fedora key the deployer kernel trusts.
                 _dkver=$(ls /lib/modules | head -1)
                 if [[ -n "$_dkver" && -d "/lib/modules/$_dkver" ]]; then
-                    mkdir -p "$OVL/lib/modules"
-                    cp -a "/lib/modules/$_dkver" "$OVL/lib/modules/"
+                    # usr/lib/modules, never lib/modules: a real lib/ in this
+                    # early cpio blocks the base initrd's lib -> usr/lib
+                    # symlink (the kernel's unpacker cannot replace a
+                    # non-empty directory with a symlink), so /lib/dracut-lib.sh
+                    # and everything else under /lib vanish from Phase 2. Run
+                    # 44742028340 (grouper): every dracut hook failed to source
+                    # dracut-lib.sh and wootc-attach died before its first line.
+                    mkdir -p "$OVL/usr/lib/modules"
+                    cp -a "/lib/modules/$_dkver" "$OVL/usr/lib/modules/"
+                    # depmod -b reads <base>/lib/modules on kmod builds that
+                    # predate the /usr/lib/modules default; give it that view
+                    # for this one call only.
+                    ln -s usr/lib "$OVL/lib"
                     depmod -b "$OVL" "$_dkver" 2>/dev/null || true
+                    rm -f "$OVL/lib"
                     # Load essential modules before wootc-attach via a
                     # systemd service (dracut pre-udev hooks may not fire
                     # in the UKI initrd's minimal init).
@@ -3105,7 +3129,7 @@ SMOD
 echo "wootc: load-modules starting (kver=$(uname -r))" > /dev/console
 _kver=$(uname -r)
 for _mod in virtio_pci virtio_scsi ahci sd_mod; do
-    _path=$(find "/lib/modules/$_kver" -name "${_mod}.ko" -print -quit 2>/dev/null)
+    _path=$(find "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
     if [ -n "$_path" ] && [ -f "$_path" ]; then
         echo "wootc: insmod $_mod ($_path)" > /dev/console
         insmod "$_path" 2>/dev/null || modprobe "$_mod" 2>/dev/null || true
