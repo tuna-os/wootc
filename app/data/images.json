@@ -22,7 +22,7 @@
     "desktop": "gnome",
     "desktopName": "GNOME",
     "imageRef": "ghcr.io/projectbluefin/dakota:stable",
-    "description": "Bluefin's next-generation composefs desktop. Experimental: user data and the return to Windows fail in testing (wootc#752).",
+    "description": "Bluefin's next-generation composefs desktop. Experimental: not yet proven end-to-end.",
     "bootloader": "systemd-boot",
     "composeFs": true,
     "family": "fedora",
