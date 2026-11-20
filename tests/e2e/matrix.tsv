@@ -60,6 +60,9 @@ full	bluefin-dakota-win10pro	ghcr.io/projectbluefin/dakota:stable	10	pro	W269N-W
 # for both claimed Pro versions. The validator below keeps catalog status from
 # silently outrunning the evidence plan.
 full	fedora-gnome-win10pro	ghcr.io/tuna-os/bonito:gnome	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	el10-kde-win10pro	ghcr.io/tuna-os/yellowfin:kde	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	el10-xfce-win10pro	ghcr.io/tuna-os/yellowfin:xfce	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
+full	fedora-kde-win10pro	ghcr.io/tuna-os/bonito:kde	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 
 full	bluefin-stable-win10pro	ghcr.io/projectbluefin/bluefin:stable	10	pro	W269N-WFGWX-YVC9B-4J6C9-T83GX
 # ── image axis (Win 11 Pro) — every family/bootloader/desktop ──
