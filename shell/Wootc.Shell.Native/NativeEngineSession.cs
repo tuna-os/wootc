@@ -189,11 +189,16 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
     }
 
     // Only the intent's identity is sent: no plan field can travel with consent.
+    // Before it answers, the engine observes the storage again (one
+    // configuration budget) and StartInstall validates the plan again: a
+    // subset of the plan check, so it gets the plan check's wait. 60 seconds
+    // ran out on a slow runner (native gate probe 44764569187, whose plan check
+    // took about 85 seconds).
     public async Task ConfirmInstallAsync(NativeInstallGrant grant, CancellationToken cancellationToken)
     {
         if (installSession is null || grant.Session != installSession) throw new InvalidOperationException("This engine session did not grant that intent");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+        deadline.CancelAfter(TimeSpan.FromSeconds(110));
         await CallAsync<object?>("ConfirmNativeInstall", new { kind = "confirm-install", protocolVersion = 1, session = grant.Session, brandId = grant.BrandId, intentId = grant.IntentId }, deadline.Token);
     }
 

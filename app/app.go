@@ -398,9 +398,20 @@ func (a *App) GetBranding() Branding {
 // the free space root.disk plus the deployer scratch need (install_space.go).
 // It reads only and returns the normalized configuration. The native install
 // session runs it before it grants an install intent.
+//
+// Validation reads only the plan facts (planSystemInfo), never getSystemInfo's
+// advisory probes: StartInstall runs it synchronously, inside the native
+// shell's confirmation deadline, and getSystemInfo also analyses the whole
+// of C: with defrag.exe /A, which has no time bound. Native gate probe
+// 44764569187 confirmed a granted plan and the shell gave up 63 seconds later
+// with "A task was canceled."
 func (a *App) validateInstallConfig(cfg InstallConfig) (InstallConfig, error) {
-	return a.validateInstallConfigWith(cfg, getSystemInfo)
+	return a.validateInstallConfigWith(cfg, planSystemInfo)
 }
+
+// planSystemInfo is readPlanSystemInfo, swappable so tests can observe
+// which system read validation uses.
+var planSystemInfo = readPlanSystemInfo
 
 // installPolicy supplies observations and platform gates without giving domain
 // validation access to App state, Wails events, or installation cancellation.
