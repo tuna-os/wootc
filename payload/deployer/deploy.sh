@@ -1114,6 +1114,27 @@ harvest_mok_certs_from_image() {  # <stash>
     rm -f "$tarball"
 }
 
+# Import <module>... with the installed system's Python, from the helpers the
+# deployer staged in /var/usrlocal/lib/wootc. An ostree or classic deployment
+# is a complete root, so it is chrooted into. A composefs deployment directory
+# (/state/deploy/<hash>) holds only that deployment's state; its /usr is the
+# image's, kept in the composefs store. A chroot there finds no python3 on
+# any image (#748), so the image is run instead, with the staged helpers
+# mounted where the installed system has them (as MOK_CERT_PROBE asks the
+# image for what the deployment tree cannot show). stderr goes to $PROBE_ERR.
+target_python_imports() {  # <module>...
+    local code
+    code="import sys; sys.path.insert(0, \"/var/usrlocal/lib/wootc\"); import $(IFS=,; echo "$*")"
+    if [[ "$COMPOSEFS" == 1 || "$DEPLOY_ROOT" == */state/deploy/* ]]; then
+        # A run on an image that is not local pulls it, which cannot finish
+        # inside the probe bound (see ensure_ntfs_support).
+        acquire_image "target Python check" || return 1
+        timeout "${WOOTC_IMAGE_PROBE_TIMEOUT:-300}" podman run --rm --network=host -v "$DEPLOY_ROOT/var/usrlocal/lib/wootc:/var/usrlocal/lib/wootc:ro" --entrypoint /usr/bin/python3 "$IMAGE" -c "$code" 2>"$PROBE_ERR"
+    else
+        timeout 30 chroot "$DEPLOY_ROOT" /usr/bin/python3 -c "$code" 2>"$PROBE_ERR"
+    fi
+}
+
 ensure_ntfs_support() {
     # Pull BEFORE probing. `podman run` on an image that is not local pulls it,
     # and a multi-GB image cannot pull inside a probe bound, so the probe used
@@ -2771,9 +2792,9 @@ QGAEOF
         err "  [WARN] signed-chain helpers could not be staged into the installed image"
         esp_control_ready=0
     fi
-    if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
-        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_boot_identity, wootc_esp_transaction, wootc_chain_source'; then
-        err "  [WARN] signed-chain Python helpers cannot run in installed image"
+    if [[ "$esp_control_ready" == 1 ]] &&
+       ! target_python_imports wootc_boot_identity wootc_esp_transaction wootc_chain_source; then
+        err "  [WARN] signed-chain Python helpers cannot run in installed image: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ')"
         esp_control_ready=0
     fi
     if [[ "$esp_control_ready" == 1 ]] && ! chroot "$DEPLOY_ROOT" /var/usrlocal/lib/wootc/sbverify/ld-linux-x86-64.so.2 \
@@ -2829,9 +2850,8 @@ QGAEOF
     # Evidence is mandatory for Windows's installed verdict. Prove the target
     # interpreter can load the staged collector, rather than stage a service
     # which will inevitably fail only after the next reboot.
-    if ! timeout 30 chroot "$DEPLOY_ROOT" /usr/bin/python3 -c \
-        'import sys; sys.path.insert(0, "/var/usrlocal/lib/wootc"); import wootc_firstboot_evidence'; then
-        err "  [FAIL] target image lacks Python 3 and the stdlib needed for first-boot evidence"
+    if ! target_python_imports wootc_firstboot_evidence; then
+        err "  [FAIL] target image lacks Python 3 and the stdlib needed for first-boot evidence: $(tail -c 400 "$PROBE_ERR" 2>/dev/null | tr '\n' ' ')"
         exit 1
     fi
     install -m755 /usr/lib/wootc/migration/wootc-firstboot-evidence \
