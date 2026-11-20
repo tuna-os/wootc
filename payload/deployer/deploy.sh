@@ -593,6 +593,25 @@ TIMEOUT_KARG="rd.timeout=120"
 LOOP_KARG="loop.max_part=16"
 PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
 
+# phase2_lsm_karg <os root> — prints selinux=0 when the installed OS does not
+# use SELinux (no /etc/selinux/config, or SELINUX=disabled in it).
+#
+# A composefs Phase 2 boots the deployer's Fedora kernel (the UKI vmlinuz
+# has no PE signature of its own; see the ESP staging below). That kernel's
+# built-in LSM list starts SELinux. On an OS without SELinux (the Ubuntu and
+# Debian images grouper and flounder-sid), SELinux then runs with no policy,
+# the OS's systemd (+SELINUX) mounts selinuxfs, and `bootc status` stops with
+# "Ensuring selinux install_t type: No label found in policy 'None' for
+# /usr/bin/ostree". The first-boot record is never written (runs 44769912580
+# and 44770794387). selinux=0 boots such an OS as its own kernel would; an OS
+# with an SELinux configuration keeps the kernel's default.
+phase2_lsm_karg() {
+    local cfg="$1/etc/selinux/config"
+    if [[ ! -f "$cfg" ]] || grep -qE '^[[:space:]]*SELINUX[[:space:]]*=[[:space:]]*disabled[[:space:]]*$' "$cfg"; then
+        echo "selinux=0"
+    fi
+}
+
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
 # written by exactly the code that can hang, so a wedge must still leave a
@@ -2625,6 +2644,11 @@ QGAEOF
     # loop-root cmdline from the patched BLS entries.
     vstage "before-esp-staging (reaching here means /usr writes all succeeded)"
     log "Syncing Phase-2 kernel to ESP..."
+    PHASE2_LSM_KARG=$(phase2_lsm_karg "$DEPLOY_ROOT")
+    if [[ -n "$PHASE2_LSM_KARG" ]]; then
+        PHASE2_KARGS="$PHASE2_KARGS $PHASE2_LSM_KARG"
+        log "  installed OS has no SELinux configuration: Phase 2 boots with $PHASE2_LSM_KARG"
+    fi
 
     # ESP is partition 1 of the disk containing the NTFS partition.
     # /dev/sda3 → /dev/sda1, /dev/nvme0n1p3 → /dev/nvme0n1p1
@@ -2761,6 +2785,25 @@ QGAEOF
                     # Load essential modules before wootc-attach via a
                     # systemd service (dracut pre-udev hooks may not fire
                     # in the UKI initrd's minimal init).
+                    #
+                    # fat, vfat and binfmt_misc load here too, although
+                    # nothing in the initrd uses them. The deployer kernel's
+                    # modules exist only in this initrd: after switch-root
+                    # the OS has its own kernel's tree, so a module that
+                    # loads on demand later is missing. `bootc status` mounts
+                    # root.disk's ESP to read the boot entries; on grouper it
+                    # stopped with "Mounting /dev/loop0p1: No such device (os
+                    # error 19)" (run 44781343011), so the first-boot record
+                    # was never written, and proc-sys-fs-binfmt_misc.mount
+                    # failed. Codepage 437 and ascii are built into the
+                    # Fedora kernel.
+                    #
+                    # modprobe first: it resolves dependencies and finds the
+                    # tree under usr/lib/modules, where this overlay puts it.
+                    # The old loader searched only /lib/modules and reported
+                    # every module "NOT FOUND" on grouper. insmod of a file
+                    # from either tree stays as the fallback (fat before vfat:
+                    # insmod does not resolve dependencies).
                     mkdir -p "$OVL/usr/lib/systemd/system" \
                              "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
                     cat > "$OVL/usr/lib/systemd/system/wootc-load-modules.service" <<'SMOD'
@@ -2782,13 +2825,16 @@ SMOD
 #!/bin/sh
 echo "wootc: load-modules starting (kver=$(uname -r))" > /dev/console
 _kver=$(uname -r)
-for _mod in virtio_pci virtio_scsi ahci sd_mod; do
-    _path=$(find "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
-    if [ -n "$_path" ] && [ -f "$_path" ]; then
+for _mod in virtio_pci virtio_scsi ahci sd_mod fat vfat binfmt_misc; do
+    if modprobe "$_mod" 2>/dev/null; then
+        echo "wootc: modprobe $_mod" > /dev/console
+        continue
+    fi
+    _path=$(find "/usr/lib/modules/$_kver" "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
+    if [ -n "$_path" ] && insmod "$_path" 2>/dev/null; then
         echo "wootc: insmod $_mod ($_path)" > /dev/console
-        insmod "$_path" 2>/dev/null || modprobe "$_mod" 2>/dev/null || true
     else
-        echo "wootc: module $_mod NOT FOUND in /lib/modules/$_kver" > /dev/console
+        echo "wootc: module $_mod NOT LOADED (kver $_kver, file: ${_path:-none})" > /dev/console
     fi
 done
 echo "wootc: load-modules done" > /dev/console
