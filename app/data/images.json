@@ -240,5 +240,33 @@
     "composeFs": true,
     "family": "debian",
     "status": "experimental"
+  },
+  {
+    "id": "grouper-gnome",
+    "name": "Grouper",
+    "emoji": "🐠",
+    "base": "Ubuntu 26.04 LTS",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/grouper:gnome",
+    "description": "GNOME on Ubuntu 26.04 LTS with composefs.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "debian",
+    "status": "green"
+  },
+  {
+    "id": "flounder-gnome-sid",
+    "name": "Flounder (sid)",
+    "emoji": "🐡",
+    "base": "Debian sid",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/flounder:gnome-sid",
+    "description": "GNOME on Debian unstable (sid) with composefs.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "debian",
+    "status": "green"
   }
 ]
