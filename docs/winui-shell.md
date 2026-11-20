@@ -345,7 +345,7 @@ The shell waits 110 seconds for `ConfirmNativeInstall`.
 In that time the engine observes the storage again, and `StartInstall` validates the plan again.
 This validation reads only the plan facts and does not analyze the defragmentation of C:.
 In native gate probe 44764569187, the plan check took about 85 seconds.
-A wait of 60 seconds for the confirmation then stopped the install with "A task was canceled.".
+A wait of 60 seconds for the confirmation then stopped the install with a cancellation error.
 
 ### Drive reports during the plan check
 
