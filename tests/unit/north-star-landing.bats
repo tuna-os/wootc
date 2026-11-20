@@ -134,6 +134,7 @@ WELCOME="payload/migration/wootc-welcome"
     grep -q 'ntfs-3g lowntfs-3g mount.ntfs-3g' "$hook"
     # Anchor: the deployer's self-contained ntfs-3g closure.
     grep -q 'stage_ntfs3g_closure' payload/deployer/deploy.sh
+    grep -q '^stage_ntfs3g_closure() {' payload/deployer/phase2-overlay.sh
     # Anchor: the clean-handback contract and its postmortem.
     [ -f tests/unit/phase2-clean-ntfs-umount.bats ]
     [ -f docs/phase2-attach-postmortem.md ]

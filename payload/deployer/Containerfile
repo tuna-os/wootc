@@ -55,6 +55,7 @@ COPY --from=verifierbuilder /out/sbverify /usr/lib/wootc/sbverify
 COPY payload/steps.sh /usr/libexec/wootc-steps.sh
 COPY payload/deployer/offline-bundle.sh /usr/libexec/wootc-offline-bundle.sh
 COPY payload/deployer/initramfs-lib.sh /usr/libexec/wootc-initramfs-lib.sh
+COPY payload/deployer/phase2-overlay.sh /usr/libexec/wootc-phase2-overlay.sh
 COPY payload/deployer/lifecycle.sh /usr/libexec/wootc-lifecycle.sh
 COPY payload/deployer/migration-diagnostics.sh /usr/libexec/wootc-migration-diagnostics.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
@@ -114,7 +115,7 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
-    for module in wootc-initramfs-lib.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
+    for module in wootc-initramfs-lib.sh wootc-phase2-overlay.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "usr/libexec/${module}$" || \
             { echo "FATAL: deployer module ${module} missing from initramfs"; exit 1; }; \
     done && \

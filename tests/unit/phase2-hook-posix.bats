@@ -180,7 +180,7 @@ wait_for_exec() { # <pid> <not-this-argv0> — the cmdline after exec, NUL-split
     stand_in=/bin/bash   # the distro's, so ldd names the system loader
     ldso=$(ldd "$stand_in" | awk '$1 ~ /ld-linux|ld64\.so/ {print $1; exit}')
     [ -n "$ldso" ] && [ -f "$ldso" ] || skip "no dynamic loader found for bash"
-    DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
+    PHASE2_OVERLAY="$REPO_ROOT/payload/deployer/phase2-overlay.sh"
     INITRAMFS_LIB="$REPO_ROOT/payload/deployer/initramfs-lib.sh"
     mkdir -p "$T/root" "$T/ovl" "$T/nbin"
     cp "$stand_in" "$T/nbin/ntfs-3g"
@@ -189,7 +189,7 @@ wait_for_exec() { # <pid> <not-this-argv0> — the cmdline after exec, NUL-split
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(sed -n '/^stage_ntfs3g_closure() {/,/^}/p' "$DEPLOY")
+        source '$PHASE2_OVERLAY'
         DEPLOY_ROOT='$T/root'
         PATH='$T/nbin':\$PATH
         dso_closure() { printf '%s\n' '$ldso'; }

@@ -14,17 +14,12 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
-}
-
-# Extract a top-level function from deploy.sh so it can be exercised for real.
-# Returns the function text; empty output fails the caller loudly.
-extract_fn() {
-    awk "/^$1\(\) \{/,/^\}/" "$DEPLOY"
+    PHASE2_OVERLAY="${PHASE2_OVERLAY:-$REPO_ROOT/payload/deployer/phase2-overlay.sh}"
 }
 
 @test "no early-cpio branch references the phantom /mnt/sysroot" {
     # Comments may tell the story; code may not resurrect the path.
-    run grep -nE '^[^#]*/mnt/sysroot' "$DEPLOY"
+    run grep -nE '^[^#]*/mnt/sysroot' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
 }
 
@@ -32,39 +27,61 @@ extract_fn() {
     # Hand-copied variants drifted (one staged libs, one did not, one staged
     # the deployer's libs at the TARGET's library paths). The helpers must be
     # defined once and called from every branch.
-    [ "$(grep -c '^stage_wootc_overlay() {' "$DEPLOY")" -eq 1 ]
-    [ "$(grep -c '^stage_ntfs3g_closure() {' "$DEPLOY")" -eq 1 ]
-    [ "$(grep -c '^build_phase2_initrd() {' "$DEPLOY")" -eq 1 ]
+    # phase2-overlay.sh, sourced by deploy.sh, holds the one copy.
+    for fn in stage_wootc_overlay stage_ntfs3g_closure build_phase2_initrd; do
+        [ "$(grep -c "^$fn() {" "$PHASE2_OVERLAY")" -eq 1 ]
+        [ "$(grep -c "^$fn() {" "$DEPLOY")" -eq 0 ]
+    done
+    grep -qF 'source "${WOOTC_PHASE2_OVERLAY_FILE:-/usr/libexec/wootc-phase2-overlay.sh}"' "$DEPLOY"
     [ "$(grep -c '^[^#]*stage_wootc_overlay "\$OVL"' "$DEPLOY")" -ge 3 ]
     [ "$(grep -c '^[^#]*stage_ntfs3g_closure "\$OVL"' "$DEPLOY")" -ge 3 ]
     [ "$(grep -c 'build_phase2_initrd "\$OVL"' "$DEPLOY")" -ge 3 ]
     # No branch may keep a private copy of the packing pipeline.
-    [ "$(grep -c 'cpio -o -H newc' "$DEPLOY")" -eq 1 ]
+    [ "$(grep -c 'cpio -o -H newc' "$DEPLOY")" -eq 0 ]
+    [ "$(grep -c 'cpio -o -H newc' "$PHASE2_OVERLAY")" -eq 1 ]
+}
+
+@test "phase2-overlay.sh is shipped into the deployer initramfs and sourced by deploy.sh" {
+    # deploy.sh sources the module at its installed path. If the Containerfile
+    # or module-setup.sh stops shipping it, every Phase-2 staging branch dies
+    # on "command not found" after fisherman has already written the disk.
+    local cfile="$REPO_ROOT/payload/deployer/Containerfile"
+    local modsetup="$REPO_ROOT/payload/deployer/module-setup.sh"
+    grep -qF 'COPY payload/deployer/phase2-overlay.sh /usr/libexec/wootc-phase2-overlay.sh' "$cfile"
+    grep -qE '^[[:space:]]*for module in .*wootc-phase2-overlay\.sh' "$cfile"
+    grep -qE '^[[:space:]]*inst_simple /usr/libexec/wootc-phase2-overlay.sh$' "$modsetup"
+    # The module is a library: sourcing it defines functions and runs nothing.
+    run env -i PATH=/nonexistent "$(type -P bash)" -c "set -euo pipefail; source '$PHASE2_OVERLAY'; declare -F"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 4 ]
+    for fn in stage_wootc_overlay stage_ntfs3g_closure stage_qemu_ga_into_target build_phase2_initrd; do
+        printf '%s\n' "${lines[@]}" | grep -qx "declare -f $fn"
+    done
 }
 
 @test "the deployer-sourced fallback ships the loader and is exec-verified" {
     # agent-lessons §8: full closure = binary + every NEEDED lib + the
     # loader, invoked via the staged loader — and proven by RUNNING it (ldd
     # reports only the first missing library).
-    grep -q -- '--library-path' "$DEPLOY"
-    grep -q 'usr/lib/wootc/ntfs3g' "$DEPLOY"
-    grep -q 'staged ntfs-3g closure does not execute' "$DEPLOY"
+    grep -q -- '--library-path' "$PHASE2_OVERLAY"
+    grep -q 'usr/lib/wootc/ntfs3g' "$PHASE2_OVERLAY"
+    grep -q 'staged ntfs-3g closure does not execute' "$PHASE2_OVERLAY"
     # The wrapper pins the private closure; the target's libraries are never
     # mixed in — so nothing may install deployer libs at target lib paths.
-    run grep -nE 'install -D [^ ]+ "\$OVL/\$lib"' "$DEPLOY"
+    run grep -nE 'install -D [^ ]+ "\$(OVL|ovl)/\$lib"' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
 }
 
 @test "the built Phase-2 initrd is verified by listing, not by size" {
-    grep -qF 'listing=$(list_initrd_members "$base")' "$DEPLOY"
+    grep -qF 'listing=$(list_initrd_members "$base")' "$PHASE2_OVERLAY"
     grep -q 'cpio -it' "$INITRAMFS_LIB"
-    grep -q 'the target.s base initrd lacks' "$DEPLOY"
+    grep -q 'the target.s base initrd lacks' "$PHASE2_OVERLAY"
     # Overlay completeness is asserted BEFORE packing (dangling wants was a
     # proven silent no-op).
-    grep -q 'early-cpio overlay is incomplete' "$DEPLOY"
+    grep -q 'early-cpio overlay is incomplete' "$PHASE2_OVERLAY"
     # An unlistable base initrd WARNs (unknown compression is not proof of a
     # defect), it does not kill a possibly-good deploy.
-    grep -q 'could not list the base initrd' "$DEPLOY"
+    grep -q 'could not list the base initrd' "$PHASE2_OVERLAY"
 }
 
 @test "a missing mountable installed root is fatal, with evidence (#45)" {
@@ -88,14 +105,13 @@ extract_fn() {
 
 # ── Behavioral: the helpers, run for real ───────────────────────────────────
 
-run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
+run_helpers() { # <bash-snippet> — with the overlay module + stubs loaded
     bash -c "
         set -e
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(extract_fn stage_ntfs3g_closure)
-        $(extract_fn build_phase2_initrd)
+        source '$PHASE2_OVERLAY'
         $1
     "
 }

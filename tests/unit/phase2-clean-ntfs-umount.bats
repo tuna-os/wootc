@@ -40,6 +40,7 @@ setup() {
     UMOUNT_HOOK="$MODDIR/wootc-umount-host.sh"
     MODSETUP="$MODDIR/module-setup.sh"
     DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
+    PHASE2_OVERLAY="$REPO_ROOT/payload/deployer/phase2-overlay.sh"
     DEPMOD="$REPO_ROOT/payload/deployer/module-setup.sh"
     CFILE="$REPO_ROOT/payload/deployer/Containerfile"
 }
@@ -51,6 +52,7 @@ setup() {
     run bash -n "$UMOUNT_HOOK";  [ "$status" -eq 0 ]
     run bash -n "$MODSETUP";     [ "$status" -eq 0 ]
     run bash -n "$DEPLOY";       [ "$status" -eq 0 ]
+    run bash -n "$PHASE2_OVERLAY"; [ "$status" -eq 0 ]
     # dracut sources hooks (`. "$__f"`). A top-level `exit` in the pre-pivot
     # hook would take dracut-pre-pivot down with it and abort the boot.
     run grep -nE '^[[:space:]]*exit( |$)' "$STAGE"
@@ -79,15 +81,15 @@ setup() {
     # appear in build_phase2_initrd's gate, and a file-wide grep would happily
     # pass on an overlay builder that stages nothing.
     local overlay_fn
-    overlay_fn=$(awk '/^stage_wootc_overlay\(\) \{/,/^\}/' "$DEPLOY")
+    overlay_fn=$(awk '/^stage_wootc_overlay\(\) \{/,/^\}/' "$PHASE2_OVERLAY")
     echo "$overlay_fn" | grep -q 'usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh'
     echo "$overlay_fn" | grep -q 'usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh'
     echo "$overlay_fn" | grep -q 'wootc/99wootc-boot/wootc-stage-shutdown.sh'
     echo "$overlay_fn" | grep -q 'wootc/99wootc-boot/wootc-umount-host.sh'
-    grep -q 'carries no Phase-2 shutdown hooks' "$DEPLOY"
+    grep -q 'carries no Phase-2 shutdown hooks' "$PHASE2_OVERLAY"
     # /usr/lib, never a real /lib: an early cpio creating /lib as a directory
     # collides with the base initrd's /lib -> usr/lib symlink.
-    run grep -nE '\$ovl/lib/dracut/hooks' "$DEPLOY"
+    run grep -nE '\$ovl/lib/dracut/hooks' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
     # And the files have to reach the deployer initramfs to be stageable.
     grep -q 'inst /usr/lib/wootc/99wootc-boot/wootc-stage-shutdown.sh' "$DEPMOD"
@@ -119,7 +121,7 @@ setup() {
         bash -c "
             log() { echo \"LOG: \$*\"; }
             err() { echo \"ERR: \$*\" >&2; }
-            $(awk '/^build_phase2_initrd\(\) \{/,/^\}/' "$DEPLOY")
+            source '$PHASE2_OVERLAY'
             build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base.img' '$1'
         "
     }

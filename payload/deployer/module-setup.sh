@@ -40,6 +40,7 @@ install() {
     inst_simple /usr/libexec/wootc-steps.sh
     inst_simple /usr/libexec/wootc-offline-bundle.sh
     inst_simple /usr/libexec/wootc-initramfs-lib.sh
+    inst_simple /usr/libexec/wootc-phase2-overlay.sh
     inst_simple /usr/libexec/wootc-lifecycle.sh
     inst_simple /usr/libexec/wootc-migration-diagnostics.sh
     # dracut defines moddir before invoking module install hooks.
