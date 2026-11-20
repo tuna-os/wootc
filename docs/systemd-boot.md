@@ -44,8 +44,9 @@ Then `bootc status` fails on the installed system.
 So the deployer reads `LoaderInfo` when the deployer starts.
 If the loader is not systemd-boot, `wootc-cfs-boot adopt` moves the entries and their kernel folders into `/sysroot/boot`.
 That is the layout that `bootc install --bootloader grub` makes.
-Then `wootc-cfs-boot sync` writes one GRUB menu entry for each bootc entry on the Windows ESP.
-The menu uses the order that bootc uses for GRUB: file name, descending.
+Then `wootc-cfs-boot sync` writes a menu on the Windows ESP, with one item for each bootc entry.
+The items have the order that bootc uses for GRUB: the file names in reverse order.
+
 `wootc-esp-sync.service` runs the sync at boot.
 `wootc-esp-sync-shutdown.service` runs it at shutdown, after `bootc-finalize-staged.service`.
 Thus an upgrade or a rollback starts on the next boot.
