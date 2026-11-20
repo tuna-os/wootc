@@ -300,10 +300,29 @@ setup() {
     grep -A12 'Fix the agent in Phase 2' "$E2E" | grep -q "qemu-guest-agent|guest_agent|virtio.ports"
 }
 
-@test "a fisherman line on the serial proves the deployer started" {
-    # Run 38839917797 (bazzite-deck): the deployer booted and fisherman ran at
-    # t=385s, but no [wootc] line reached the serial before the 10-minute
-    # deployer-start deadline, so the harness failed a deploy that was running.
-    local E2E=tests/e2e/run-e2e.sh
-    grep -F 'grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true' "$E2E"
+@test "deployer serial lines prove the deployer started; firmware and Windows lines do not" {
+    # Run 38839917797 (bazzite-deck): fisherman ran at t=385s with no [wootc]
+    # line before the 10-minute deployer-start deadline. Run 44733595826
+    # (release gate): the deployer printed its phase events from t=7s and sat
+    # in registry-preflight past 10 minutes. Both were failed as "Deployer did
+    # NOT start" while the deployer was running.
+    local E2E=tests/e2e/run-e2e.sh re
+    re=$(sed -n "s/^DEPLOYER_START_RE='\(.*\)'$/\1/p" "$E2E")
+    [ -n "$re" ]
+    # The startup guard and the monitor loop must both use it.
+    grep -qF "grep -aqE \"\$DEPLOYER_START_RE\"; then" "$E2E"
+    grep -qF "grep -aqE \"\$DEPLOYER_START_RE\" && { DEPLOYER_STARTED=true" "$E2E"
+    # Lines verbatim from those runs' serial logs.
+    printf '%s\n' '[   23.740805] dracut-initqueue[467]: {"timestamp":"2026-11-20T12:59:17Z","attemptId":"21426afd-566f-4b28-8e68-c471221015c1","phase":"registry-preflight","event":"phase_start","duration_ms":0,"error_code":""}' \
+        | grep -aqE "$re"
+    printf '%s\n' '[  185.332657] dracut-initqueue[1948]: [fisherman] version: dev' | grep -aqE "$re"
+    printf '%s\n' '[  812.968262] dracut-initqueue[462]: [wootc]   MOK: not requested; skipping' | grep -aqE "$re"
+    # Firmware, the deployer kernel's own dracut output and Windows OEM
+    # markers are not the deployer running.
+    run grep -aqE "$re" <<'EOF'
+BdsDxe: starting Boot0005 "wootc" from HD(1,GPT,646B5A27-5CF0-49D8-94D1-E594DB642A72,0x800,0x100000)/\EFI\fedora\shimx64.efi
+[    4.199160] dracut-initqueue[530]:     sda    disk   80G
+[wootc-oem] Setup started
+EOF
+    [ "$status" -ne 0 ]
 }

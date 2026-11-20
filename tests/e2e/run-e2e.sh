@@ -3727,7 +3727,20 @@ if [ ! -f "$PTY" ]; then
 fi
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 DEPLOYER_STARTED=false
-if [ -f "$PTY" ] && grep -q '\[wootc\]' "$PTY" 2>/dev/null; then
+# Serial evidence that the deployer is running. [fisherman] counts: only the
+# deployer runs fisherman. The first [wootc] line on the serial is whatever
+# deploy.sh writes to stderr, and on bazzite-deck that used to be the ntfs-3g
+# injection [WARN]. Without injection, run 38839917797 pulled for six silent
+# minutes, started fisherman ("[fisherman] version: dev" at t=385s), and was
+# still failed as "Deployer did NOT start" at the 10-minute mark.
+# The phase events count too: deploy.sh writes one to stderr at every phase
+# boundary (migration-diagnostics.sh), from the first second of its run. Run
+# 44733595826 (release gate) booted the deployer, printed ntfs-mounted,
+# scratch-setup and registry-preflight by t=24s, and was still in
+# registry-preflight on screen at 10m51s, yet it was failed as "Deployer did
+# NOT start" and filed as a lost serial feed.
+DEPLOYER_START_RE='\[wootc\]|\[fisherman\]|"attemptId":"[a-f0-9-]+","phase":"[a-z0-9-]+","event":"phase_'
+if [ -f "$PTY" ] && tr -d '\000' < "$PTY" 2>/dev/null | grep -aqE "$DEPLOYER_START_RE"; then
     DEPLOYER_STARTED=true
 fi
 
@@ -3818,13 +3831,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        # [fisherman] counts too: only the deployer runs fisherman. The first
-        # [wootc] line on the serial is whatever deploy.sh writes to stderr,
-        # and on bazzite-deck that used to be the ntfs-3g injection [WARN].
-        # Without injection, run 38839917797 pulled for six silent minutes,
-        # started fisherman ("[fisherman] version: dev" at t=385s), and was
-        # still failed as "Deployer did NOT start" at the 10-minute mark.
-        echo "$NEW_OUTPUT" | grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
+        echo "$NEW_OUTPUT" | grep -aqE "$DEPLOYER_START_RE" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
