@@ -628,10 +628,42 @@ graduation_stubs() {
     done
 }
 
+# host_layout <backing_file text> <root.disk bytes>: /sysroot on loop0p3, the
+# loop's sysfs (16 MiB device) and a host mount holding wootc/disks/root.disk.
+host_layout() {
+    mkdir -p "$TMP/sys/block/loop0/loop" "$TMP/hostmnt/wootc/disks"
+    printf '%s\n' "$1" >"$TMP/sys/block/loop0/loop/backing_file"
+    printf '32768\n' >"$TMP/sys/block/loop0/size"
+    head -c "$2" /dev/zero >"$TMP/hostmnt/wootc/disks/root.disk"
+    printf '#!/bin/bash\n[ "${@: -1}" = /sysroot ] && echo /dev/loop0p3\n' >"$STUBDIR/findmnt"
+    printf '#!/bin/bash\necho loop0\n' >"$STUBDIR/lsblk"
+    chmod +x "$STUBDIR/findmnt" "$STUBDIR/lsblk"
+}
+
+find_host() {
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SYSFS="$3/sys"; GN_HOST_MNT="$3/hostmnt"; host_wootc_dir' \
+        _ "$GN" "$STUBDIR" "$TMP"
+}
+
 @test "Phase-3 finds the Windows volume from the root.disk loop backing file" {
-    grep -Fq 'findmnt -nvo SOURCE "$mp"' "$GN"
-    grep -Fq '/sys/block/$dev/loop/backing_file' "$GN"
-    # Real layout: /run/initramfs/wootc-host/wootc/disks/root.disk.
-    run bash -c 'source "$1"; dirname "$(dirname /run/initramfs/wootc-host/wootc/disks/root.disk)"' _ "$GN"
-    [ "$output" = /run/initramfs/wootc-host/wootc ]
+    host_layout "$TMP/hostmnt/wootc/disks/root.disk" $(( 16 << 20 ))
+    find_host
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TMP/hostmnt/wootc" ]
+}
+
+@test "Phase-3 finds the Windows volume when the kernel reports the backing path from the volume root" {
+    # Gate probe 44781443975 (bluefin): backing_file read "/wootc/disks/root.disk",
+    # and `df /wootc` failed. The file is at the private host mount.
+    host_layout /wootc/disks/root.disk $(( 16 << 20 ))
+    find_host
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TMP/hostmnt/wootc" ]
+}
+
+@test "Phase-3 does not take a same-named file of another size for root.disk" {
+    host_layout /wootc/disks/root.disk $(( 8 << 20 ))
+    find_host
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
 }
