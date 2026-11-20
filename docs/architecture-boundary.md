@@ -164,13 +164,14 @@ is a TunaOS candidate. Flavors with an `nvidia`, `hwe`, `cachyos`, `asahi`,
 candidates. `publication.ref` is the image reference.
 
 The TunaOS brand shows a candidate only when its `catalog-policy.json` entry
-is green and has `"evidence": {"run": <run ID>}`, a passing wootc install run.
+has the green status and `"evidence": {"run": <run ID>}`. That run is a wootc
+install run that passed.
 `catalog_sync.py` writes these entries to `app/branding/tunaos/images.json`.
 `--candidates` lists each candidate as proven or unproven. Use the list to
 pick the next E2E runs.
 
 The backend (ostree or composefs) comes from the reviewed policy, not from the
-snapshot. The snapshot has no fact that tells the backend: the producer writes
+snapshot. No fact in the snapshot tells the backend. The producer writes
 `hasSdBoot: false` for each image that it did not probe, and `repoFamily`
 comes from the build route. When the snapshot gets a `facts.bootBackend`
 value (`ostree` or `composefs`), the sync uses it. It must agree with the
