@@ -28,6 +28,20 @@
     "status": "green"
   },
   {
+    "id": "bonito-kde",
+    "name": "Bonito",
+    "emoji": "🎣",
+    "base": "Fedora 44",
+    "desktop": "kde",
+    "desktopName": "KDE Plasma",
+    "imageRef": "ghcr.io/tuna-os/bonito:kde",
+    "description": "KDE Plasma on Fedora. Rolling updates, familiar interface.",
+    "bootloader": "grub2",
+    "composeFs": false,
+    "family": "fedora",
+    "status": "green"
+  },
+  {
     "id": "yellowfin-xfce",
     "name": "Yellowfin",
     "emoji": "🐠",
