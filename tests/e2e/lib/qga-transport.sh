@@ -211,13 +211,25 @@ qga_wait_reboot() {
     return 1
 }
 qga_restart_windows() {
-    local label="$1" budget="${2-600}" deadline remaining before requested
+    local label="$1" budget="${2-600}" deadline baseline_deadline remaining before requested pause
     wootc_qga_valid_timeout "$budget" || { infra_fail "Invalid Windows restart deadline"; return 2; }
     deadline=$(( $(date +%s) + budget ))
+    # One observation is capped at 5 s, and a busy guest (servicing just
+    # stopped, a fixture account just repaired) can miss that once: runs
+    # 44673333510 and 44699838765 refused their restart on a single miss.
+    # Retry the read, as qga_wait_reboot does, for up to 60 s of the budget.
+    # The restart itself is still requested at most once.
+    baseline_deadline=$(( $(date +%s) + (budget < 60 ? budget : 60) ))
     wootc_phase_boundary
-    before=$(qga_windows_boot_observe "$budget") || {
-        infra_fail "Windows restart baseline is unknown; request refused: $label"; return 1;
-    }
+    until before=$(qga_windows_boot_observe "$((baseline_deadline - $(date +%s)))"); do
+        remaining=$((baseline_deadline - $(date +%s)))
+        pause=5
+        [ "$remaining" -ge "$pause" ] || pause="$remaining"
+        [ "$pause" -gt 0 ] || {
+            infra_fail "Windows restart baseline is unknown; request refused: $label"; return 1;
+        }
+        sleep "$pause"
+    done
     wootc_phase_boundary
     remaining=$((deadline - $(date +%s)))
     [ "$remaining" -gt 0 ] || { infra_fail "Windows restart deadline expired before request"; return 1; }
