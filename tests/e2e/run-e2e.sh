@@ -122,9 +122,11 @@ IMAGE_REF="${IMAGE_REF:-ghcr.io/tuna-os/yellowfin:gnome}"
 # disk. Make the command-line contract self-contained: `--phase3` must create
 # that disk unless the caller explicitly chose another size. Previously only a
 # compose comment claimed the harness did this, so every Phase-3 run had no
-# target and aborted immediately after the safe status probe.
+# target and aborted immediately after the safe status probe. 64G: fisherman
+# refuses a disk under 50 GiB (disk_too_small), and a 40G spare failed probe
+# 44807218628 that way after the whole image pull.
 if [ "${RUN_PHASE3:-false}" = true ]; then
-    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"
+    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"
     # Only phase3 wants a second disk. See compose.yml: dockur keys off the
     # PRESENCE of /storage2, so non-phase3 runs mount it somewhere harmless.
     export WOOTC_E2E_DISK2_MOUNT=/storage2
@@ -4604,7 +4606,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
         2>/dev/null | tr -d '\r\n ' || true)
     if [ -z "$P3_TARGET" ]; then
-        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
+        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=64G)"
         exit 1
     fi
     # Belt-and-braces: never hand a disk with data on it to --wipe.
@@ -4633,8 +4635,16 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # file, and go-native logs the scratch and target-disk totals each 30 s
     # while either moves. No new progress for P3_STALL_SECS is a hang;
     # P3_MAX_SECS caps a migration that keeps moving and never finishes.
-    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}
-    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}
+    #
+    # Measured on a hosted runner (probe 44807218628, bluefin:stable): the
+    # pull alone took 41 minutes. ghcr.io blob reads stalled three times for
+    # 6-8 minutes, and then the expired signed blob URL failed with 403. That
+    # restarted the attempt, which kept the layers already copied. The third
+    # attempt finished. The deployer's pull of the same image in the same run
+    # took 26 minutes, with the same 403s. fisherman's install then takes
+    # about 5 minutes. Hence 15 minutes of silence and 75 minutes in total.
+    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}
+    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}
     P3_START=$(date +%s)
     P3_DEADLINE=$(deadline_in "$P3_MAX_SECS")
     P3_RESULT=""

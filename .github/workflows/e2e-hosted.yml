@@ -27,7 +27,7 @@ on:
       use_base_image: { type: boolean, default: true }
       # Rung 3: after Phase 2 boots, graduate the migration onto a BLANK second
       # disk (wootc-go-native migrate --to-disk) — the full 1→2→3 chain. Gives
-      # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
+      # the guest a spare 64G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
       # Offline axis (#217): the guest VM gets no network device, and the
@@ -549,9 +549,10 @@ jobs:
           # instead: root.disk 25 GiB + 20 GiB scratch + 6 GiB headroom = 51 GiB,
           # which an ~79 GiB C: holding ~16 GiB of Windows can actually give up.
           WOOTC_E2E_ROOT_DISK_GIB: ${{ inputs.bitlocker == 'on' && '25' || '35' }}
-          # Rung 3: hand the guest a blank 40G second disk as the graduate target.
+          # Rung 3: hand the guest a blank 64G second disk as the graduate target
+          # (fisherman refuses a disk under 50 GiB).
           # Empty string when phase3=false → dockur adds no second disk.
-          WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '40G' || '' }}
+          WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '64G' || '' }}
           # Empty string → run-e2e.sh's per-image heuristic picks the bootloader.
           WOOTC_E2E_BOOTLOADER: ${{ inputs.bootloader }}
           # Empty string → the deployer's own filesystem default.
