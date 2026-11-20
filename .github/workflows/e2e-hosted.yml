@@ -561,7 +561,11 @@ jobs:
           WOOTC_E2E_GUI_DOCUMENTS: ${{ inputs.gui_documents && '1' || '0' }}
           WOOTC_E2E_DRIVE: ${{ inputs.gui_install && '1' || '' }}
           # Which GUI the drive operates; run-e2e.sh refuses anything else.
-          WOOTC_E2E_GUI_FRONTEND: ${{ inputs.gui_frontend }}
+          # Only a GUI install has a frontend: run-e2e.sh refuses native
+          # without --gui-install, and gui_frontend defaults to native, so a
+          # script-mode run (every e2e-matrix cell unless gui_install) passes
+          # empty and gets run-e2e.sh's default.
+          WOOTC_E2E_GUI_FRONTEND: ${{ inputs.gui_install && inputs.gui_frontend || '' }}
           # Native: 1 starts the shell unelevated (see gui-native.sh).
           WOOTC_E2E_NATIVE_UNELEVATED: ${{ inputs.native_unelevated && '1' || '0' }}
           # Passed as a $-var, not interpolated into the run: block, so a
