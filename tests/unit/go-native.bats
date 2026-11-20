@@ -574,6 +574,33 @@ graduation_stubs() {
     [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
 }
 
+@test "Phase-3 says it cannot read the free space instead of claiming 0 GiB free" {
+    # Gate probe 44771739639 refused with "the drive has 0 GiB free"; an
+    # empty or failed df produced the same words as a full drive.
+    graduation_stubs 0
+    printf '#!/bin/bash\necho "df: %s: No such file or directory" >&2\nexit 1\n' "$HOSTDIR" >"$STUBDIR/df"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot read the free space of the Windows drive at $HOSTDIR: df: $HOSTDIR: No such file or directory"* ]]
+    [[ "$output" != *"GiB free"* ]]
+    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    [ "$status" -ne 0 ]
+}
+
+@test "Phase-3 refusal names the drive totals and the largest files on it" {
+    graduation_stubs $(( 15 << 30 ))
+    printf '#!/bin/bash\nif [ "$1" = -h ]; then echo " Size Used Avail"; echo " 79G 64G 15G"; else echo Avail; echo %s; fi\n' $(( 15 << 30 )) >"$STUBDIR/df"
+    dd if=/dev/zero of="$HOSTDIR/disks/root.disk" bs=1 count=0 seek=2G 2>/dev/null  # truncate is stubbed
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows drive at $HOSTDIR:  79G 64G 15G"* ]]
+    [[ "$output" == *"largest files under $HOSTDIR: $HOSTDIR/disks/root.disk 2147483648 bytes;"* ]]
+    [[ "$output" == *"the drive has 15 GiB free"* ]]
+}
+
 @test "Phase-3 staged install mounts the scratch over podman's storage and /var/tmp before it pulls" {
     for tool in mkdir chmod mount fisherman; do
         printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
