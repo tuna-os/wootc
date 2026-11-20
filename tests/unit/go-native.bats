@@ -532,13 +532,14 @@ graduation_stubs() {
     HOSTDIR="$TMP/host/wootc"; mkdir -p "$HOSTDIR/disks"
     printf '#!/bin/bash\necho "skopeo $*" >>"%s"\necho "2480000000 2480000000 "\n' "$CALLED" >"$STUBDIR/skopeo"
     printf '#!/bin/bash\necho "Avail"\necho "%s"\n' "$1" >"$STUBDIR/df"
-    for tool in truncate mkfs.ext4 unshare; do
+    for tool in truncate mkfs.ext4; do
         printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
     done
-    # The scratch must exist while the install runs; unshare checks it.
+    # The scratch must exist while the install runs; the staged-install
+    # child (GN_SELF) checks it.
     printf '#!/bin/bash\necho "truncate $*" >>"%s"\n: >"${@: -1}"\n' "$CALLED" >"$STUBDIR/truncate"
-    printf '#!/bin/bash\necho "unshare $* scratch-present=$([ -e "$7" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/unshare"
-    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/unshare
+    printf '#!/bin/bash\necho "gn-self $* scratch-present=$([ -e "$2" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/gn-self"
+    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/gn-self
 }
 
 @test "Phase-3 scratch size matches the deployer's scratch formula" {
@@ -553,13 +554,17 @@ graduation_stubs() {
 
 @test "Phase-3 stages the image in a scratch on the Windows volume, then deletes it" {
     graduation_stubs $(( 28 << 30 ))
-    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SELF="$2/gn-self"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
         _ "$GN" "$STUBDIR" "$HOSTDIR"
     echo "$output"; cat "$CALLED"
     [ "$status" -eq 0 ]
     grep -Fxq "truncate -s 21G $HOSTDIR/cache/native-scratch.img" "$CALLED"
     grep -Fxq "mkfs.ext4 -q -F $HOSTDIR/cache/native-scratch.img" "$CALLED"
-    grep -Fxq "unshare --mount --propagation private -- $GN __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    # A child process in the system's own mount namespace: bootc looks its
+    # source image up with podman in PID 1's namespace (probe 44825571768).
+    grep -Fxq "gn-self __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    run grep -n 'unshare' "$GN"
+    [ "$status" -ne 0 ]
     [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
 }
 
@@ -570,7 +575,7 @@ graduation_stubs() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"needs about 21 GiB of temporary space on the Windows drive"* ]]
     [[ "$output" == *"the drive has 15 GiB free"* ]]
-    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
     [ "$status" -ne 0 ]
     [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
 }
@@ -585,7 +590,7 @@ graduation_stubs() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"cannot read the free space of the Windows drive at $HOSTDIR: df: $HOSTDIR: No such file or directory"* ]]
     [[ "$output" != *"GiB free"* ]]
-    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
     [ "$status" -ne 0 ]
 }
 
@@ -602,24 +607,31 @@ graduation_stubs() {
     [[ "$output" == *"the drive has 15 GiB free"* ]]
 }
 
-@test "Phase-3 staged install mounts the scratch over podman's storage and /var/tmp before it pulls" {
+@test "Phase-3 staged install mounts the scratch over podman's storage before it pulls, and unmounts it" {
     for tool in mkdir chmod mount fisherman; do
         printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
     done
     # Nothing is local in a fresh scratch: `podman image exists` fails.
-    printf '#!/bin/bash\necho "podman $*" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
+    printf '#!/bin/bash\necho "podman $* TMPDIR=$TMPDIR" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
     chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/fisherman "$STUBDIR"/podman
     run bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/wootc/cache/native-scratch.img img:tag /run/r.json' \
         _ "$GN" "$STUBDIR"
     echo "$output"; cat "$CALLED"
     [ "$status" -eq 0 ]
+    # /var/tmp stays the session's own; podman stages blobs via TMPDIR.
+    run grep -E '^mount .* /var/tmp$' "$CALLED"
+    [ "$status" -ne 0 ]
     local want=(
         "mount -o loop /h/wootc/cache/native-scratch.img /var/fisherman-tmp"
         "mount --bind /var/fisherman-tmp/host-containers /var/lib/containers"
-        "mount --bind /var/fisherman-tmp/var-tmp /var/tmp"
         "mount -t tmpfs tmpfs /run/containers"
-        "podman pull img:tag"
+        "mount -t tmpfs tmpfs /run/libpod"
+        "podman pull img:tag TMPDIR=/var/fisherman-tmp/var-tmp"
         "fisherman /run/r.json"
+        "umount -R /run/libpod"
+        "umount -R /run/containers"
+        "umount -R /var/lib/containers"
+        "umount -R /var/fisherman-tmp"
     ) prev=0 line
     for w in "${want[@]}"; do
         line=$(grep -Fxn "$w" "$CALLED" | head -1 | cut -d: -f1)

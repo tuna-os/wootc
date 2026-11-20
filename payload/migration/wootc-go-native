@@ -314,9 +314,14 @@ bootc_local_imgref() {
 # a 30 GiB root.disk on all four pull attempts (run 44743470001, "no space left
 # on device" under /var/lib/containers). Stage it as the deployer does
 # instead: an ext4 file next to root.disk on the Windows volume, sized from the
-# image, mounted over /var/fisherman-tmp, /var/lib/containers and /var/tmp in a
-# private mount namespace (the running session keeps its own), and deleted
-# afterwards. root.disk keeps no second copy of the image.
+# image, mounted at /var/fisherman-tmp and over /var/lib/containers, and
+# deleted afterwards. root.disk keeps no second copy of the image.
+#
+# The mounts are made in the system's own mount namespace, as the deployer's
+# are. bootc, inside fisherman's install container, looks its source image up
+# with `podman inspect` in PID 1's mount namespace; with the scratch mounted in
+# a private namespace that store was not there, and the install failed with
+# 'no such object: "<image id>"' (probe 44825571768).
 GN_SELF=$(readlink -f "${BASH_SOURCE[0]}")
 GN_SCRATCH_MIN_GIB=20
 
@@ -385,9 +390,9 @@ host_wootc_dir() {
 }
 
 # native_install_staged — create the scratch, then pull <img> and run
-# fisherman <recipe> inside it (cmd_staged_install, in a private mount
-# namespace). Refuses with the numbers, before writing anything, when the
-# Windows volume cannot hold the scratch.
+# fisherman <recipe> on it (cmd_staged_install, in a child process that
+# unmounts the scratch when it exits). Refuses with the numbers, before
+# writing anything, when the Windows volume cannot hold the scratch.
 native_install_staged() {
     local img=$1 recipe=$2 hostdir scratch need free dfout rc=0
     hostdir=$(host_wootc_dir) \
@@ -417,7 +422,7 @@ native_install_staged() {
         rm -f "$scratch"
         die "cannot create the ${need} GiB scratch $scratch"
     fi
-    unshare --mount --propagation private -- "$GN_SELF" __staged-install "$scratch" "$img" "$recipe" || rc=$?
+    "$GN_SELF" __staged-install "$scratch" "$img" "$recipe" || rc=$?
     rm -f "$scratch"
     return "$rc"
 }
@@ -440,29 +445,48 @@ stage_progress() {
     done
 }
 
-# cmd_staged_install — runs in native_install_staged's private mount
-# namespace: every mount here disappears with it, and `mount -o loop` sets
-# autoclear, so the loop device detaches too.
+# cmd_staged_install — runs in its own process (native_install_staged), so its
+# EXIT trap undoes every mount it made, in reverse order, whatever the outcome.
+# `mount -o loop` sets autoclear, so the loop device detaches with the scratch.
+#
+# While it runs, root podman on this system sees the scratch store instead of
+# its own: /var/lib/containers and the runroot (/run/containers, /run/libpod)
+# are covered, because the runroot describes the store under it. /var/tmp is
+# not covered; TMPDIR points podman's blob staging into the scratch instead.
+GN_STAGED_MOUNTS=()
+GN_PROGRESS_PID=""
+staged_mount() {
+    mount "$@" || die "cannot mount ${*: -1} for the native install"
+    GN_STAGED_MOUNTS+=("${*: -1}")
+}
+staged_cleanup() {
+    local i m
+    if [[ -n "$GN_PROGRESS_PID" ]]; then kill "$GN_PROGRESS_PID" 2>/dev/null || true; fi
+    for (( i = ${#GN_STAGED_MOUNTS[@]} - 1; i >= 0; i-- )); do
+        m=${GN_STAGED_MOUNTS[i]}
+        umount -R "$m" 2>/dev/null || umount -Rl "$m" 2>/dev/null || log "WARN: cannot unmount $m"
+    done
+}
 cmd_staged_install() {
-    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt disk progress_pid
+    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt disk
+    trap staged_cleanup EXIT
     mkdir -p /var/fisherman-tmp
-    mount -o loop "$scratch" /var/fisherman-tmp || die "cannot mount the scratch $scratch"
+    staged_mount -o loop "$scratch" /var/fisherman-tmp
     mkdir -p /var/fisherman-tmp/host-containers /var/fisherman-tmp/var-tmp \
-        /var/lib/containers /var/tmp /run/containers /run/libpod
+        /var/lib/containers /run/containers /run/libpod
     chmod 1777 /var/fisherman-tmp/var-tmp
-    mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
-    # containers/image stages pull blobs in /var/tmp whatever the storage root.
-    mount --bind /var/fisherman-tmp/var-tmp /var/tmp
+    staged_mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
     # A fresh runroot: the running system's podman state describes its own
     # store, not this one.
-    mount -t tmpfs tmpfs /run/containers
-    mount -t tmpfs tmpfs /run/libpod
+    staged_mount -t tmpfs tmpfs /run/containers
+    staged_mount -t tmpfs tmpfs /run/libpod
+    # containers/image stages pull blobs in $TMPDIR (default /var/tmp)
+    # whatever the storage root.
+    export TMPDIR=/var/fisherman-tmp/var-tmp
 
     disk=$(grep -oP '"disk":\s*"\K[^"]+' "$recipe" 2>/dev/null || true)
     stage_progress "$disk" &
-    progress_pid=$!
-    # shellcheck disable=SC2064  # the PID is fixed now
-    trap "kill $progress_pid 2>/dev/null" EXIT
+    GN_PROGRESS_PID=$!
 
     # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
     # the image container, exactly how the deployer installed root.disk — the
@@ -507,8 +531,6 @@ graduate_to_disk_execute() {
     case "$filesystem" in xfs|ext4|btrfs) ;; *) die "invalid recorded filesystem: $filesystem" ;; esac
     log "Installing $img onto $target as $filesystem (wipes $target only) via fisherman…"
     command -v fisherman >/dev/null || die "fisherman not found — deploy.sh must install it into the target root"
-
-    command -v unshare >/dev/null || die "unshare not found — the native install stages its image in a private mount namespace"
 
     # Mirror the running system's primary account into the native install.
     # A recipe without the user produced a native system holding the rsync'd
@@ -923,7 +945,7 @@ case "${1:-plan}" in
     check)   shift; cmd_check "$@" ;;
     status)  shift; cmd_status "$@" ;;
     migrate) shift; cmd_migrate "$@" ;;
-    # Internal: native_install_staged re-enters here inside its private mount namespace.
+    # Internal: native_install_staged runs the staged install as a child process.
     __staged-install) shift; cmd_staged_install "$@" ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown subcommand: $1 (plan|check|status|migrate)" ;;
