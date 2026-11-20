@@ -31,6 +31,9 @@ func getSystemInfo() SystemInfo {
 	}
 }
 
+// readPlanSystemInfo: a dev box has no advisory probes to leave out.
+func readPlanSystemInfo() SystemInfo { return getSystemInfo() }
+
 func checkSystem() error                         { return nil }
 func validatePlatformConfig(InstallConfig) error { return nil }
 func defragDrive() error                         { return fmt.Errorf("defragmentation is only available on Windows") }
