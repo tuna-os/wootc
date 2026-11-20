@@ -38,6 +38,50 @@ WINUI=.github/workflows/winui-preview.yml
     ! grep -q 'releases/download/\$tag/wootc.exe' "$WINGET"
 }
 
+# Run the asset-naming step of winui-preview.yml's publish job against fake
+# tested packages, with the real brand list.
+run_native_asset_naming() {  # <production true|false>
+    local repo=$PWD work script
+    work=$(mktemp -d)
+    script=$(awk '/- name: Select brands and name the native release assets/{f=1; next}
+                  f && /^      - /{exit}
+                  f && /^        run: \|/{r=1; next}
+                  r && /^          /{sub(/^          /, ""); print}' "$WINUI")
+    [ -n "$script" ]
+    mkdir -p "$work/packaging"
+    printf '#!/usr/bin/env bash\ncd %q && exec bash packaging/brands.sh "$@"\n' "$repo" > "$work/packaging/brands.sh"
+    while IFS=$'\t' read -r brand exe; do
+        setup="${exe}-Setup.exe"
+        [ "$exe" = wootc ] && setup='wootc-Installer-Setup.exe'
+        mkdir -p "$work/preview-artifacts/winui-preview-package-$brand/out/release-installer" \
+                 "$work/preview-artifacts/winui-preview-package-$brand/out/preview-installer"
+        echo "$brand setup" > "$work/preview-artifacts/winui-preview-package-$brand/out/release-installer/$setup"
+        echo "$brand preview" > "$work/preview-artifacts/winui-preview-package-$brand/out/preview-installer/$brand-native-preview-abc.exe"
+    done < <(bash packaging/brands.sh list)
+    (cd "$work" && PRODUCTION=$1 GITHUB_SHA=abc bash -c "set -euo pipefail; $script") >/dev/null
+    echo "$work"
+}
+
+@test "a production release keeps every brand's earlier <exeName>.exe download name" {
+    work=$(run_native_asset_naming true)
+    # tunaos.org links releases/latest/download/TunaOS-Installer.exe.
+    cmp "$work/preview-assets/TunaOS-Installer.exe" "$work/preview-assets/TunaOS-Installer-Setup.exe"
+    cmp "$work/preview-assets/wootc.exe" "$work/preview-assets/wootc-Installer-Setup.exe"
+    while IFS=$'\t' read -r _ exe; do
+        [ -s "$work/preview-assets/${exe}.exe" ]
+        grep -q " ${exe}.exe\$" "$work/preview-assets/native-SHA256SUMS"
+    done < <(bash packaging/brands.sh list)
+    rm -rf "$work"
+}
+
+@test "a preview attachment adds no stable-name copies" {
+    work=$(run_native_asset_naming false)
+    [ -s "$work/preview-assets/TunaOS-Installer-Native-Preview-Setup.exe" ]
+    [ ! -e "$work/preview-assets/TunaOS-Installer.exe" ]
+    [ ! -e "$work/preview-assets/wootc.exe" ]
+    rm -rf "$work"
+}
+
 @test "production native engines derive their stamps from the exact released shim (#688)" {
     run python3 -m unittest discover -s tests/unit -p test_native_release.py
     [ "$status" -eq 0 ]

@@ -476,6 +476,14 @@ jobs:
             fi
             [ -s "$src" ] || { echo "::error::missing tested native installer for $brand: $src"; exit 1; }
             cp "$src" "$dest"
+            # Every earlier full release published each brand as <exeName>.exe
+            # (TunaOS-Installer.exe, wootc.exe, ...), and external pages link
+            # releases/latest/download/<that name>. Keep that name on the
+            # tested setup so those links reach the current installer instead
+            # of a 404.
+            if [ "$PRODUCTION" = true ]; then
+              cp "$src" "preview-assets/${exe}.exe"
+            fi
           done <<< "$brands"
           sums=native-preview-SHA256SUMS
           [ "$PRODUCTION" = true ] && sums=native-SHA256SUMS

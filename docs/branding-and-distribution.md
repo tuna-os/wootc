@@ -31,6 +31,7 @@ setup packages for each eligible brand (see §2), plus the shared boot set:
 | Asset | Source |
 |---|---|
 | `<Product>-Installer-Setup.exe` (e.g. `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`) | WinUI setup workflow, per-brand native package |
+| `<exeName>.exe` (e.g. `TunaOS-Installer.exe`, `wootc.exe`) | the same setup under each brand's earlier download name, full releases only |
 | `wootc-legacy.exe` | one-release Wails compatibility build |
 | `deployer-vmlinuz`, `deployer-initramfs.img` | deployer image build (`payload/deployer/Containerfile`) |
 | `shimx64.efi`, `grubx64.efi` | signed Fedora chain (same extraction the E2E uses) |
