@@ -6,17 +6,16 @@ Their appearance and available choices depend on your Windows settings.
 
 ## 1. Download
 
+**[⬇ Download TunaOS-Installer.exe](https://github.com/tuna-os/wootc/releases/latest/download/TunaOS-Installer.exe)**
+from the latest release, `v0.1.0-alpha.1`. The installer downloads its boot
+files during the install, so this one file is enough. This release uses the
+Wails UI and needs WebView2. Windows 11 includes WebView2.
+
 <!-- Remove this note when the first release with the native setup is published. -->
-> **No published release has the native setup yet.** The files on this page
+> **No published release has the native setup yet.** The native files below
 > come with the first release after the native shell cutover (#661). The latest
 > release, `v0.1.0-alpha.1` (2026-08-22), is older. It has `wootc.exe`, the
 > branded `*-Installer.exe` files and `SHA256SUMS`.
-
-Grab the latest `wootc-Installer-Setup.exe` from the
-[Releases page](https://github.com/tuna-os/wootc/releases/latest). Save it
-anywhere — Downloads is fine. Run the Inno setup as Administrator; it installs
-the native WinUI shell and protected engine.
-The native shell does not need WebView2.
 
 Main's release workflow now prepares native
 `wootc-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`,
