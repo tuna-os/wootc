@@ -22,11 +22,11 @@
     "desktop": "gnome",
     "desktopName": "GNOME",
     "imageRef": "ghcr.io/projectbluefin/dakota:stable",
-    "description": "Bluefin's next-generation composefs desktop. Newly proven end-to-end.",
+    "description": "Bluefin's next-generation composefs desktop. Experimental: not yet proven end-to-end.",
     "bootloader": "systemd-boot",
     "composeFs": true,
     "family": "fedora",
-    "status": "green"
+    "status": "experimental"
   },
   {
     "id": "yellowfin-gnome",

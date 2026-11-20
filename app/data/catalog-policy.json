@@ -22,10 +22,10 @@
     "base": "Universal Blue (Fedora, composefs)",
     "desktop": "gnome",
     "desktopName": "GNOME",
-    "description": "Bluefin's next-generation composefs desktop. Newly proven end-to-end.",
+    "description": "Bluefin's next-generation composefs desktop. Experimental: not yet proven end-to-end.",
     "bootloader": "systemd-boot",
     "family": "fedora",
-    "status": "green",
+    "status": "experimental",
     "source": {
       "image": "Dakota stable"
     }
