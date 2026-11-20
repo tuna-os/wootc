@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/godbus/dbus/v5 v5.2.4
-	github.com/klauspost/compress v1.20.4
+	github.com/klauspost/compress v1.20.5
 	github.com/syndtr/goleveldb v1.0.0
 	github.com/tredoe/osutil v1.5.0
 	github.com/tuna-os/wootc/slurp v0.0.0
