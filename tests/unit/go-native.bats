@@ -76,7 +76,8 @@ STUB
 }
 
 @test "--phase3 provisions its dedicated blank target and handles none found" {
-    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
+    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"' "$E2E_RUNNER"
+    grep -Fq "WOOTC_E2E_DISK2_SIZE: \${{ inputs.phase3 && '64G' || '' }}" "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     # The mount TARGET is a variable on purpose: dockur creates a disk2 whenever
     # /storage2 exists, defaulting to 64 GiB, and formatting it every run starved
     # swtpm's startup race and silently disabled TPM. So phase3 runs mount it at
@@ -717,9 +718,21 @@ find_host() {
 @test "E2E bounds Phase 3 by progress, not a fixed count of polls" {
     run grep -F 'seq 1 180' "$E2E_RUNNER"
     [ "$status" -ne 0 ]
-    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}' "$E2E_RUNNER"
-    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}' "$E2E_RUNNER"
+    # Probe 44807218628: 6-8 minute registry stalls, a 41-minute pull.
+    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}' "$E2E_RUNNER"
+    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}' "$E2E_RUNNER"
     grep -Fq "stat -c %s /run/wootc-e2e-phase3.progress" "$E2E_RUNNER"
     grep -Fq 'rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress;' "$E2E_RUNNER"
     grep -Fq '> "$ARTIFACT_DIR/phase3-progress.log"' "$E2E_RUNNER"
+}
+
+@test "Phase-3 asks fisherman to validate the recipe before it pulls the image" {
+    # Probe 44807218628 pulled for 41 minutes, then fisherman refused the
+    # 40 GiB target (disk_too_small) at the start of the install.
+    local validate_line staged_line
+    validate_line=$(grep -nm1 '^[^#]*fisherman validate "\$recipe"' "$GN" | cut -d: -f1)
+    staged_line=$(grep -nm1 '^    native_install_staged "\$img" "\$recipe"' "$GN" | cut -d: -f1)
+    [ -n "$validate_line" ] && [ -n "$staged_line" ]
+    [ "$validate_line" -lt "$staged_line" ]
+    grep -A1 'fisherman validate "$recipe"' "$GN" | grep -Fq '|| die "fisherman refuses this install'
 }

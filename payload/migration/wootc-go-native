@@ -542,6 +542,12 @@ graduate_to_disk_execute() {
   "flatpaks": []$guserjson
 }
 EOF
+    # fisherman checks the recipe, the target's size among it, only when the
+    # install starts, which is after the pull. Ask it before: probe 44807218628
+    # pulled for 41 minutes and then learned that the 40 GiB target was under
+    # fisherman's 50 GiB minimum.
+    fisherman validate "$recipe" >&2 \
+        || die "fisherman refuses this install (see above); nothing was downloaded or written"
     native_install_staged "$img" "$recipe"
     rm -f "$recipe"
 

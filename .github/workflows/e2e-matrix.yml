@@ -62,7 +62,7 @@ jobs:
                   continue
               if want and want not in name:
                   continue
-              # phase3 adds a 40 GiB spare disk on top of a full ~90 GiB
+              # phase3 adds a 64 GiB spare disk on top of a full ~90 GiB
               # install. Non-phase3 full installs fit a hosted runner's
               # ~57-74 GiB /mnt (bonito, fedora went green), but the extra
               # spare overflows the tighter runners (dakota-phase3: 57<90).
