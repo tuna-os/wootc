@@ -13,7 +13,8 @@ The manifest is written on Windows by tests/e2e/oem/seed-profile.ps1
 ("#key=value" header, then category<TAB>profile path<TAB>size<TAB>sha256<TAB>
 mtime rows); the harness appends the keys only it knows (linuxUser, password,
 hostname, wifi, flatpaksSelected/Deselected, windowsLook, slurp,
-seededBeforeInstall, ippResponder, actions it ran).
+slurpWallpaperSha256, renderedWallpaperSha256/Source, seededBeforeInstall,
+ippResponder, actions it ran).
 
 Output, one line per observation:
     RESULT<TAB>PASS|FAIL|SKIP<TAB><category><TAB><message>
@@ -629,6 +630,31 @@ def check_wifi(header, raw_header):
 
 
 # ── look, time zone, locale, keyboard ───────────────────────────────────────
+def wallpaper_reference(header, rows):
+    """The bytes of the wallpaper the Windows user saw → (sha256, problem).
+
+    The seed writes its image as TranscodedWallpaper, but Windows re-renders
+    that file from the WallPaper value at the next logon (a JPEG re-encode),
+    and the GUI path logs the user on between the seed and the installer.
+    The harness re-hashes TranscodedWallpaper when it reads the handoff
+    (renderedWallpaperSha256) together with the source Windows recorded for
+    it in TranscodedImageCache (renderedWallpaperSource). A re-rendered file
+    counts only when Windows rendered it from the seeded image
+    (wallpaperSource); without the re-hash the seed's own bytes are the
+    reference."""
+    seeded = [r for r in rows if r["category"] == "wallpaper"]
+    if not seeded:
+        return "", ""
+    rendered = header.get("renderedWallpaperSha256", "")
+    if not rendered or rendered == seeded[0]["sha256"]:
+        return seeded[0]["sha256"], ""
+    source, wanted = header.get("renderedWallpaperSource", ""), header.get("wallpaperSource", "")
+    if not wanted or source.lower() != wanted.lower():
+        return "", (f"Windows re-rendered TranscodedWallpaper from {source or 'an unrecorded source'!r}, "
+                    f"not the seeded {wanted or 'wallpaper'!r}")
+    return rendered, ""
+
+
 def check_look(header, rows, account):
     if header.get("windowsLook") != "1":
         emit("SKIP", "look", "Windows-Style Mode was not selected on Windows (native shell default: off)")
@@ -642,9 +668,11 @@ def check_look(header, rows, account):
                         ("accentColor", header.get("accentColor")), ("language", header.get("language"))):
         if wanted and str(slurp.get(key, "")).lower() != wanted.lower():
             problems.append(f"{key}: collected {slurp.get(key)!r}, Windows had {wanted!r}")
-    wallpaper = [r for r in rows if r["category"] == "wallpaper"]
+    reference, unseeded = wallpaper_reference(header, rows)
     collected = header.get("slurpWallpaperSha256", "")
-    if wallpaper and collected != wallpaper[0]["sha256"]:
+    if unseeded:
+        problems.append(unseeded)
+    elif reference and collected != reference:
         problems.append("collected wallpaper is not the Windows wallpaper" if collected else "no wallpaper was collected")
     if PHASE == "phase2":
         emit("FAIL" if problems else "PASS", "look-collected",
@@ -702,8 +730,10 @@ def check_apply_look(header, rows, account, slurp):
     sources = gsettings("org.gnome.desktop.input-sources", "sources")
     problems = []
     path = uri.strip("'").replace("file://", "")
-    wallpaper = [r for r in rows if r["category"] == "wallpaper"]
-    if not path or not os.path.exists(path) or (wallpaper and sha256(path) != wallpaper[0]["sha256"]):
+    reference, unseeded = wallpaper_reference(header, rows)
+    if unseeded:
+        problems.append(unseeded)
+    if not path or not os.path.exists(path) or (reference and sha256(path) != reference):
         problems.append(f"wallpaper {uri} is not the Windows wallpaper")
     if header.get("darkMode") == "true" and "dark" not in scheme:
         problems.append(f"color-scheme {scheme}")

@@ -144,13 +144,38 @@ EOF
 
 # What the Windows side collected, read back before the deployer consumes it:
 # the expectations for the look checks and the app selection the installer
-# handed over.
+# handed over. Windows re-renders TranscodedWallpaper from the WallPaper value
+# at the user's next logon, so the seed's copy is not what the user saw when
+# the installer collected: re-hash it now, with the source Windows recorded
+# for it (TranscodedImageCache, a UTF-16 path after a binary header), so the
+# check holds the collected image to the rendered one only when Windows
+# rendered it from the seeded image.
 migration_record_windows_handoff() { # <storage root>
-    local root="$1" slurp apps
+    local root="$1" slurp apps script rendered sha source
     if slurp=$(qga_read "$root\\wootc\\install\\slurp\\slurp.json" 2>/dev/null) && [ -n "$slurp" ]; then
         printf '%s' "$slurp" > "$ARTIFACT_DIR/windows-slurp.json"
         migration_header slurp "$(printf '%s' "$slurp" | base64 -w0)"
         migration_header slurpWallpaperSha256 "$(qga_powershell "(Get-ChildItem -LiteralPath '$root\\wootc\\install\\slurp' -Filter 'wallpaper.*' | Select-Object -First 1 | Get-FileHash -Algorithm SHA256).Hash.ToLowerInvariant()" 2>/dev/null | tr -d '\r\n ')"
+        script=$(tr '\n' ' ' <<'PS'
+$m = Get-Content -LiteralPath '@GUEST@\migration-expected.tsv' -Encoding UTF8;
+$root = ($m | Where-Object { $_ -like '#profileRoot=*' } | Select-Object -First 1).Substring(13);
+$user = ($m | Where-Object { $_ -like '#windowsUser=*' } | Select-Object -First 1).Substring(13);
+$file = Join-Path $root 'AppData\Roaming\Microsoft\Windows\Themes\TranscodedWallpaper';
+$hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant();
+$sid = (New-Object System.Security.Principal.NTAccount($user)).Translate([System.Security.Principal.SecurityIdentifier]).Value;
+$key = 'Registry::HKEY_USERS\' + $sid + '\Control Panel\Desktop';
+$cache = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).TranscodedImageCache;
+$source = '';
+if ($cache) { $source = [regex]::Match([Text.Encoding]::Unicode.GetString($cache), '[A-Za-z]:\\[^\x00]+').Value };
+@($hash, $source) -join [char]9
+PS
+)
+        rendered=$(qga_powershell "${script//@GUEST@/"$MIGRATION_GUEST_DIR"}" 2>/dev/null | tr -d '\r\n') || rendered=""
+        sha="" source=""
+        case "$rendered" in *$'\t'*) sha=${rendered%%$'\t'*} source=${rendered#*$'\t'} ;; esac
+        migration_header renderedWallpaperSha256 "$sha"
+        migration_header renderedWallpaperSource "$source"
+        info "Migration: Windows renders TranscodedWallpaper ${sha:-(unreadable)} from ${source:-an unrecorded source}"
     fi
     if apps=$(qga_read "$root\\wootc\\install\\apps.json" 2>/dev/null) && [ -n "$apps" ]; then
         printf '%s' "$apps" > "$ARTIFACT_DIR/windows-apps.json"

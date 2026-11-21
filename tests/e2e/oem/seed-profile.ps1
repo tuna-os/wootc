@@ -65,6 +65,7 @@ function Write-TextFile([string]$Path, [string]$Content, [string]$Encoding = "UT
 # ── 1. Standard Personal Folders ─────────────────────────────────────────────
 $docsDir = "$userProfile\Documents"
 $picsDir = "$userProfile\Pictures"
+$wallpaper = "$picsDir\wootc-e2e-wallpaper.jpg"
 $downDir = "$userProfile\Downloads"
 $musicDir = "$userProfile\Music"
 $videoDir = "$userProfile\Videos"
@@ -446,7 +447,7 @@ if ($IncludeRegistry) {
         Set-RegValue $themeKey "AppsUseLightTheme" 0 "DWord"
         Set-RegValue $themeKey "SystemUsesLightTheme" 0 "DWord"
         Set-RegValue "$hkcu\Software\Microsoft\Windows\DWM" "ColorizationColor" ([int32]-991548094) "DWord"
-        Set-RegValue "$hkcu\Control Panel\Desktop" "WallPaper" "$userProfile\Pictures\wootc-e2e-wallpaper.jpg"
+        Set-RegValue "$hkcu\Control Panel\Desktop" "WallPaper" $wallpaper
         Set-RegValue "$hkcu\Control Panel\International\User Profile" "Languages" ([string[]]@("de-DE", "en-US")) "MultiString"
         Set-RegValue "$hkcu\Control Panel\International\User Profile\de-DE" "0407:00000407" 1 "DWord"
         # The user's default printer (per-user; Windows would otherwise pick
@@ -559,10 +560,11 @@ $picture = "$appDataRoaming\Microsoft\Windows\AccountPictures\wootc-e2e.png"
 Get-ChildItem -LiteralPath (Split-Path -Parent $picture) -ErrorAction SilentlyContinue |
     Where-Object { $_.Extension -in @(".png", ".jpg", ".jpeg", ".bmp") } | Remove-Item -Force
 Write-Image $picture 192 192 ([System.Drawing.Imaging.ImageFormat]::Png)
-$wallpaper = "$picsDir\wootc-e2e-wallpaper.jpg"
 Write-Image $wallpaper 640 360 ([System.Drawing.Imaging.ImageFormat]::Jpeg)
 # collectLook prefers the rendered TranscodedWallpaper over the WallPaper
-# value; make both the seeded image.
+# value; make both the seeded image. Windows re-renders TranscodedWallpaper
+# from the WallPaper value at the user's next logon, so the harness re-hashes
+# it at the handoff and the manifest names the source (#wallpaperSource).
 $transcoded = "$appDataRoaming\Microsoft\Windows\Themes\TranscodedWallpaper"
 Ensure-Directory (Split-Path -Parent $transcoded)
 Copy-Item -LiteralPath $wallpaper -Destination $transcoded -Force
@@ -608,6 +610,7 @@ $header = @(
     "#language=de-DE",
     "#darkMode=true",
     "#accentColor=#E62D42",
+    "#wallpaperSource=$wallpaper",
     "#steamLibraries=Program Files (x86)/Steam/steamapps,Games/SteamLibrary/steamapps",
     "#sshPrivate=.ssh/id_ed25519",
     "#sshHostAlias=$sshHostAlias",
