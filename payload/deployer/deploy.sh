@@ -983,12 +983,37 @@ persist_bitlocker_key() {
     return 1
 }
 
+# sanitize_full_name <name> — the account full name made safe for GECOS and
+# fisherman. fisherman passes user.fullname to useradd --comment, useradd
+# refuses a ':' or a newline, and fisherman treats that refusal as fatal to
+# the whole install. The installer already applies this rule
+# (sanitizeFullName in app/fullname.go); it is applied again here because
+# the vault is a file on NTFS, not a promise. Every Unicode whitespace
+# character becomes a space; control characters (Unicode Cc), ':' and ','
+# (the GECOS subfield separator) are dropped; runs of spaces collapse; the
+# ends are trimmed; the result is cut to 256 bytes (util-linux chfn's limit)
+# on a character boundary. Everything else is kept byte for byte.
+sanitize_full_name() {
+    jq -rn --arg n "$1" '$n
+        | gsub("[\t\n\\x{0b}\f\r \\x{85}\\x{a0}\\x{1680}\\x{2000}-\\x{200a}\\x{2028}\\x{2029}\\x{202f}\\x{205f}\\x{3000}]"; " ")
+        | gsub("[\\p{Cc}:,]"; "")
+        | gsub(" {2,}"; " ") | sub("^ "; "") | sub(" $"; "")
+        | until(utf8bytelength <= 256; .[:-1]) | sub(" $"; "")'
+}
+
+# vault_full_name <vault.json> — the sanitised Windows account full name the
+# installer recorded (key full_name), empty when it recorded none.
+vault_full_name() {
+    sanitize_full_name "$(jq -r '.full_name | strings' "$1" 2>/dev/null || true)"
+}
+
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
 VAULT_SECONDARY_USERS=""
 VAULT_PROFILE_MAP=""
 VAULT_DISTRO_NAME=""
+VAULT_FULL_NAME=""
 if [[ -n "$VAULT_PATH" ]]; then
     VAULT_FILE="/mnt/ntfs${VAULT_PATH}"
     if [[ -f "$VAULT_FILE" ]]; then
@@ -1007,6 +1032,8 @@ if [[ -n "$VAULT_PATH" ]]; then
         # Branded installers (docs/branding-and-distribution.md) name the
         # Phase-2 boot menu after the distribution they installed.
         VAULT_DISTRO_NAME=$(jq -r '.distro_name // empty' "$VAULT_FILE" 2>/dev/null || true)
+        # The Windows account's full name, for the account's GECOS field.
+        VAULT_FULL_NAME=$(vault_full_name "$VAULT_FILE")
         if [[ -n "$VAULT_HOSTNAME" ]]; then
             HOSTNAME="$VAULT_HOSTNAME"
         fi
@@ -1668,9 +1695,22 @@ fi
 # Modern desktops grant device access via logind session ACLs, so the legacy
 # video/audio memberships add nothing; wheel is what admin/sudo needs and is
 # present in /etc/group across every supported image family.
+#
+# fullname: the Windows account's full name (vault full_name), left out when
+# Windows had none. jq builds the object so a quote or backslash in the name
+# cannot break the recipe.
+recipe_user_json() {
+    jq -cn --arg u "$1" --arg p "$2" --arg f "$3" \
+        '{username: $u, password: $p, groups: ["wheel"]} + (if $f == "" then {} else {fullname: $f} end)'
+}
 USER_JSON=""
 if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
-    USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\"] }"
+    USER_JSON=",\"user\": $(recipe_user_json "$VAULT_USER" "$VAULT_PASSWORD_HASH" "$VAULT_FULL_NAME")"
+    if [[ -n "$VAULT_FULL_NAME" ]]; then
+        log "  account full name from Windows: ${VAULT_FULL_NAME}"
+    else
+        log "  account full name from Windows: none recorded"
+    fi
 fi
 
 # Verified OCI bundles were imported before probes into the primary store.

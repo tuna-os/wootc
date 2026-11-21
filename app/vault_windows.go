@@ -73,6 +73,12 @@ func writeVault(cfg InstallConfig) error {
 		// The deployer names the Phase-2 boot menu entry after this, so a
 		// Bazzite install boots "Bazzite", not another product's name.
 		"distro_name": effectiveBranding().Name,
+		// The account's Windows full name, sanitised for GECOS, "" when
+		// Windows has none. Collected here, on every install path, not in
+		// the opt-in Windows-Style Mode slurp: the person's name is part of
+		// the account, like the username. The deployer passes it to
+		// fisherman as user.fullname (useradd --comment).
+		"full_name": primaryFullName(),
 	}
 
 	// Every other Windows profile gets an account so its data has somewhere to

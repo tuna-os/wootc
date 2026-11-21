@@ -559,6 +559,34 @@ fisherman_settings_members() {
     fi
 }
 
+# phase2_user_json <username> <GECOS field> <crypt hash> — the native
+# recipe's "user" object for this system's account. The full name is the
+# first comma subfield of GECOS only (chfn and adduser add ",room,phone,..."
+# after it), passed through the deployer's sanitize_full_name rule again
+# (useradd refuses ':' and newlines, which would stop the native install),
+# and json.dumps builds the object so a quote or backslash in the name cannot
+# break the recipe. An empty full name is left out.
+phase2_user_json() {
+    python3 - "$1" "$2" "$3" <<'PY'
+import json, re, sys, unicodedata
+user, gecos, crypt = sys.argv[1:4]
+space = set("\t\n\x0b\x0c\r \x85\xa0\u1680\u2028\u2029\u202f\u205f\u3000")
+space |= {chr(c) for c in range(0x2000, 0x200B)}
+name = "".join(" " if c in space else c for c in gecos.split(",", 1)[0])
+# Cs: bytes that were not UTF-8 arrive as surrogate escapes; drop them as
+# the installer drops invalid UTF-8.
+name = "".join(c for c in name if c != ":" and unicodedata.category(c) not in ("Cc", "Cs"))
+name = re.sub(" {2,}", " ", name).strip(" ")
+while len(name.encode()) > 256:
+    name = name[:-1]
+name = name.rstrip(" ")
+account = {"username": user, "password": crypt, "groups": ["wheel"]}
+if name:
+    account["fullname"] = name
+print(json.dumps(account))
+PY
+}
+
 # phase2_hostname — this system's static hostname, or "wootc" when it has
 # none fisherman would accept (RFC 1123 labels, at most 64 characters).
 phase2_hostname() {
@@ -654,13 +682,10 @@ graduate_to_disk_execute() {
         gfull=$(getent passwd "$guser" | cut -d: -f5)
         ghash=$(awk -F: -v u="$guser" '$1 == u {print $2}' /etc/shadow 2>/dev/null)
         [[ "$ghash" == \$* ]] || ghash=""
+        guserjson=$(phase2_user_json "$guser" "$gfull" "$ghash") \
+            || die "cannot build the native install's account for $guser"
         guserjson=",
-  \"user\": {
-    \"username\": \"$guser\",
-    \"fullname\": \"$gfull\",
-    \"password\": \"$ghash\",
-    \"groups\": [\"wheel\"]
-  }"
+  \"user\": $guserjson"
     fi
 
     # The Phase-2 system's own settings, so the native system is the same

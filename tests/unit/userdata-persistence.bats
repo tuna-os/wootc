@@ -76,8 +76,10 @@ setup() {
     # images video/audio live in /usr/lib/group (systemd userdb) and useradd
     # exits 6, aborting the whole fisherman install. logind session ACLs make
     # the legacy device groups unnecessary.
-    grep -Fq '\"groups\": [\"wheel\"]' "$REPO_ROOT/payload/deployer/deploy.sh"
-    run grep -n '"wheel", "video", "audio"' "$REPO_ROOT/payload/deployer/deploy.sh"
+    eval "$(sed -n '/^recipe_user_json() {/,/^}/p' "$REPO_ROOT/payload/deployer/deploy.sh")"
+    [ "$(recipe_user_json wootc '$6$x' 'Zoë' | jq -c .groups)" = '["wheel"]' ]
+    grep -Fq 'USER_JSON=",\"user\": $(recipe_user_json ' "$REPO_ROOT/payload/deployer/deploy.sh"
+    run grep -nE '"(video|audio)"' "$REPO_ROOT/payload/deployer/deploy.sh"
     [ "$status" -ne 0 ]
 }
 
