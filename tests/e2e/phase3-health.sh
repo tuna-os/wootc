@@ -40,8 +40,16 @@ ok() { echo "OK: $*"; }
 # ("AMD Processor family 25: mcelog does not support this processor"), the
 # CPU of the hosted runners (probe 44843263310). It is the image's unit, not
 # wootc's; the entry expires when the fix ships or on 2027-02-28.
+# tuned.service: bluefin:stable's bootc-unified-storage.service runs `bootc
+# image set-unified` during first boot (WantedBy=multi-user.target, After=
+# local-fs.target only) and holds the ostree sysroot lock for minutes. TuneD's
+# start calls `bootc loader-entries set-options-for-source`, waits on that
+# lock and hits its start timeout (probe 44878928655: bootc core dump in
+# glnx_make_lock_file). It is the image's ordering, not wootc's; utah moved
+# the unit to a timer (projectbluefin/utah#1174). Same expiry.
 KNOWN_FAILED_UNITS='
 mcelog.service https://github.com/ublue-os/bluefin/issues/5197 remove-when-bluefin:stable-ships-the-fix-or-on-2027-02-28-whichever-is-first
+tuned.service https://github.com/ublue-os/bluefin/issues/5201 remove-when-bluefin:stable-ships-the-fix-or-on-2027-02-28-whichever-is-first
 '
 
 describe_failed_unit() {

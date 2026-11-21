@@ -130,6 +130,18 @@ esac
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service", result.stdout)
 
+    def test_tuned_lock_timeout_in_phase2_is_reported_with_its_issue(self):
+        # Probe 44878928655: tuned's bootc call waited on the sysroot lock
+        # that bluefin:stable's first-boot bootc-unified-storage.service held.
+        result = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="tuned.service")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn(
+            "known-failure list: tuned.service "
+            "(https://github.com/ublue-os/bluefin/issues/5201)",
+            result.stdout,
+        )
+        self.assertNotIn("FAIL:", result.stdout)
+
     def test_phase2_still_booting_asks_to_be_asked_again(self):
         # Probe 44852542894: the QGA client stops a guest command at 60 s and
         # Phase 2 was still booting; exit 3, never a verdict.
@@ -150,7 +162,7 @@ esac
         source = HEALTH.read_text()
         block = source.split("KNOWN_FAILED_UNITS='", 1)[1].split("'", 1)[0]
         entries = [line.split() for line in block.strip().splitlines()]
-        self.assertEqual([e[0] for e in entries], ["mcelog.service"])
+        self.assertEqual([e[0] for e in entries], ["mcelog.service", "tuned.service"])
         for unit, issue, removal in entries:
             self.assertRegex(issue, r"^https://github\.com/[a-z-]+/[a-z-]+/issues/[0-9]+$")
             self.assertTrue(removal.startswith("remove-when-"), removal)
