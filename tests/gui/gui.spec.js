@@ -128,6 +128,41 @@ test('installer — session consent does not assert successful export', async ({
   await expect(page.getByText('Save any open work first', { exact: false })).toBeInViewport();
 });
 
+// SPEC §4.3: detected apps are offered on the main form, all checked; the
+// install sends exactly the checked ones, in detection order.
+test('installer — detected apps are opt-out and travel with the plan', async ({ page }) => {
+  const steps = [{ step: 'done', message: 'Preparation complete.', percent: 100, done: true }];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps, detectedApps: [
+    { flatpak: 'org.gimp.GIMP', name: 'GIMP', displayName: 'GIMP 2.10.36' },
+    { flatpak: 'org.inkscape.Inkscape', name: 'Inkscape', displayName: 'Inkscape 1.4.2' },
+    { flatpak: 'org.audacityteam.Audacity', name: 'Audacity', displayName: 'Audacity 3.7.1' },
+  ] });
+  const apps = page.locator('#detected-apps');
+  await expect(apps).toContainText("We'll install the Linux versions of these apps from Flathub");
+  await expect(apps.locator('input[type=checkbox]:checked')).toHaveCount(3);
+  await apps.locator('label').filter({ hasText: 'Inkscape (for Inkscape 1.4.2)' }).locator('input').uncheck();
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  // A re-rendered form keeps the person's choice.
+  await expect(apps.locator('input[data-flatpak="org.inkscape.Inkscape"]')).not.toBeChecked();
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.done-title')).toBeVisible({ timeout: 5000 });
+  expect(await page.evaluate(() => window.__wootcStartInstallConfig.flatpaks)).toEqual(['org.gimp.GIMP', 'org.audacityteam.Audacity']);
+});
+
+test('installer — no detected app hides the Apps box and sends an empty list', async ({ page }) => {
+  const steps = [{ step: 'done', message: 'Preparation complete.', percent: 100, done: true }];
+  await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, installSteps: steps });
+  await expect(page.locator('#detected-apps')).toHaveCount(0);
+  await page.locator('.field:has-text("Linux Username") input').fill('alice');
+  const pw = page.locator('input[type=password]');
+  await pw.nth(0).fill('hunter2'); await pw.nth(1).fill('hunter2');
+  await page.locator('#install-btn').click();
+  await expect(page.locator('.done-title')).toBeVisible({ timeout: 5000 });
+  expect(await page.evaluate(() => window.__wootcStartInstallConfig.flatpaks)).toEqual([]);
+});
+
 test('control panel — partition-aware uninstall options', async ({ page }) => {
   await boot(page, { mode: 'installer', images: IMAGES, sysinfo: SYSINFO, existing: true,
     uninstall: { found: true, storageDrive: 'D', diskPath: 'D:\\wootc\\disks\\root.vhdx',

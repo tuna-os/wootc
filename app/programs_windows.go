@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"golang.org/x/sys/windows/registry"
 )
 
 // RegistryProgram is one installed program discovered via the Windows
@@ -67,25 +69,35 @@ func collectPrograms() error {
 	return os.WriteFile(filepath.Join(installDir, "programs.json"), data, 0o644)
 }
 
-// enumerateUninstallKeys reads the three standard uninstall locations.
+// uninstallHives are the three standard uninstall locations. The engine runs
+// elevated as the interactive user, so HKCU is that person's hive.
+var uninstallHives = []struct {
+	root   registry.Key
+	path   string
+	source string
+}{
+	{registry.LOCAL_MACHINE, `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, "HKLM"},
+	{registry.LOCAL_MACHINE, `SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall`, "HKLM-32"},
+	{registry.CURRENT_USER, `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, "HKCU"},
+}
+
+// enumerateUninstallKeys reads the three standard uninstall locations through
+// the registry API. It runs inside the native configuration read's budget
+// (app detection), where one PowerShell start per key would not fit.
 func enumerateUninstallKeys() []RegistryProgram {
 	var apps []RegistryProgram
-
-	hives := []struct {
-		path   string
-		source string
-	}{
-		{`HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, "HKLM"},
-		{`HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall`, "HKLM-32"},
-		{`HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall`, "HKCU"},
-	}
-
-	for _, hive := range hives {
-		names := enumerateSubkeyNames(hive.path)
+	for _, hive := range uninstallHives {
+		parent, err := registry.OpenKey(hive.root, hive.path, registry.ENUMERATE_SUB_KEYS)
+		if err != nil {
+			continue
+		}
+		// On error ReadSubKeyNames still returns the names it read.
+		names, _ := parent.ReadSubKeyNames(-1)
+		parent.Close()
 		for _, name := range names {
 			// Skip system components and patches (identified by GUID-only names
 			// with no display name, or "Hotfix", "KB*", "Service Pack", etc.).
-			props := readRegistryProperties(hive.path + `\` + name)
+			props := readUninstallEntry(hive.root, hive.path+`\`+name)
 			displayName, ok := props["DisplayName"]
 			if !ok || displayName == "" {
 				continue
@@ -108,6 +120,41 @@ func enumerateUninstallKeys() []RegistryProgram {
 		}
 	}
 	return apps
+}
+
+// readUninstallEntry reads the string values programs.json records from one
+// uninstall key. REG_EXPAND_SZ values are expanded, as Get-ItemProperty did.
+func readUninstallEntry(root registry.Key, path string) map[string]string {
+	key, err := registry.OpenKey(root, path, registry.QUERY_VALUE)
+	if err != nil {
+		return nil
+	}
+	defer key.Close()
+	props := map[string]string{}
+	for _, name := range []string{"DisplayName", "Publisher", "InstallLocation", "DisplayVersion", "UninstallString"} {
+		value, valueType, err := key.GetStringValue(name)
+		if err != nil {
+			continue
+		}
+		if valueType == registry.EXPAND_SZ {
+			if expanded, err := registry.ExpandString(value); err == nil {
+				value = expanded
+			}
+		}
+		props[name] = strings.TrimSpace(value)
+	}
+	return props
+}
+
+// uninstallDisplayNames is the DisplayName of every program
+// enumerateUninstallKeys reports, for app detection (app_flatpaks.go).
+func uninstallDisplayNames() []string {
+	programs := enumerateUninstallKeys()
+	names := make([]string, 0, len(programs))
+	for _, program := range programs {
+		names = append(names, program.DisplayName)
+	}
+	return names
 }
 
 // defaultAssociations reads the user's default browser and mail client

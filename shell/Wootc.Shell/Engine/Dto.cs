@@ -62,6 +62,14 @@ public class NativeConfigurationSnapshot
     [JsonPropertyName("storage")]
     public List<NativeConfigurationStorage> Storage { get; set; } = new();
 
+    /// <summary>
+    /// DetectedApps are the Windows programs with a Flathub counterpart
+    /// (app-flatpaks.json), one per Flatpak. The engine fills it on Windows
+    /// after the storage observation; it is never null on the wire.
+    /// </summary>
+    [JsonPropertyName("detectedApps")]
+    public List<DetectedApp> DetectedApps { get; set; } = new();
+
     [JsonPropertyName("originalUserCaptured")]
     public bool OriginalUserCaptured { get; set; }
 
@@ -142,6 +150,23 @@ public class NativeConfigurationStorage
 
     [JsonPropertyName("maximumRootDiskSizeGB")]
     public int MaximumRootDiskSizeGB { get; set; }
+}
+
+/// <summary>
+/// DetectedApp is one Windows program the engine found in the Uninstall
+/// registry keys that has a Flatpak in app-flatpaks.json. Name is the Linux
+/// app that gets installed; DisplayName is the Windows program it replaces.
+/// </summary>
+public class DetectedApp
+{
+    [JsonPropertyName("flatpak")]
+    public string Flatpak { get; set; } = string.Empty;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("displayName")]
+    public string DisplayName { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -668,6 +693,14 @@ public class InstallConfig
     /// </summary>
     [JsonPropertyName("windowsLook")]
     public bool WindowsLook { get; set; }
+
+    /// <summary>
+    /// Flatpaks are the Flathub IDs of detected Windows apps the person kept
+    /// checked (SPEC §4.3). Each must be one the engine detected on this
+    /// computer; the deployer pre-installs them. Empty installs none.
+    /// </summary>
+    [JsonPropertyName("flatpaks")]
+    public List<string> Flatpaks { get; set; } = new();
 
     /// <summary>
     /// SessionConsent is opt-in per app because it authorizes moving auth

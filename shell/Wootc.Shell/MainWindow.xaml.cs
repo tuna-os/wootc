@@ -45,6 +45,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     public MainWindow()
     {
         InitializeComponent();
+        AppsDisclosure.Text = ConsumerConfiguration.AppsDisclosure;
         ConfigurationButton.GotFocus += (_,_) => ConfigurationButton.StartBringIntoView(new BringIntoViewOptions { AnimationDesired=false });
         if (observeFixtureInput)
         {
@@ -211,6 +212,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             LinuxDiskSize.Value = observed.DiskSizeGb;
             LinuxEncryption.SelectedItem = LinuxEncryption.Items.OfType<Microsoft.UI.Xaml.Controls.ComboBoxItem>().Single(item => (string)item.Tag == observed.Encryption);
             LinuxWindowsLook.IsChecked = observed.WindowsLook;
+            RenderApps(observed);
             ConfigurationObservation.Text = $"Catalogue: {snapshot.CatalogueSource}; channel: {snapshot.Policy.Channel}; storage: {snapshot.StorageStatus}; installation authorization: unavailable";
             ConfigurationPanel.Visibility = Visibility.Visible;
         }
@@ -236,6 +238,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         ProfileAccountsPanel.Visibility = Visibility.Collapsed;
         ProfileAccountWarnings.Children.Clear();
         ProfileAccountEditors.Children.Clear();
+        AppChoices.Children.Clear();
+        AppsPanel.Visibility = Visibility.Collapsed;
         ImageChoice.SelectedItem = null; StorageChoice.SelectedItem = null;
         ImageChoice.ItemsSource = null; StorageChoice.ItemsSource = null;
         LinuxUsername.Text = ""; LinuxHostname.Text = "";
@@ -271,6 +275,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         configuration.Encryption = (LinuxEncryption.SelectedItem as Microsoft.UI.Xaml.Controls.ComboBoxItem)?.Tag as string ?? "";
         configuration.LuksPassphrase = LinuxLuksPassphrase.Password;
         configuration.WindowsLook = LinuxWindowsLook.IsChecked == true;
+        foreach (var box in AppChoices.Children.OfType<CheckBox>())
+            configuration.SelectApp((string)box.Tag, box.IsChecked == true);
         ImageFacts.Text = configuration.SelectedImage is null ? "Choose an observed image" :
             $"{configuration.SelectedImage.ImageRef}; admission: {configuration.SelectedImage.Admitted}; content verified: {configuration.SelectedImage.ContentVerified}; MOK enrollment required: {configuration.SelectedImage.RequiresMokEnrollment}";
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
@@ -281,6 +287,24 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         // Any change to the plan on screen discards an earlier grant and its
         // install session; the new plan needs its own engine check.
         _ = DiscardInstallGrantAsync();
+    }
+
+    // The Apps section (SPEC §4.3): one checkbox per app the engine detected,
+    // all checked to start. No detected app hides the section.
+    private void RenderApps(ConsumerConfiguration model)
+    {
+        AppChoices.Children.Clear();
+        int index = 0;
+        foreach (var app in model.DetectedApps)
+        {
+            var box = new CheckBox { Content = ConsumerConfiguration.AppLabel(app), IsChecked = model.IsAppSelected(app.Flatpak), Tag = app.Flatpak };
+            AutomationProperties.SetAutomationId(box, $"AppChoice{index++}");
+            AutomationProperties.SetHelpText(box, app.Flatpak);
+            box.Checked += ConfigurationChanged;
+            box.Unchecked += ConfigurationChanged;
+            AppChoices.Children.Add(box);
+        }
+        AppsPanel.Visibility = model.DetectedApps.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // What the selected image needs on the selected drive beside its Linux
@@ -851,6 +875,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             LinuxLuksPassphrase.Password = mapping.LuksPassphrase;
             LinuxDiskSize.Value = model.DiskSizeGb;
             LinuxEncryption.SelectedItem = LinuxEncryption.Items.OfType<ComboBoxItem>().Single(item => (string)item.Tag == model.Encryption);
+            LinuxWindowsLook.IsChecked = model.WindowsLook;
+            foreach (var box in AppChoices.Children.OfType<CheckBox>())
+                box.IsChecked = model.IsAppSelected((string)box.Tag);
         }
         finally { updatingConfiguration = false; }
         RefreshConfiguration();

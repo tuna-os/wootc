@@ -15,6 +15,9 @@ type installPolicy struct {
 	checkPlatform func(InstallConfig) error
 	checkSpace    func(context.Context, InstallConfig) error
 	profiles      func(string, []ProfileAccount) ([]ProfileAccount, error)
+	// detectedApps is the engine's own app detection. A plan may name only
+	// Flatpaks it found on this computer; nil means none were detected.
+	detectedApps func() []DetectedApp
 }
 
 // normalizeBootloader validates the requested boot chain and fills in the
@@ -157,5 +160,16 @@ func (p installPolicy) validate(ctx context.Context, cfg InstallConfig) (Install
 		return InstallConfig{}, err
 	}
 	cfg.ProfileAccounts = accounts
+	// Only read the registry when the plan names apps: an empty list is
+	// always valid and needs no detection.
+	if len(cfg.Flatpaks) != 0 {
+		var detected []DetectedApp
+		if p.detectedApps != nil {
+			detected = p.detectedApps()
+		}
+		if err := validateFlatpakSelection(cfg.Flatpaks, detected); err != nil {
+			return InstallConfig{}, err
+		}
+	}
 	return cfg, nil
 }

@@ -1229,30 +1229,55 @@ Each stage is independent and reversible (before deletion):
 
 ### 4.3 App Detection
 
-During installation, the deployer scans the Windows partition for
-installed applications and offers Linux equivalents via Flatpak:
+The Windows engine finds installed apps before the install starts. It reads
+the `DisplayName` of each entry in the three Uninstall registry keys:
+HKLM, HKLM `WOW6432Node`, and HKCU of the person who runs the installer.
+One table, [`app/data/app-flatpaks.json`](../app/data/app-flatpaks.json),
+maps a name to a Flathub app. Each entry has a `key`, the Linux app `name`,
+its `flatpak` ID, and `match`: lowercase parts of a `DisplayName`. The first
+entry that matches a name wins. The engine embeds this table. The deployer
+and `wootc-detect-apps` read the same file.
 
-| Windows app detected | Linux equivalent |
+Some examples:
+
+| Windows `DisplayName` | Flatpak |
 |---|---|
-| Visual Studio Code | `com.visualstudio.code` |
-| Discord | `com.discordapp.Discord` |
-| Spotify | `com.spotify.Client` |
-| Steam | `com.valvesoftware.Steam` |
-| Firefox | `org.mozilla.firefox` |
-| Chrome | `com.google.Chrome` |
-| OBS Studio | `com.obsproject.Studio` |
-| GIMP | `org.gimp.GIMP` |
-| VLC | `org.videolan.VLC` |
+| `GIMP 2.10.36` | `org.gimp.GIMP` |
+| `Inkscape 1.4.2` | `org.inkscape.Inkscape` |
+| `Audacity 3.7.1` | `org.audacityteam.Audacity` |
+| `Microsoft Visual Studio Code` | `com.visualstudio.code` |
+| `Steam` | `com.valvesoftware.Steam` |
 
-These are added to the fisherman recipe's `flatpaks` field and
-pre-installed during deployment.
+The table has no entry for Microsoft Edge, because each Windows 11 PC has it.
+
+The install form shows an **Apps** section with one checkbox for each
+detected Flatpak. All boxes start checked. The form shows this text:
+
+> We'll install the Linux versions of these apps from Flathub; uncheck any you don't want.
+
+When the engine detects no app, the form does not show the section. The
+plan sends the checked IDs in `InstallConfig.flatpaks`. The engine refuses
+an ID that it did not detect on this PC. It also refuses an ID that occurs
+two times, and a list of more than 64 IDs. The headless CLI has the same
+check for `-flatpaks=id1,id2`.
+
+In the "Saving your settings" step, the engine writes
+`<storage drive>:\wootc\install\apps.json` beside the vault. It writes this
+file for each install, with an empty list when the person keeps no app:
+
+```json
+{"schemaVersion":1,"remote":"flathub","remoteUrl":"https://dl.flathub.org/repo/flathub.flatpakrepo","flatpaks":["org.audacityteam.Audacity","org.inkscape.Inkscape"]}
+```
+
+The deployer reads this file and installs each Flatpak into the target
+system. A failed app does not stop the install.
 
 ### 4.4 Windows-Style Mode
 
 On first login, the system adopts the Windows host's aesthetics to reduce
-the visual shock of switching OS. This is ON by default — everything safe
-to bring along comes along, the way a Mac migration would — with the
-opt-out under Advanced for users who want the image maker's stock desktop:
+the visual shock of switching OS. The install form has a checkbox for this
+mode. The Wails launchpad sets it by default, under Advanced. The native
+shell uses the engine default, which is off:
 
 - Same wallpaper (extracted via fisherman's Slurp)
 - Same accent color

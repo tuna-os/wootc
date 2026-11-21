@@ -88,9 +88,13 @@ func captureBitLockerRecoveryKey(vol string) string { return "" }
 // writeBitLockerKey is Windows-only; the dev stub is a no-op.
 func writeBitLockerKey(key string) error { return nil }
 
-func collectLook() error                                          { return nil }
-func collectWifi() error                                          { return nil }
-func collectPrograms() error                                      { return nil }
+func collectLook() error     { return nil }
+func collectWifi() error     { return nil }
+func collectPrograms() error { return nil }
+
+// uninstallDisplayNames reads the Windows uninstall keys; elsewhere there are none.
+func uninstallDisplayNames() []string { return nil }
+
 func collectSessions() ([]SessionCandidate, error)                { return nil, nil }
 func sessionCandidates() ([]SessionCandidate, error)              { return nil, nil }
 func exportSession(string, string, bool) error                    { return nil }

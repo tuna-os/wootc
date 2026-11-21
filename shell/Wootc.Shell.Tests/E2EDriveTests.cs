@@ -60,9 +60,39 @@ public sealed class E2EDriveTests
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"uninstall\"}")]
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\"}")]
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"image\":7}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":\"true\"}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":1}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":\"org.gimp.GIMP\"}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[7]}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[null]}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[],\"flatpaks\":[]}")]
     public void RefusesMalformedOrAmbiguousDirectives(string raw)
     {
         Assert.ThrowsAny<Exception>(() => E2EDriveDirective.Parse(raw));
+    }
+
+    [Fact]
+    public void ParsesTheOptionalAppearanceAndAppKeys()
+    {
+        var absent = E2EDriveDirective.Parse(Golden("directive-install.json"));
+        Assert.Null(absent.WindowsLook);
+        Assert.Null(absent.Flatpaks);
+        Assert.Null(absent.ToInstallMapping().Flatpaks);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
+        node["windowsLook"] = false;
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray("org.gimp.GIMP", "org.audacityteam.Audacity");
+        var named = E2EDriveDirective.Parse(node.ToJsonString());
+        Assert.False(named.WindowsLook);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.audacityteam.Audacity" }, named.Flatpaks);
+        var mapping = named.ToInstallMapping();
+        Assert.False(mapping.WindowsLook);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.audacityteam.Audacity" }, mapping.Flatpaks);
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray();
+        Assert.Empty(E2EDriveDirective.Parse(node.ToJsonString()).Flatpaks!);
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, E2EDriveDirective.MaximumFlatpaks + 1).Select(index => (System.Text.Json.Nodes.JsonNode?)$"org.example.App{index}").ToArray());
+        Assert.Throws<InvalidDataException>(() => E2EDriveDirective.Parse(node.ToJsonString()));
     }
 
     [Fact]

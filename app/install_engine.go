@@ -104,7 +104,15 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 		{StepInstallerPreparingTheStartupMenu, 55, func() error { return writeGrubConfig(cfg) }},
 		{StepInstallerGettingLinuxPrepared, 65, func() error { return setupESP(cfg) }},
 		{StepInstallerMakingLinuxBootableOnYourMachine, 80, func() error { return configureBCD(cfg) }},
-		{StepInstallerSavingYourSettings, 85, func() error { return writeVault(cfg) }},
+		{StepInstallerSavingYourSettings, 85, func() error {
+			if err := writeVault(cfg); err != nil {
+				return err
+			}
+			// The apps the person kept checked (SPEC §4.3), for the deployer
+			// to install from Flathub. Written on every install, empty when
+			// none were kept, beside the vault on the storage root.
+			return writeAppsHandoff(wootcDir(), cfg.Flatpaks)
+		}},
 		{StepInstallerSavingYourBitLockerRecoveryKey, 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery
 			// password so Phase 2 (Linux) can unlock C: and the User Data

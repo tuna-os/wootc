@@ -107,6 +107,10 @@ export function GetSessionCandidates() {
   return window['go']['main']['App']['GetSessionCandidates']();
 }
 
+export function GetDetectedApps() {
+  return window['go']['main']['App']['GetDetectedApps']();
+}
+
 export function GetOfficeMigration() {
   return window['go']['main']['App']['GetOfficeMigration']();
 }

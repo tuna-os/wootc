@@ -28,6 +28,18 @@ public sealed class ConfigurationProtocolTests
     }
 
     [Fact]
+    public void DetectedAppsCrossTheProtocolIntoTheForm()
+    {
+        var snapshot=Observed();
+        snapshot.DetectedApps=new() { new() { Flatpak="org.gimp.GIMP",Name="GIMP",DisplayName="GIMP 2.10.36" }, new() { Flatpak="org.audacityteam.Audacity",Name="Audacity",DisplayName="Audacity 3.7.1" } };
+        var result=NativeConfigurationProtocol.Decode(JsonSerializer.SerializeToElement(snapshot),"wootc");
+        var form=new Wootc.Shell.Core.ConsumerConfiguration("wootc");
+        form.ApplyCatalogue(Wootc.Shell.Core.ConfigurationProjection.ToCatalogue(result));
+        Assert.Equal(new[] { "org.gimp.GIMP","org.audacityteam.Audacity" }, form.SelectedFlatpaks);
+        Assert.Equal("GIMP 2.10.36", form.DetectedApps[0].DisplayName);
+    }
+
+    [Fact]
     public void SelfConsistentForeignSnapshotCannotReplaceAuthenticatedBrand()
     {
         var snapshot=Observed(); snapshot.BrandId="foreign";
@@ -74,7 +86,7 @@ public sealed class ConfigurationProtocolTests
         string json=JsonSerializer.Serialize(Observed());
         using var duplicate=JsonDocument.Parse(json.Replace("\"schemaVersion\":1", "\"schemaVersion\":1,\"schemaVersion\":1"));
         Assert.Throws<InvalidDataException>(()=>NativeConfigurationProtocol.Decode(duplicate.RootElement,"wootc"));
-        foreach (string change in new[]{"unknown","missing-image","null-defaults","authorization","integrity","physical-proxy"})
+        foreach (string change in new[]{"unknown","missing-image","null-defaults","authorization","integrity","physical-proxy","missing-apps","null-apps","app-not-flatpak","app-twice","app-unknown-field"})
         {
             var node=JsonNode.Parse(json)!.AsObject();
             switch(change)
@@ -85,6 +97,11 @@ public sealed class ConfigurationProtocolTests
                 case "authorization":node["installAuthorized"]=true;break;
                 case "integrity":node["images"]![0]!["contentVerified"]=true;break;
                 case "physical-proxy":node["rootScope"]="payload";node["rootBinding"]="F";break;
+                case "missing-apps":node.Remove("detectedApps");break;
+                case "null-apps":node["detectedApps"]=null;break;
+                case "app-not-flatpak":node["detectedApps"]=JsonNode.Parse("[{\"flatpak\":\"gimp; rm -rf /\",\"name\":\"GIMP\",\"displayName\":\"GIMP 2.10.36\"}]");break;
+                case "app-twice":node["detectedApps"]=JsonNode.Parse("[{\"flatpak\":\"org.gimp.GIMP\",\"name\":\"GIMP\",\"displayName\":\"GIMP 2\"},{\"flatpak\":\"org.gimp.GIMP\",\"name\":\"GIMP\",\"displayName\":\"GIMP 3\"}]");break;
+                case "app-unknown-field":node["detectedApps"]=JsonNode.Parse("[{\"flatpak\":\"org.gimp.GIMP\",\"name\":\"GIMP\",\"displayName\":\"GIMP 2\",\"installed\":true}]");break;
             }
             using var modified=JsonDocument.Parse(node.ToJsonString());
             Assert.Throws<InvalidDataException>(()=>NativeConfigurationProtocol.Decode(modified.RootElement,"wootc"));
