@@ -1,30 +1,39 @@
 # E2E migration coverage
 
-What wootc migrates from Windows, where each capability is implemented, and
-how the hosted E2E (`tests/e2e/run-e2e.sh`, the release gate's
-`bluefin:stable` native-GUI Phase 1→2→3 cell and the nightly) seeds it on a
-real Windows VM and asserts it on the installed system.
+This page lists what wootc migrates from Windows and the code for each
+capability. It also tells how the hosted E2E seeds each one on a real Windows
+VM and checks it on the installed system. The hosted E2E is
+`tests/e2e/run-e2e.sh`. It runs in the release gate's `bluefin:stable`
+native-GUI Phase 1→2→3 cell and in the nightly.
 
-The suite: `tests/e2e/oem/seed-profile.ps1` (seed + expected-state manifest),
-`tests/e2e/lib/migration.sh` (staging, Wi-Fi, on-demand actions, result
-recording), `tests/e2e/migration-check.py` (the Linux-side checks, run in
-Phase 2 through the guest agent and on the native disk by
-`wootc-e2e-native-migration.service`), `tests/unit/test_migration_check.py`
-(controls: each comparison goes red on its regression).
+The suite has these parts:
 
-Verdicts land in the run's result ledger as `migration-<phase>-<category>`
-(`phase2`, `native`, `windows`). `GAP` lines — claimed, not implemented — are
-collected in `artifacts/<run>/migration-gaps.txt` and never count as a pass.
+- `tests/e2e/oem/seed-profile.ps1`: the seed and the expected-state manifest.
+- `tests/e2e/lib/migration.sh`: it stages the files, sets up Wi-Fi, runs the
+  on-demand actions and records the results.
+- `tests/e2e/migration-check.py`: the Linux-side checks. The guest agent runs
+  them in Phase 2. `wootc-e2e-native-migration.service` runs them on the
+  native disk.
+- `tests/unit/test_migration_check.py`: the controls. Each comparison goes
+  red on its regression.
+
+Verdicts go into the run's result ledger as `migration-<phase>-<category>`
+(`phase2`, `native`, `windows`). A `GAP` line is a capability that wootc
+claims but does not have yet. The runner writes these lines to
+`artifacts/<run>/migration-gaps.txt`. A `GAP` line never counts as a pass.
 
 ## Before this suite
 
-The E2E seeded one file, `Documents\wootc-e2e-userdata.txt`, and asserted only
-that file, in Phase 2 (`run-e2e.sh` "Verifying seeded user data is visible in
-Phase 2 $HOME") and on the native disk ("User data survived to the native
-disk"). `seed-profile.ps1` existed but the runner staged it from a path that
-does not exist (`$SCRIPT_DIR/seed-profile.ps1`), the GUI path never refreshed
-`C:\OEM`, and its registry seeding wrote SYSTEM's own `HKCU` (QGA runs as
-SYSTEM). Nothing it wrote was ever asserted.
+The E2E put one file on Windows, `Documents\wootc-e2e-userdata.txt`. It
+checked only that file, with two steps in `run-e2e.sh`: one in Phase 2 and
+one on the native disk. `seed-profile.ps1` existed, but it had three problems:
+
+- The runner staged it from a path that does not exist
+  (`$SCRIPT_DIR/seed-profile.ps1`).
+- The GUI path did not refresh `C:\OEM`.
+- Its registry seed wrote the `HKCU` of SYSTEM, because QGA runs as SYSTEM.
+
+No check read what it wrote.
 
 ## Inventory
 
@@ -64,7 +73,7 @@ Paths are relative to the repository. "P2" = Phase 2 (loop-mounted root.disk),
 
 ## Gate runs
 
-The coverage above is enforced by the release gate's E2E (`release.yml` →
-`e2e-hosted.yml`, `bluefin:stable`, `gui_install: true`, `gui_frontend:
-native`, `phase3: true`) and by the nightly; `docs/RELEASING.md` names the
-probe dispatch.
+Two runs apply the checks above. One is the release gate's E2E
+(`release.yml` → `e2e-hosted.yml`, `bluefin:stable`, `gui_install: true`,
+`gui_frontend: native`, `phase3: true`). The other is the nightly.
+`docs/RELEASING.md` gives the command for a probe run.
