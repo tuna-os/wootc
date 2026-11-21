@@ -220,7 +220,7 @@ refuses its queries. In probe 44833993709, every `systemctl` call returned
 
 The check covers:
 
-- systemd state and failed units;
+- systemd state, and failed units that did not also fail in Phase 2;
 - the system bus and logind;
 - the display manager;
 - users and groups from `sysusers.d`;
