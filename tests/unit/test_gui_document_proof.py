@@ -164,7 +164,6 @@ class GateTests(unittest.TestCase):
         self.assertEqual(desktop.saves, 2)
         self.assertIn('save-retry', evidence)
         self.assertIn('saved-file-reopened', evidence)
-
     def test_disabled_save_fails_even_when_buffer_contains_edit(self):
         with self.assertRaisesRegex(RuntimeError, 'saved-file'):
             self.exercise(FakeDesktop('save'))
@@ -412,7 +411,6 @@ class GuestIdentityTests(unittest.TestCase):
             self.assertIsNone(guest.editor_identity(40, 1000, why))
         self.assertTrue(any('no readable gnome-text-editor' in reason for reason in why))
         self.assertTrue(any('matched 0 editor sandboxes' in reason for reason in why))
-
 
 
 if __name__ == '__main__':
