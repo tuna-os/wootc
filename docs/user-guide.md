@@ -90,10 +90,10 @@ This guide asserts no RC SHA for the retained image.*
    [release policy](RELEASING.md#alpha-now).
 2. **Set a password.** The app proposes your username, computer name, disk size, and encryption choice.
    Review them under **Advanced**. You can also change the Windows look option there.
-   Your Linux account gets the full name of your Windows account, with or without
-   the Windows look option, and keeps it if you later move to a native disk. Colons,
-   commas and control characters are removed, and the name is cut to 256 bytes.
-   If Windows has no full name for the account, the Linux account has none.
+   Your Linux account gets the full name of your Windows account, also when the
+   Windows look option is off. The account keeps this name when you move to a native
+   disk. The app removes colons, commas and control characters from the name and cuts
+   it to 256 bytes. If Windows has no full name for the account, the Linux account has none.
 3. **Review “Make it feel like Windows.”** Defaults differ between frontends;
    do not assume the frontend selects this box. On supported Wayland desktops, the
    helpers transfer your selected wallpaper, accent, keyboard layout, and shortcuts.

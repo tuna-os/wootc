@@ -521,11 +521,14 @@ fisherman's post-install hooks write the hashed password into
 hostname into `/target/etc/hostname`.
 
 The account's full name comes from Windows on every install, whether or
-not Windows-Style Mode is on. The installer reads the migrating account's
-full name: a local account's from the local account database
-(`NetUserGetInfo` level 10, `usri10_full_name`), a domain or Microsoft
-account's from `GetUserNameEx(NameDisplay)`. It writes it to the vault as
-`full_name`, an empty string when Windows has none. The deployer puts it in
+not Windows-Style Mode is on. The installer reads the full name of the
+account that it moves. For a local account, it reads the local account
+database (`NetUserGetInfo` level 10, `usri10_full_name`). For a domain or
+Microsoft account, and for a local account with no name there, it uses
+`GetUserNameEx(NameDisplay)`. It writes it to the vault as
+`full_name`, an empty string when Windows has none.
+
+The deployer puts the name in
 the recipe as `user.fullname`, and fisherman gives it to
 `useradd --comment`, so it becomes the GECOS full name (`getent passwd`
 field 5). useradd refuses a `:` or a newline in that field, and fisherman
@@ -533,13 +536,13 @@ then stops the whole install. So the installer and the deployer both apply
 one rule to the name:
 
 - Every Unicode whitespace character becomes a space.
-- Control characters (Unicode Cc), invalid UTF-8, `:` and `,` are removed.
-  The comma separates GECOS subfields.
-- Runs of spaces become one space, and leading and trailing spaces are
-  removed.
-- The name is cut to 256 bytes, on a character boundary.
+- The rule removes control characters (Unicode Cc), invalid UTF-8, `:` and
+  `,`. A comma starts the next subfield of GECOS.
+- Runs of spaces become one space. The rule removes the spaces at the start
+  and at the end.
+- The rule cuts the name to 256 bytes, on a character boundary.
 
-Every other character, in any script, is kept byte for byte. This includes
+The rule keeps every other character, in any script, byte for byte. This includes
 apostrophes, hyphens, periods, quotes and backslashes; jq builds the
 recipe, so quotes and backslashes cannot break it. The deployer logs
 `account full name from Windows: <name>`, or `account full name from
