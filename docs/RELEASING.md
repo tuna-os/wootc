@@ -185,10 +185,12 @@ The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
 The set also includes `wubildr.efi` when its build succeeds.
 `SHA256SUMS` lists the boot artifacts and `wootc-legacy.exe`.
 `native-SHA256SUMS` lists the setup assets that the workflow attaches.
-After the upload, the publish job downloads `SHA256SUMS`, its signature and
-every listed asset from the tag's public URLs. It checks them against the
-signed bytes and the job's key before it dispatches setup packaging or winget.
 `skip_e2e` exists for emergencies and documents itself in the release notes.
+
+After the upload, the publish job downloads `SHA256SUMS`, its signature and
+every listed asset from the public URLs of the tag. These files must be the
+signed bytes and must agree with the key of the job. The job then starts the
+setup workflow and winget.
 
 ## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
 
@@ -201,9 +203,9 @@ A green from an earlier commit does not count. [#240] records this set.
    `E2E matrix (full, gui)`.
 2. If a cell fails, read its flake notice. The harness writes this notice only
    for a known infra signature. Re-dispatch that cell with `grep=<cell>`, or
-   re-run it. A native GUI cell needs **Re-run all jobs**: each e2e attempt
-   signs with a new key, so it cannot use a native-shell job carried over from
-   an earlier attempt, and its wait stops with that message.
+   re-run it. For a native GUI cell, use **Re-run all jobs**.
+   Each e2e run signs with a new key. Thus it cannot use a native-shell job
+   from an earlier run of the cell. Its wait stops with that message.
    Do not re-run a red cell that has no flake notice.
    Diagnose it, because it is a real failure.
 3. Grade the run set and paste the output into [#240] and the release notes:
