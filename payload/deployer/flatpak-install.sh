@@ -20,6 +20,7 @@ WOOTC_FLATHUB_URL=https://dl.flathub.org/repo/flathub.flatpakrepo
 # Set by install_selected_flatpaks for the runner below.
 FLATPAK_IMAGE=""
 FLATPAK_DIR=""
+FLATPAK_TMP=""
 
 # flatpak_target_var <sysroot> <deployment root>
 # Print the /var the installed system mounts at boot, resolved the way
@@ -40,10 +41,17 @@ flatpak_target_var() {
 # Run <program> in the installed image with the target's Flatpak
 # installation at /var/lib/flatpak. --privileged: flatpak runs its install
 # triggers under bubblewrap.
+#
+# /var/tmp is a scratch directory of the deployer's. A bootc image may ship
+# an empty /var (bootc's var-tmpfiles rule: tmpfiles.d creates /var/tmp at
+# boot), and libostree decompresses each LZMA static-delta part into an
+# O_TMPFILE in $TMPDIR or /var/tmp. Without it every Flathub runtime pull
+# fails with "open(O_TMPFILE): No such file or directory" (bluefin:stable).
 flatpak_in_image() {
     timeout "${WOOTC_FLATPAK_STEP_TIMEOUT:-1800}" podman run --rm --network=host --privileged \
         --security-opt label=disable \
         -v "$FLATPAK_DIR:/var/lib/flatpak" \
+        -v "$FLATPAK_TMP:/var/tmp" \
         --entrypoint "$1" "$FLATPAK_IMAGE" "${@:2}"
 }
 
@@ -115,6 +123,7 @@ install_selected_flatpaks() {
 
     FLATPAK_IMAGE=$image
     FLATPAK_DIR="$target_var/lib/flatpak"
+    FLATPAK_TMP=""
     allowed=$(jq -r '.apps[].flatpak' "$app_map" 2>/dev/null || true)
 
     for id in "${requested[@]}"; do
@@ -137,6 +146,9 @@ install_selected_flatpaks() {
             reason="invalid remote '${remote}' at '${url}'"
         elif ! mkdir -p "$FLATPAK_DIR"; then
             reason="cannot create ${FLATPAK_DIR}"
+        elif ! FLATPAK_TMP=$(mktemp -d "${TMPDIR:-/var/tmp}/wootc-flatpak-tmp.XXXXXX") ||
+             ! chmod 1777 "$FLATPAK_TMP"; then
+            reason="cannot create a /var/tmp for flatpak under ${TMPDIR:-/var/tmp}"
         elif ! flatpak_image_ready; then
             reason="the installed image ${image} is not in the deployer's container store"
         else
@@ -201,6 +213,10 @@ install_selected_flatpaks() {
         else
             log "  wootc: flatpak SELinux labels not applied (${context:-no output}); target SELinux is not enforcing"
         fi
+    fi
+    if [[ -n "$FLATPAK_TMP" ]]; then
+        rm -rf "$FLATPAK_TMP"
+        FLATPAK_TMP=""
     fi
 
     for i in "${!failed_ids[@]}"; do
