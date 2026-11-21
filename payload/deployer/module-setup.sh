@@ -154,6 +154,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-mount-user-dirs
     inst /usr/lib/wootc/migration/wootc-copy-windows-documents
     inst /usr/lib/wootc/migration/wootc-umount-user-dirs
+    inst /usr/lib/wootc/migration/wootc-folder-flags
     inst /usr/lib/wootc/migration/wootc-steam-bridge
     inst /usr/lib/wootc/migration/wootc-import-browser
     inst /usr/lib/wootc/migration/wootc-convert-dir

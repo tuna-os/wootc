@@ -15,6 +15,16 @@ for home in /home/*/; do
     done
 done
 
+# Give Windows back the read-only folder flags wootc-mount-user-dirs cleared
+# for this session, while the writable host mount is still there. The record
+# stays on the volume when this fails, and the next boot restores from it.
+HOST="${WOOTC_HOST:-/run/wootc/host}"
+helper=/var/usrlocal/bin/wootc-folder-flags
+if [[ -x "$helper" ]] || helper=$(command -v wootc-folder-flags 2>/dev/null); then
+    "$helper" restore "$HOST" >/dev/null ||
+        echo "[wootc-passthrough] WARNING: not every Windows folder flag could be restored; the next boot retries" >&2
+fi
+
 # BitLocker cleanup (#61): unmount and lock the temporary BitLocker volume
 # that wootc-mount-user-dirs unlocked. Runs AFTER all home binds are released
 # so the underlying NTFS mount is no longer busy.

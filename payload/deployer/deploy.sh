@@ -2589,6 +2589,8 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-mount-user-dirs"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-umount-user-dirs"
+    install -m755 /usr/lib/wootc/migration/wootc-folder-flags \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-folder-flags"
     # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
     # the stage-4 folder conversion used by the migration dashboard.
     install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \

@@ -353,10 +353,26 @@ safe_folder_source() {
     return 1
 }
 
+# Windows flags its shell folders FILE_ATTRIBUTE_READONLY, and the kernel
+# ntfs3 driver turns that into a folder mode without write bits: the user
+# could read the bridged Documents but not save into it (probe 44889931801).
+# wootc-folder-flags clears the flag on folders, never on files, while Linux
+# runs, records what it changed on the Windows volume first, and puts the
+# flags back at shutdown (wootc-umount-user-dirs) and at the next boot.
+# Not chmod: ntfs3 would also store Linux permissions in the folder ($LXMOD).
+folder_flags() {
+    local helper=/var/usrlocal/bin/wootc-folder-flags
+    if [[ ! -x "$helper" ]] && ! helper=$(command -v wootc-folder-flags 2>/dev/null); then
+        warn "wootc-folder-flags is missing: Windows folders flagged read-only stay read-only"
+        return 1
+    fi
+    "$helper" "$@"
+}
+
 # Bind one Windows profile into one Linux home. Shared by the exact-name path
 # and the single-user fallback so the two can never diverge.
 bind_profile() {
-    local winprofile="$1" luser="$2" home="$3" folder src dst
+    local winprofile="$1" luser="$2" home="$3" folder src dst cleared
     if ! sel_on "$luser" files; then
         log "files: skipped for $luser (turned off in the migration chooser)"
         return 0
@@ -427,6 +443,14 @@ bind_profile() {
             continue
         fi
 
+        # The unlocked BitLocker C: stays read-only: leave its flags alone.
+        if [[ -z "$BITLOCKER_PROFILES" || "$src" != "$BITLOCKER_PROFILES"/* ]]; then
+            cleared=$(folder_flags clear "$HOST" "$src") ||
+                warn "files/$folder: not every read-only Windows folder under $src could be made writable"
+            if [[ "${cleared:-0}" != 0 ]]; then
+                log "files/$folder: cleared the Windows read-only flag on $cleared folder(s) until shutdown"
+            fi
+        fi
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -501,6 +525,14 @@ add_host_bookmark_kde() {
     fi
     chown --reference="$home" "${xbel%/*}" "$xbel" 2>/dev/null || true
 }
+
+# A boot that ended without a clean shutdown left Windows' read-only folder
+# flags cleared. Put them back before bind_profile clears them again.
+restored=$(folder_flags restore "$HOST") ||
+    warn "not every Windows folder flag an earlier boot cleared could be restored; retried at shutdown"
+if [[ "${restored:-0}" != 0 ]]; then
+    log "restored the Windows read-only flag on $restored folder(s) an earlier boot left cleared"
+fi
 
 # Attempt BitLocker unlock before scanning for profiles when the host
 # mount has no Users/ directory (the encrypted-C: signature, #61).

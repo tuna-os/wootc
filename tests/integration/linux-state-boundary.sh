@@ -37,6 +37,7 @@ log() { echo "$*"; }
 warn() { echo "$*" >&2; }
 source <(sed -n '/^safe_folder_source()/,/^}/p' "$repo/payload/migration/wootc-mount-user-dirs")
 source <(sed -n '/^bind_profile()/,/^}/p' "$repo/payload/migration/wootc-mount-user-dirs")
+folder_flags() { python3 "$repo/payload/migration/wootc-folder-flags" "$@"; }
 bind_profile "$HOST/Users/fixture/" nobody /run/home
 if sudo -u daemon sh -c 'echo forged > /run/home/Documents/other-user.txt'; then exit 25; fi
 chmod 0755 /run/home
@@ -62,6 +63,8 @@ mount -o remount,bind,rw /run/wootc/host
 sudo -u nobody sh -c 'rm /run/wootc/host/wootc/state.json && echo forged > /run/wootc/host/wootc/state.json'
 echo 'NEGATIVE CONTROL PASS: without public RO metadata can be forged'
 umount /run/home/Documents
+folder_flags restore "$HOST" >/dev/null
+[[ ! -e "$HOST/wootc/folder-flags.json" ]]
 bash "$repo/payload/migration/wootc-host-view" stop
 umount /run/initramfs/wootc-host
 echo 'PASS actual host-view: private state/key, public RO, selected Documents RW, root metadata write, clean stop'
