@@ -121,6 +121,77 @@ class AppImportSafetyTests(unittest.TestCase):
         self.assertEqual(snippets.read_bytes(), b"Linux snippet edits\n")
         self.assertEqual(extensions.read_bytes(), b"native.extension\n")
 
+    # Probe 44889931801: bluefin:stable ships this file in /etc/skel, so
+    # useradd put it in the home before the bridge ran and the Windows
+    # settings (PowerShell 5.1: BOM + CRLF) were "preserved" away.
+    BLUEFIN_SKEL_SETTINGS = (
+        b'{\n    "window.titleBarStyle": "custom",\n'
+        b'    "editor.fontFamily": "\'Cascadia Code\', \'Droid Sans Mono\', \'monospace\', monospace, '
+        b'\'Symbols Nerd Font Mono\'",\n    "update.mode": "none"\n}\n')
+    WINDOWS_SETTINGS = ("\ufeff{\r\n" + "\r\n".join((
+        '  "editor.fontSize": 14,', '  "editor.tabSize": 4,',
+        '  "editor.renderWhitespace": "selection",', '  "workbench.colorTheme": "Default Dark+",',
+        '  "files.autoSave": "afterDelay"')) + "\r\n}\r\n").encode()
+
+    def seed_skel_home(self, home_bytes):
+        source = self.seed("vscode")
+        (source / "settings.json").write_bytes(self.WINDOWS_SETTINGS)
+        skel = self.base / "skel"
+        (skel / ".config/Code/User").mkdir(parents=True)
+        (skel / ".config/Code/User/settings.json").write_bytes(self.BLUEFIN_SKEL_SETTINGS)
+        settings = self.home / ".config/Code/User/settings.json"
+        settings.parent.mkdir(parents=True)
+        settings.write_bytes(home_bytes)
+        return settings, f"safety.SKEL = Path({str(skel)!r})"
+
+    def test_vscode_replaces_an_untouched_skel_default_with_the_windows_settings(self):
+        self.assertEqual(len(self.BLUEFIN_SKEL_SETTINGS), 181)
+        self.assertEqual(len(self.WINDOWS_SETTINGS), 180)
+        settings, hook = self.seed_skel_home(self.BLUEFIN_SKEL_SETTINGS)
+        result = self.run_engine(["vscode"], hook=hook)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        value = self.result()
+        self.assertEqual(value["status"], "success")
+        self.assertTrue(value["apps"][0]["copied"])
+        self.assertIn(".config/Code/User/settings.json", value["migrated"])
+        self.assertEqual(settings.read_bytes(), self.WINDOWS_SETTINGS)
+        self.assertEqual(settings.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(sorted(p.name for p in settings.parent.iterdir()),
+                         ["keybindings.json", "settings.json", "snippets"])
+        repeat = self.run_engine(["vscode"], hook=hook)
+        self.assertEqual(repeat.returncode, 0, repeat.stderr)
+        self.assertIn(".config/Code/User/settings.json", self.result()["alreadyPresent"])
+
+    def test_vscode_preserves_settings_edited_away_from_the_skel_default(self):
+        edited = self.BLUEFIN_SKEL_SETTINGS.replace(b'"none"', b'"default"')
+        settings, hook = self.seed_skel_home(edited)
+        result = self.run_engine(["vscode"], hook=hook)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        value = self.result()
+        self.assertEqual(value["status"], "partial")
+        self.assertIn(".config/Code/User/settings.json", value["preserved"])
+        self.assertEqual(settings.read_bytes(), edited)
+
+    def test_vscode_puts_back_a_skel_default_edited_during_the_exchange(self):
+        settings, hook = self.seed_skel_home(self.BLUEFIN_SKEL_SETTINGS)
+        race = hook + """
+real_exchange = safety.exchange
+def racing_exchange(parent, first, second, calls=[]):
+    if not calls:
+        edit = os.open(second, os.O_WRONLY | os.O_TRUNC, dir_fd=parent)
+        os.write(edit, b"edited during import\\n")
+        os.close(edit)
+    calls.append(second)
+    real_exchange(parent, first, second)
+safety.exchange = racing_exchange
+"""
+        result = self.run_engine(["vscode"], hook=race)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(".config/Code/User/settings.json", self.result()["preserved"])
+        self.assertEqual(settings.read_bytes(), b"edited during import\n")
+        self.assertEqual(sorted(p.name for p in settings.parent.iterdir()),
+                         ["keybindings.json", "settings.json", "snippets"])
+
     def test_complete_profiles_publish_once_and_preserve_native_edits_on_repeat(self):
         apps = ("telegram", "signal", "obs", "thunderbird")
         for app in apps:

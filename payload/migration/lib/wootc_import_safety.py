@@ -7,6 +7,7 @@ replaced; the dictionary's append-only recovery record is the sole exception.
 """
 import argparse
 import contextlib
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -18,6 +19,13 @@ import stat
 import subprocess
 import sys
 import uuid
+
+
+# useradd --create-home copies the image's skeleton into every new home before
+# any import runs; a file still byte-identical to it is the distribution's
+# placeholder, not a native edit.
+SKEL = Path('/etc/skel')
+RENAME_EXCHANGE = 2
 
 
 class Refusal(ValueError):
@@ -78,6 +86,30 @@ def source_file(path):
 def source_bytes(path):
     with source_file(path) as stream:
         return stream.read()
+
+
+def skel_digest(relative):
+    """sha256 of the image's skeleton copy of a home-relative file, or None."""
+    try:
+        with source_file(SKEL / relative) as stream:
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(chunk)
+            return digest.digest()
+    except FileNotFoundError:
+        return None
+
+
+def exchange(parent, first, second):
+    """Atomically swap two names in one directory: renameat2(RENAME_EXCHANGE)."""
+    rename = getattr(ctypes.CDLL(None, use_errno=True), 'renameat2', None)
+    if rename is None:
+        raise Refusal('renameat2(RENAME_EXCHANGE) is required')
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(parent, os.fsencode(first), parent, os.fsencode(second), RENAME_EXCHANGE) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), second)
 
 
 class Home:
@@ -167,8 +199,12 @@ class Home:
         finally:
             os.close(fd)
 
-    def publish(self, relative, source=None, data=None, mode=0o644):
-        """Return copied/already-present/preserved. link(2) never clobbers a race."""
+    def publish(self, relative, source=None, data=None, mode=0o644, replace_skel=False):
+        """Return copied/already-present/preserved. link(2) never clobbers a race.
+
+        replace_skel: an existing destination still byte-identical to the
+        image's /etc/skel copy is exchanged for the import. If it changed
+        before the exchange, it is exchanged back and preserved."""
         path = Path(relative)
         with self.directory(str(path.parent)) as parent:
             try:
@@ -188,7 +224,11 @@ class Home:
                         if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
                             raise Refusal('source changed during comparison: ' + str(source))
                 self.verify_directory(str(path.parent), parent)
-                return 'already-present' if existing == digest.digest() else 'preserved'
+                if existing == digest.digest():
+                    return 'already-present'
+                if not replace_skel or existing != skel_digest(relative):
+                    return 'preserved'
+            skeleton = existing
             temporary = '.wootc-import-' + uuid.uuid4().hex
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                          0o600, dir_fd=parent)
@@ -215,14 +255,25 @@ class Home:
                     os.fchmod(fd, mode)
                     os.fsync(fd)
                 self.verify_directory(str(path.parent), parent)
-                try:
-                    os.link(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
-                except FileExistsError:
-                    existing = self.file_digest(relative, parent)
-                    self.verify_directory(str(path.parent), parent)
-                    if existing == digest.digest():
-                        return 'already-present'
-                    return 'preserved'
+                if skeleton is not None:
+                    exchange(parent, temporary, path.name)
+                    try:
+                        replaced = self.file_digest(str(path.parent / temporary), parent)
+                    except BaseException:
+                        exchange(parent, temporary, path.name)
+                        raise
+                    if replaced != skeleton:
+                        exchange(parent, temporary, path.name)
+                        return 'preserved'
+                else:
+                    try:
+                        os.link(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
+                    except FileExistsError:
+                        existing = self.file_digest(relative, parent)
+                        self.verify_directory(str(path.parent), parent)
+                        if existing == digest.digest():
+                            return 'already-present'
+                        return 'preserved'
                 os.fsync(parent)
                 # Read through the pinned parent, not a possibly swapped path.
                 check = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)

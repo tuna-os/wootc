@@ -545,10 +545,14 @@ def vscode(app):
     source = source_root / "AppData/Roaming/Code/User"
     with source_directory(source) as (_fd, children):
         names = {name for name, _details in children}
+    # Images ship placeholder VS Code settings in /etc/skel (Bluefin's
+    # titleBarStyle/fontFamily/update.mode). An untouched copy of one is not a
+    # Linux edit, so the user's Windows file replaces it; an edited one stays.
     for name in ("settings.json", "keybindings.json"):
         if name in names:
             relative = ".config/Code/User/" + name
-            operation(app, relative, lambda r=relative, p=source / name: home.publish(r, source=p, mode=0o600))
+            operation(app, relative, lambda r=relative, p=source / name:
+                      home.publish(r, source=p, mode=0o600, replace_skel=True))
     if "snippets" in names:
         relative = ".config/Code/User/snippets"
         operation(app, relative, lambda: publish_tree(source / "snippets", relative))
