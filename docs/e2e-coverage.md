@@ -77,3 +77,8 @@ Two runs apply the checks above. One is the release gate's E2E
 (`release.yml` → `e2e-hosted.yml`, `bluefin:stable`, `gui_install: true`,
 `gui_frontend: native`, `phase3: true`). The other is the nightly.
 `docs/RELEASING.md` gives the command for a probe run.
+
+The first gate-equivalent run to pass the full suite was probe
+[44911373316](https://github.com/tuna-os/wootc/actions/runs/44911373316)
+(`main` at `4e715a1c`, 2026-11-21): every Phase-2 and native-disk check above
+passed, with 0 failures.
