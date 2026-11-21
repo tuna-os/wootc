@@ -16,6 +16,7 @@ from pathlib import Path
 import pwd
 import tempfile
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("migration_check", ROOT / "tests/e2e/migration-check.py")
@@ -251,6 +252,43 @@ class Printers(unittest.TestCase):
             Office_Laser_1a2b3c={"status": "added", "queue": "q", "uri": "ipp://192.0.2.1:631/ipp/print"}))
         self.assertTrue(problems)
 
+
+class Look(unittest.TestCase):
+    """The wallpaper half of look-collected, with probe 44889931801's hashes:
+    the seed wrote 485e… as TranscodedWallpaper, Windows re-rendered it at
+    the autologon that followed, and the installer collected 544b…."""
+    seeded = "485e817d6e234b9e8ddbd2db0cd5f88c8c9b5f5d377cebc0686de462ec2669f8"
+    rendered = "544bc5e2d86b77ddade28307a46890e55405c20b1b2b833cf1cbafd5cf2db70a"
+    source = "C:\\Users\\wootc\\Pictures\\wootc-e2e-wallpaper.jpg"
+    rows = [{"category": "wallpaper", "path": "AppData/Roaming/Microsoft/Windows/Themes/TranscodedWallpaper",
+             "size": 7434, "sha256": seeded, "mtime": 1795258649}]
+
+    def verdict(self, collected, **header):
+        header = {"windowsLook": "1", "wallpaperSource": self.source, "slurpWallpaperSha256": collected, **header}
+        with mock.patch.object(check, "PHASE", "phase2"), mock.patch.object(check, "check_apply_look"):
+            out = results(check.check_look, header, self.rows, account_for("/nonexistent"))
+        return next(r for r in out if r[1] == "look-collected")
+
+    def test_wallpaper_windows_rerendered_from_the_seed_is_the_reference(self):
+        self.assertEqual(self.verdict(self.rendered, renderedWallpaperSha256=self.rendered,
+                                      renderedWallpaperSource=self.source.upper())[0], "PASS")
+
+    def test_rerendered_from_another_image_fails(self):
+        for source in ("C:\\Windows\\Web\\Wallpaper\\Windows\\img0.jpg", ""):
+            verdict = self.verdict(self.rendered, renderedWallpaperSha256=self.rendered, renderedWallpaperSource=source)
+            self.assertEqual(verdict[0], "FAIL", source)
+            self.assertIn("re-rendered", verdict[2])
+
+    def test_collected_bytes_must_be_what_windows_rendered(self):
+        for collected in (self.seeded, "0" * 64, ""):
+            self.assertEqual(self.verdict(collected, renderedWallpaperSha256=self.rendered,
+                                          renderedWallpaperSource=self.source)[0], "FAIL", collected)
+
+    def test_without_a_rerender_the_seeded_bytes_are_the_reference(self):
+        self.assertEqual(self.verdict(self.seeded)[0], "PASS")
+        self.assertEqual(self.verdict(self.seeded, renderedWallpaperSha256=self.seeded)[0], "PASS")
+        self.assertEqual(self.verdict(self.rendered)[0], "FAIL")
+        self.assertEqual(self.verdict("")[2], "no wallpaper was collected")
 
 class SuLogin(unittest.TestCase):
     """The PAM login runs su on a guest seeded in German (probe 44889931801)."""
