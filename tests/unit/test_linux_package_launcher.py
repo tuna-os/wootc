@@ -1,4 +1,5 @@
 """Real local process controls only; no QEMU or guest is launched."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -87,6 +88,23 @@ class LauncherTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'quota fixture'):MODULE['run_owned'](self.command,self.folder,fail,seconds=1)
         pid=json.loads((self.folder/'pid.json').read_text())['pid']
         self.assertFalse(Path('/proc',str(pid)).exists())
+
+    def test_identity_read_before_exec_sets_argv_still_stops_owned_process(self):
+        # PR #796's fast tier: the first /proc read after Popen hit the exec
+        # window where cmdline is empty, so the stop refused to signal the
+        # child as "identity changed". The window is replayed for the first read.
+        real=MODULE['process_identity'];reads=[]
+        def in_exec_window(pid):
+            identity=real(pid);reads.append(pid)
+            if len(reads)==1:identity['cmdlineSha256']=hashlib.sha256(b'').hexdigest()
+            return identity
+        def fail(*args):raise ValueError('quota fixture failure')
+        with patch.dict(MODULE['run_owned'].__globals__,{'process_identity':in_exec_window}):
+            with self.assertRaisesRegex(ValueError,'quota fixture'):
+                MODULE['run_owned'](self.command,self.folder,fail,seconds=1)
+        identity=json.loads((self.folder/'pid.json').read_text())
+        self.assertEqual(identity['cmdlineSha256'],hashlib.sha256(b'\0'.join(map(str.encode,self.command))+b'\0').hexdigest())
+        self.assertFalse(Path('/proc',str(identity['pid'])).exists())
 
     def test_wrong_process_identity_is_never_signalled(self):
         child=subprocess.Popen(self.command,start_new_session=True)

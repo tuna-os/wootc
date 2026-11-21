@@ -75,6 +75,20 @@ def process_identity(pid):
             'cmdlineSha256':hashlib.sha256((root/'cmdline').read_bytes()).hexdigest()}
 
 
+def exec_identity(child,command,deadline):
+    # Popen returns when exec closes its CLOEXEC error pipe, but the kernel sets
+    # the new image's argv after that: for a moment /proc/<pid>/cmdline reads
+    # empty. An identity taken in that window never matches again, so the stop
+    # would refuse to signal the process it owns.
+    expected=hashlib.sha256(b''.join(os.fsencode(arg)+b'\0' for arg in command)).hexdigest()
+    while True:
+        identity=process_identity(child.pid)
+        if identity['cmdlineSha256']==expected:return identity
+        if child.poll() is not None:raise ValueError('owned guest process exited before accepted observation')
+        if time.monotonic()>=deadline:raise TimeoutError('owned process did not finish exec before the deadline')
+        time.sleep(.001)
+
+
 def stop_owned(child,identity):
     if child.poll() is not None:return child.wait()
     if process_identity(child.pid)!=identity:raise ValueError('owned process identity changed; refusal to signal')
@@ -94,7 +108,7 @@ def run_owned(command,folder,observe,seconds=1200,on_started=None):
     identity=None
     deadline=time.monotonic()+seconds
     try:
-        identity=process_identity(child.pid)
+        identity=exec_identity(child,command,deadline)
         (folder/'pid.json').write_text(json.dumps(identity,sort_keys=True)+'\n')
         if on_started is not None:on_started(identity)
         while True:
