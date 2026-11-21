@@ -121,6 +121,15 @@ esac
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service.d", result.stdout)
 
+    def test_phase2_still_booting_asks_to_be_asked_again(self):
+        # Probe 44852542894: the QGA client stops a guest command at 60 s and
+        # Phase 2 was still booting; exit 3, never a verdict.
+        result = self.run_probe("phase2-units", HEALTH_SYSTEM_STATE="starting",
+                                HEALTH_FAILED_UNIT="wootc-host-bind.service")
+        self.assertEqual(result.returncode, 3, result.stdout)
+        self.assertIn("Phase 2 is still booting (starting)", result.stdout)
+        self.assertNotIn("FAIL:", result.stdout)
+
     def test_phase2_failed_unit_outside_the_list_fails(self):
         result = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="wootc-host-bind.service")
         self.assertEqual(result.returncode, 1)

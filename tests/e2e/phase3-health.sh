@@ -79,7 +79,16 @@ case "${1:-check}" in
         exit $?
         ;;
     phase2-units)
-        timeout 150 systemctl is-system-running --wait >/dev/null 2>&1 || :
+        # The QGA client stops a guest command after 60 s, and Phase 2 can
+        # still be booting for minutes (probe 44852542894: guest-exec timed
+        # out in is-system-running --wait). Exit 3 while it boots; the
+        # runner asks again.
+        _health_state=$(timeout 45 systemctl is-system-running --wait 2>/dev/null)
+        case "$_health_state" in
+            ''|initializing|starting)
+                echo "  Phase 2 is still booting (${_health_state:-no answer within 45 s})"
+                exit 3 ;;
+        esac
         check_failed_units
         exit "$fail"
         ;;
