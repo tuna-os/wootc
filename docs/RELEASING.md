@@ -190,7 +190,12 @@ The set also includes `wubildr.efi` when its build succeeds.
 After the upload, the publish job downloads `SHA256SUMS`, its signature and
 every listed asset from the public URLs of the tag. These files must be the
 signed bytes and must agree with the key of the job. The job then starts the
-setup workflow and winget.
+setup workflow.
+
+The publish job does not make a full release `latest`. The setup
+workflow attaches `TunaOS-Installer.exe` and the other setup files. Then it
+makes the release `latest` and starts winget. Until then, the `latest` link
+serves the previous release and does not give 404.
 
 ## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
 
@@ -497,8 +502,8 @@ Do these steps in order:
 2. Dispatch `release.yml` with `release_tag: v1.0.0` from the final green SHA
    of the soak. Do not set `skip_e2e`. The E2E gate of the tagged channel
    runs again before the publish.
-3. Monitor the `winget-publish.yml` run that the publish job dispatches, until
-   `winget show TunaOS.wootc` reports `1.0.0`.
+3. Monitor the `winget-publish.yml` run that the setup workflow dispatches,
+   until `winget show TunaOS.wootc` reports `1.0.0`.
 4. Change `ROADMAP.md` to the post-1.0 plan. Close the milestone issues
    #210 to #213, each with links to its evidence.
 5. Announce the release in the channels that each brand agreed to
