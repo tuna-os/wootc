@@ -595,6 +595,36 @@ phase2_recipe_settings() {
         "$(env_file_value "$etc/vconsole.conf" XKBMODEL)"
 }
 
+# phase2_flatpak_apps — the app IDs of this system's system-wide Flatpak
+# installation, one per line. Nothing when flatpak is absent or lists none.
+phase2_flatpak_apps() {
+    command -v flatpak >/dev/null 2>&1 || return 0
+    flatpak list --system --app --columns=application 2>/dev/null \
+        | awk '$1 ~ /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)+$/ { print $1 }' | sort -u
+}
+
+# verify_native_flatpaks <flatpak dir> <id>... — say, per app, whether the
+# native install's Flatpak installation at <flatpak dir> holds it. Asks
+# flatpak itself about that installation; without flatpak, looks for the
+# app's active deployment. A missing app is reported, not fatal: the native
+# system boots without it and the user can reinstall it.
+verify_native_flatpaks() {
+    local dir=$1 id present
+    shift
+    for id in "$@"; do
+        if command -v flatpak >/dev/null 2>&1; then
+            FLATPAK_SYSTEM_DIR="$dir" flatpak info --system "$id" >/dev/null 2>&1 && present=1 || present=0
+        else
+            [[ -d "$dir/app/$id/current/active/files" ]] && present=1 || present=0
+        fi
+        if [[ "$present" == 1 ]]; then
+            log "wootc: native flatpak present: $id"
+        else
+            log "WARN: wootc: native flatpak MISSING: $id (not in $dir)"
+        fi
+    done
+}
+
 # graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
 # fisherman (reusing the local image, same as the deployer), migrate /home, and let
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
@@ -640,6 +670,18 @@ graduate_to_disk_execute() {
     ghost=$(phase2_hostname)
     gsettings=$(phase2_recipe_settings)
     log "Carrying hostname $ghost${gsettings:+ and $(tr -d '\n' <<<"$gsettings")} to the native install"
+    # The Phase-2 system's Flatpak apps — the ones the installer put there
+    # (SPEC §4.3) and any the user added since. A non-empty list makes
+    # fisherman copy this system's whole installation, shared runtimes
+    # included; [] copies nothing, which lost every app at Phase 3.
+    local -a gflatpaks=()
+    mapfile -t gflatpaks < <(phase2_flatpak_apps)
+    local gflatpakjson="[]"
+    if (( ${#gflatpaks[@]} > 0 )); then
+        gflatpakjson="[$(printf '"%s",' "${gflatpaks[@]}")"
+        gflatpakjson="${gflatpakjson%,}]"
+        log "Carrying ${#gflatpaks[@]} Flatpak app(s) to the native install: ${gflatpaks[*]}"
+    fi
 
     # Fisherman recipe; fisherman handles partitioning, formatting,
     # bootc install (via podman run), user creation, EFI boot entry, cleanup.
@@ -651,7 +693,7 @@ graduate_to_disk_execute() {
   "copyNetworkProfiles": true,
   "image": "$img",
   "hostname": "$ghost",
-  "flatpaks": []$guserjson
+  "flatpaks": ${gflatpakjson}$guserjson
 }
 EOF
     # fisherman checks the recipe, the target's size among it, only when the
@@ -675,6 +717,15 @@ EOF
     local dest="$mnt/home"
     local dep; dep=$(ls -d "$mnt"/ostree/deploy/*/deploy/*.0 2>/dev/null | head -1)
     [[ -n "$dep" ]] && dest="$(dirname "$(dirname "$dep")")/var/home"
+    if (( ${#gflatpaks[@]} > 0 )); then
+        local nvar="$mnt/var"
+        if [[ -n "$dep" ]]; then
+            nvar="$(dirname "$(dirname "$dep")")/var"
+        elif [[ -d "$mnt/state/deploy" ]]; then
+            nvar="$mnt/state/os/default/var"
+        fi
+        verify_native_flatpaks "$nvar/lib/flatpak" "${gflatpaks[@]}"
+    fi
     mkdir -p "$dest"
     if command -v rsync >/dev/null; then
         rsync -aHAX /home/ "$dest/" 2>/dev/null || true

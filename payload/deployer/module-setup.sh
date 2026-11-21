@@ -43,6 +43,7 @@ install() {
     inst_simple /usr/libexec/wootc-phase2-overlay.sh
     inst_simple /usr/libexec/wootc-lifecycle.sh
     inst_simple /usr/libexec/wootc-migration-diagnostics.sh
+    inst_simple /usr/libexec/wootc-flatpak-install.sh
     # dracut defines moddir before invoking module install hooks.
     # shellcheck disable=SC2154
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
@@ -172,6 +173,9 @@ install() {
     inst /usr/lib/wootc/migration/wootc-apply-look
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps
+    # The Windows-app → Flatpak map: the deployer installs only IDs it lists,
+    # and wootc-detect-apps matches registry DisplayNames against it.
+    inst_simple /usr/lib/wootc/migration/lib/app-flatpaks.json || return 1
     inst /usr/lib/wootc/migration/wootc-office-bridge
     inst /usr/lib/wootc/migration/wootc-wsl-bridge
     inst /usr/lib/wootc/migration/wootc-wifi-bridge

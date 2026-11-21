@@ -142,8 +142,12 @@ The helpers cover these categories:
   database is not proof that the browser opens signed in.
 - **Steam:** a library bridge can use games in place, without another download.
 - **Office:** the helper copies your selected styles, dictionaries, and preferences for LibreOffice.
-- **Apps:** the deployer installs the Flathub apps that you kept checked on the
-  install form. The dashboard lists apps from Windows and suggests alternatives for Linux.
+- **Apps:** the Windows installer lists your Windows programs that have a
+  Linux Flatpak. The installer installs the apps that you keep selected
+  from Flathub before the first boot. This step needs a network
+  connection. If one app fails, the other apps and the install continue.
+  The result is in `/etc/wootc/flatpak-install.json`. The dashboard shows
+  which apps are installed.
 - **WSL:** selected dotfiles and package lists can help rebuild tools, not clone
   an entire WSL system or transfer its accounts. Follow the
   [WSL migration guide](wsl-migration.md) and keep a separate export/backup.
