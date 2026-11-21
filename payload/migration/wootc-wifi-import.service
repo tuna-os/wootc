@@ -8,6 +8,9 @@ Wants=NetworkManager.service
 
 [Service]
 Type=oneshot
+# The deployer copied the export from the Windows volume; that copy holds the
+# same cleartext passphrases and goes with the staged one.
+Environment=WOOTC_WIFI_ORIGIN=/run/initramfs/wootc-host/wootc/install/wifi
 ExecStart=/var/usrlocal/bin/wootc-wifi-bridge /var/lib/wootc/wifi-import
 RemainAfterExit=no
 

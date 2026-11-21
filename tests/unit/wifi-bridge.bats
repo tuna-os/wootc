@@ -79,6 +79,35 @@ XML
     [ ! -f "$SRC/HomeNet.xml" ]
 }
 
+@test "the Windows-side export the deployer staged from is destroyed too" {
+    # The deployer COPIES <storage>\wootc\install\wifi into the target; the
+    # NTFS original kept every passphrase in clear on the Windows drive.
+    write_profile "HomeNet" WPA2PSK "s3cret-pass"
+    ORIGIN="$BATS_TEST_TMPDIR/ntfs-wifi"; mkdir -p "$ORIGIN"; cp "$SRC/HomeNet.xml" "$ORIGIN/"
+    WOOTC_WIFI_ORIGIN="$ORIGIN" run bash "$WB"
+    [ "$status" -eq 0 ]
+    [ -f "$DST/HomeNet.nmconnection" ]
+    [ ! -e "$ORIGIN/HomeNet.xml" ]
+}
+
+@test "opting out of Wi-Fi still destroys both cleartext exports" {
+    write_profile "HomeNet" WPA2PSK "s3cret-pass"
+    ORIGIN="$BATS_TEST_TMPDIR/ntfs-wifi"; mkdir -p "$ORIGIN"; cp "$SRC/HomeNet.xml" "$ORIGIN/"
+    bin="$BATS_TEST_TMPDIR/bin"; mkdir -p "$bin"
+    printf '#!/bin/sh\nexit 1\n' > "$bin/wootc-selection"; chmod +x "$bin/wootc-selection"
+    PATH="$bin:$PATH" WOOTC_WIFI_ORIGIN="$ORIGIN" run bash "$WB"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"turned off"* ]] || skip "no uid>=1000 account on this host to own a selection"
+    [ ! -f "$DST/HomeNet.nmconnection" ]
+    [ ! -e "$SRC/HomeNet.xml" ]
+    [ ! -e "$ORIGIN/HomeNet.xml" ]
+}
+
+@test "the first-boot unit points the bridge at the NTFS export" {
+    grep -qx 'Environment=WOOTC_WIFI_ORIGIN=/run/initramfs/wootc-host/wootc/install/wifi' \
+        "$REPO_ROOT/payload/migration/wootc-wifi-import.service"
+}
+
 @test "state json records the imported/skipped counts for the dashboard" {
     write_profile "HomeNet" WPA2PSK "pass1"
     write_profile "CorpWiFi" WPA2 "" ent
