@@ -141,6 +141,79 @@ SH
     [ ! -s "$CALLS" ]
 }
 
+# Probe 44889931801: the user could read the bridged Documents but got EACCES
+# writing into it. Windows flags shell folders FILE_ATTRIBUTE_READONLY (a
+# desktop.ini marker it never enforces on directories) and the kernel ntfs3
+# driver turns that into a mode without write bits (fs/ntfs3/inode.c,
+# ntfs_read_mft). The bridge must move the flag to SYSTEM, the equivalent
+# marker, on every read-only directory before binding, and leave files alone.
+# A user xattr stands in for ntfs3's system.ntfs_attrib.
+@test "a Windows read-only shell folder is made writable before it is bound, and keeps a desktop.ini marker" {
+    HOST="$T/host"
+    D="$HOST/Users/fixture/Documents"
+    mkdir -p "$D/Custom" "$D/Plain" "$T/home"
+    echo hi > "$D/locked.txt"
+    export WOOTC_NTFS_ATTRIB_XATTR=user.ntfs_attrib
+    ntfs_attrib() {
+        python3 -c 'import os, struct, sys
+name = os.environ["WOOTC_NTFS_ATTRIB_XATTR"]
+if len(sys.argv) > 2:
+    os.setxattr(sys.argv[1], name, struct.pack("<I", int(sys.argv[2], 16)))
+else:
+    print("0x%08x" % struct.unpack("<I", os.getxattr(sys.argv[1], name)))' "$@"
+    }
+    # DIRECTORY|ARCHIVE|READONLY, as Windows leaves Documents.
+    ntfs_attrib "$D" 0x10000021
+    ntfs_attrib "$D/Custom" 0x10000021
+    ntfs_attrib "$D/Plain" 0x10000020
+    ntfs_attrib "$D/locked.txt" 0x00000021
+    eval "$(sed -n '/^safe_folder_source()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    eval "$(sed -n '/^writable_shell_folders()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    eval "$(sed -n '/^bind_profile()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    sel_on() { return 0; }
+    resolved_folder() { return 0; }
+    add_host_bookmark() { :; }
+    log() { echo "$*"; }
+    warn() { echo "$*" >&2; }
+    FOLDERS=(Documents)
+    BITLOCKER_PROFILES=""
+    bound=0
+    run bind_profile "$HOST/Users/fixture/" "$(id -un)" "$T/home"
+    [ "$status" -eq 0 ]
+    # READONLY -> SYSTEM on both flagged directories; everything else kept.
+    [ "$(ntfs_attrib "$D")" = 0x10000024 ]
+    [ "$(ntfs_attrib "$D/Custom")" = 0x10000024 ]
+    [ "$(ntfs_attrib "$D/Plain")" = 0x10000020 ]
+    # Windows enforces READONLY on files: a read-only file stays read-only.
+    [ "$(ntfs_attrib "$D/locked.txt")" = 0x00000021 ]
+    [[ "$output" == *'system flag on 2 folder(s)'* ]]
+    grep -qxF "mount --bind $D $T/home/Documents" "$CALLS"
+}
+
+@test "folders on the read-only unlocked BitLocker volume keep their Windows flags" {
+    BITLOCKER_PROFILES="$T/bitlk"
+    D="$BITLOCKER_PROFILES/Users/fixture/Pictures"
+    mkdir -p "$D" "$T/home"
+    export WOOTC_NTFS_ATTRIB_XATTR=user.ntfs_attrib
+    python3 -c 'import os, struct, sys; os.setxattr(sys.argv[1], "user.ntfs_attrib", struct.pack("<I", 0x10000021))' "$D"
+    HOST="$T/host"
+    mkdir -p "$HOST/Users"
+    eval "$(sed -n '/^safe_folder_source()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    eval "$(sed -n '/^writable_shell_folders()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    eval "$(sed -n '/^bind_profile()/,/^}/p' "$ROOT/payload/migration/wootc-mount-user-dirs")"
+    sel_on() { return 0; }
+    resolved_folder() { return 0; }
+    add_host_bookmark() { :; }
+    log() { echo "$*"; }
+    warn() { echo "$*" >&2; }
+    FOLDERS=(Pictures)
+    bound=0
+    run bind_profile "$BITLOCKER_PROFILES/Users/fixture/" "$(id -un)" "$T/home"
+    [ "$status" -eq 0 ]
+    [ "$(python3 -c 'import os, struct, sys; print("0x%08x" % struct.unpack("<I", os.getxattr(sys.argv[1], "user.ntfs_attrib")))' "$D")" = 0x10000021 ]
+    grep -qxF "mount --bind $D $T/home/Pictures" "$CALLS"
+}
+
 @test "a case-sensitive uppercase installer directory is also masked" {
     run env STATE_NAME=WOOTC bash "$T/view" start
     [ "$status" -eq 0 ]
