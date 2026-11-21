@@ -206,17 +206,35 @@ Design notes:
 
 ## Phase-3 native post-boot health gate
 
-The runner records a Phase-2 baseline. It then boots the native system on the
-blank disk and runs `tests/e2e/phase3-health.sh` through QGA. The probe checks:
+The runner records a Phase-2 baseline through QGA. It stages
+`tests/e2e/phase3-health.sh` and the baseline in `/run`, and
+`wootc-go-native` copies both into the native `/etc/wootc`. On the native
+system, `wootc-e2e-native-health.service` runs the check at boot and writes
+the output to `/run/wootc-e2e-native-health`. The runner reads that file
+through QGA.
+
+The check does not run through QGA itself. SELinux enforces its policy on
+the native system. There, the agent runs in a confined domain, and systemd
+refuses its queries. In probe 44833993709, every `systemctl` call returned
+`Access denied`.
+
+The check covers:
 
 - systemd state and failed units;
 - the system bus and logind;
 - the display manager;
 - users and groups from `sysusers.d`;
-- SELinux denials and new labels under `/etc` and `/var/home`.
+- SELinux denials against unlabeled files, and labels under `/etc` and
+  `/var/home`. The count of wrong labels must be 0.
+
+Before graduation, the runner also checks the failed units in Phase 2.
+A failed unit fails the run in Phase 2 and on the native system. The only
+exceptions are in `KNOWN_FAILED_UNITS` in `phase3-health.sh`. Each entry
+gives one unit, the issue for it, and the condition for its removal.
 
 The runner writes all output to `phase3-health.log`. A `FAIL:` line fails the
-product check. A QGA error without a `FAIL:` line is an infrastructure error.
+product check. A missing export, an export from another boot, or a non-zero
+exit without a `FAIL:` line is an infrastructure error.
 The `native-health` result is required. Other evidence cannot replace it.
 
 ## Result boundary (#383)

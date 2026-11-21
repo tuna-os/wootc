@@ -122,9 +122,11 @@ IMAGE_REF="${IMAGE_REF:-ghcr.io/tuna-os/yellowfin:gnome}"
 # disk. Make the command-line contract self-contained: `--phase3` must create
 # that disk unless the caller explicitly chose another size. Previously only a
 # compose comment claimed the harness did this, so every Phase-3 run had no
-# target and aborted immediately after the safe status probe.
+# target and aborted immediately after the safe status probe. 64G: fisherman
+# refuses a disk under 50 GiB (disk_too_small), and a 40G spare failed probe
+# 44807218628 that way after the whole image pull.
 if [ "${RUN_PHASE3:-false}" = true ]; then
-    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"
+    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"
     # Only phase3 wants a second disk. See compose.yml: dockur keys off the
     # PRESENCE of /storage2, so non-phase3 runs mount it somewhere harmless.
     export WOOTC_E2E_DISK2_MOUNT=/storage2
@@ -4560,10 +4562,9 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     pass "Phase 3: Linux guest agent reachable inside Phase 2"
 
-    # Capture the generic health baseline before graduation. /etc/wootc is
-    # copied into the fresh native install, so the final probe can distinguish
-    # label drift and a lost display-manager configuration from pre-existing
-    # image state.
+    # Capture the generic health baseline before graduation, so the final
+    # check can distinguish label drift and a lost display-manager
+    # configuration from pre-existing image state.
     if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
         infra_fail "Could not read Phase 3 health script"
         exit 1
@@ -4580,6 +4581,31 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     if [ "$P3_HEALTH_BASELINE_STATUS" -ne 0 ]; then
         infra_fail "Could not capture the Phase 3 pre-graduation health baseline"
         exit 1
+    fi
+    # Stage the check and its baseline where wootc-go-native picks them up:
+    # it copies them into the native /etc/wootc, and a boot-time unit there
+    # runs the check from init's context. The confined agent on the enforcing
+    # native system cannot query systemd (probe 44833993709).
+    if ! WOOTC_QGA_CALL_TIMEOUT=60 qga_call exec /bin/sh -c \
+        'umask 022 && printf "%s\n" "$1" > /run/wootc-e2e-phase3-health.sh && printf "%s\n" "$2" > /run/wootc-e2e-phase3-health.baseline' \
+        wootc-phase3-health-stage "$P3_HEALTH_SCRIPT" "$P3_HEALTH_BASELINE" >/dev/null; then
+        infra_fail "Could not stage the Phase 3 health check for the native system"
+        exit 1
+    fi
+    # Failed units in Phase 2 fail the run as they do on the native system:
+    # only the reviewed known-failure list in phase3-health.sh is exempt.
+    # Phase 2 is permissive, so the agent can query systemd here.
+    P3_P2_UNITS_STATUS=0
+    P3_P2_UNITS=$(WOOTC_QGA_CALL_TIMEOUT=240 qga_call exec /bin/sh -c \
+        "$P3_HEALTH_SCRIPT" wootc-phase3-health phase2-units 2>&1) || P3_P2_UNITS_STATUS=$?
+    printf '%s\n' "$P3_P2_UNITS" | tee "$ARTIFACT_DIR/phase2-units.log"
+    if printf '%s\n' "$P3_P2_UNITS" | grep -q '^FAIL:'; then
+        product_fail "Phase 2 has failed units outside the known-failure list"
+    elif [ "$P3_P2_UNITS_STATUS" -ne 0 ]; then
+        infra_fail "Phase 2 failed-unit check failed without a product finding"
+        exit 1
+    else
+        pass "Phase 2 has no failed units outside the known-failure list"
     fi
 
     info "Phase 3: go-native status"
@@ -4604,7 +4630,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
         2>/dev/null | tr -d '\r\n ' || true)
     if [ -z "$P3_TARGET" ]; then
-        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
+        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=64G)"
         exit 1
     fi
     # Belt-and-braces: never hand a disk with data on it to --wipe.
@@ -4633,8 +4659,16 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # file, and go-native logs the scratch and target-disk totals each 30 s
     # while either moves. No new progress for P3_STALL_SECS is a hang;
     # P3_MAX_SECS caps a migration that keeps moving and never finishes.
-    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}
-    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}
+    #
+    # Measured on a hosted runner (probe 44807218628, bluefin:stable): the
+    # pull alone took 41 minutes. ghcr.io blob reads stalled three times for
+    # 6-8 minutes, and then the expired signed blob URL failed with 403. That
+    # restarted the attempt, which kept the layers already copied. The third
+    # attempt finished. The deployer's pull of the same image in the same run
+    # took 26 minutes, with the same 403s. fisherman's install then takes
+    # about 5 minutes. Hence 15 minutes of silence and 75 minutes in total.
+    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}
+    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}
     P3_START=$(date +%s)
     P3_DEADLINE=$(deadline_in "$P3_MAX_SECS")
     P3_RESULT=""
@@ -5066,15 +5100,41 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # Phase 3 generic post-boot health gate. The script reports every observed
     # product finding before it exits. Gate on both channels: any explicit
     # FAIL line is a product failure even if a future script bug returns zero;
-    # a non-zero guest command without a finding is infrastructure-unknown.
-    if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
-        infra_fail "Could not read Phase 3 health script"
+    # a non-zero check without a finding is infrastructure-unknown.
+    #
+    # The check runs on the native system from wootc-e2e-native-health.service
+    # (wootc-go-native), which exports its output to /run; this only reads
+    # the export. Run through the agent, every systemctl call answered
+    # "Access denied" (probe 44833993709). Keep the agent's own view beside
+    # the export as the record of why.
+    WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        'echo "context: $(cat /proc/self/attr/current)"; echo "getenforce: $(getenforce 2>&1)"; echo "is-system-running: $(systemctl is-system-running 2>&1)"' \
+        > "$ARTIFACT_DIR/phase3-agent-view.log" 2>&1 || true
+    sed 's/^/  agent view: /' "$ARTIFACT_DIR/phase3-agent-view.log" || true
+    # The check waits up to 300 s for the boot to finish, then inspects
+    # labels under /etc and /var/home. The trailer proves the guest read the
+    # whole export; a failed or cut-off read is asked again.
+    P3_HEALTH_DEADLINE=$(deadline_in "${WOOTC_E2E_P3_HEALTH_WAIT_SECS:-600}")
+    while :; do
+        P3_HEALTH_EXPORT=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+            'cat /run/wootc-e2e-native-health && echo HEALTH_READ=complete' 2>/dev/null || true)
+        if [ "${P3_HEALTH_EXPORT##*$'\n'}" = HEALTH_READ=complete ]; then
+            P3_HEALTH_EXPORT=${P3_HEALTH_EXPORT%$'\n'HEALTH_READ=complete}
+            break
+        fi
+        P3_HEALTH_EXPORT=""
+        past_deadline "$P3_HEALTH_DEADLINE" && break
+        sleep 5
+    done
+    if [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 1p)" != HEALTH_SCHEMA=1 ] \
+        || [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 2p)" != "HEALTH_BOOT_ID=$P3_NATIVE_BOOT_ID" ] \
+        || ! printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 3p | grep -Eq '^HEALTH_STATUS=[0-9]+$'; then
+        printf '%s\n' "$P3_HEALTH_EXPORT" | head -5
+        infra_fail "Phase 3 health export is absent, malformed or not from this boot ($P3_NATIVE_BOOT_ID)"
         exit 1
     fi
-    P3_HEALTH_STATUS=0
-    P3_HEALTH_OUTPUT=$(WOOTC_QGA_CALL_TIMEOUT=360 qga_call exec /bin/sh -c \
-        "$P3_HEALTH_SCRIPT" wootc-phase3-health check "$P3_HEALTH_BASELINE" 2>&1) \
-        || P3_HEALTH_STATUS=$?
+    P3_HEALTH_STATUS=$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 's/^HEALTH_STATUS=//p;3q')
+    P3_HEALTH_OUTPUT=$(printf '%s\n' "$P3_HEALTH_EXPORT" | tail -n +4)
     printf '%s\n' "$P3_HEALTH_OUTPUT"
     if ! printf '%s\n' "$P3_HEALTH_OUTPUT" > "$ARTIFACT_DIR/phase3-health.log"; then
         infra_fail "Could not retain the Phase 3 health observations"

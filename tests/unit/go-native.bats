@@ -76,7 +76,8 @@ STUB
 }
 
 @test "--phase3 provisions its dedicated blank target and handles none found" {
-    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
+    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"' "$E2E_RUNNER"
+    grep -Fq "WOOTC_E2E_DISK2_SIZE: \${{ inputs.phase3 && '64G' || '' }}" "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     # The mount TARGET is a variable on purpose: dockur creates a disk2 whenever
     # /storage2 exists, defaulting to 64 GiB, and formatting it every run starved
     # swtpm's startup race and silently disabled TPM. So phase3 runs mount it at
@@ -503,6 +504,87 @@ NTFSINFO
     [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
 }
 
+@test "Phase-3 labels the native /etc and /var with the target policy before the boot is scheduled" {
+    # Probe 44843263310: on the enforcing native system 5943 paths under /etc
+    # and /var/home kept the labels of offline useradd and of the /home copy
+    # (passwd as etc_t, /var/home/linuxbrew as home_root_t).
+    grep -qF 'setfiles -F -r "$dep" "$fc" "$dep/etc"' "$GN"
+    grep -qF 'setfiles -F -r "$stateroot" "$fc" "$stateroot/var"' "$GN"
+    local label boot rsync
+    label=$(grep -nF 'setfiles -F -r "$dep"' "$GN" | head -1 | cut -d: -f1)
+    rsync=$(grep -nF 'rsync -aHAX /home/ "$dest/"' "$GN" | head -1 | cut -d: -f1)
+    boot=$(grep -n 'BootNext' "$GN" | awk -F: -v l="$label" '$1 > l { print $1; exit }')
+    [ "$rsync" -lt "$label" ]
+    [ -n "$boot" ]
+    # A failed relabel stops before the native boot is scheduled.
+    grep -q 'die "could not apply the native system.s SELinux labels' "$GN"
+}
+
+@test "Phase-3 runs the post-boot health check from a boot unit that does not hold the boot" {
+    # Probe 44833993709: run through the confined agent on the native system,
+    # every systemctl call answered "Access denied". The check runs from
+    # init's context instead. It waits for the boot itself, so a oneshot
+    # (or ordering before the agent) would wait on its own start job.
+    local block unit
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        heredoc && $0 == heredoc { heredoc=""; next }
+        heredoc { next }
+        active { print }
+        active && match($0, /<<.[A-Z]+.$/) { heredoc=substr($0, RSTART+3, RLENGTH-4) }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'"/run/wootc-$staged" "$etcroot/wootc/$staged"'* ]]
+    [[ "$block" == *'e2e-native-health.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-health.service'* ]]
+    unit=$(awk '/wootc-e2e-native-health.service" <<.UNIT.$/ { active=1; next }
+        active && /^UNIT$/ { exit }
+        active { print }' "$GN")
+    [[ "$unit" == *'Type=exec'* ]]
+    [[ "$unit" == *'RuntimeMaxSec='* ]]
+    [[ "$unit" != *'Before='* ]]
+    [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-health.sh'* ]]
+}
+
+# native_health_probe <dir>: the HEALTHPROBE script with its /run, /etc and
+# /proc paths moved under <dir>.
+native_health_probe() {
+    awk '/<<.HEALTHPROBE.$/ { active=1; next } active && /^HEALTHPROBE$/ { exit } active { print }' "$GN" \
+        | sed -e "s#/run/wootc-e2e-native-health#$1/out#" \
+              -e "s#/etc/wootc/#$1/etc/#g" \
+              -e "s#/proc/sys/kernel/random/boot_id#$1/boot_id#g" > "$1/probe"
+}
+
+@test "native health probe exports the check's output, status and boot" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    printf 'SCHEMA=1\nDISPLAY_MANAGER=gdm.service\n' > "$d/etc/e2e-phase3-health.baseline"
+    printf '%s\n' 'echo "mode=$1"; printf "%s\n" "$2" | sed "s/^/baseline: /"; echo "FAIL: x"; exit 1' \
+        > "$d/etc/e2e-phase3-health.sh"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[0]}" = HEALTH_SCHEMA=1 ]
+    [ "${lines[1]}" = HEALTH_BOOT_ID=c49ec976-2f51-420f-a1a7-2cda006e6053 ]
+    [ "${lines[2]}" = HEALTH_STATUS=1 ]
+    [ "${lines[3]}" = mode=check ]
+    [ "${lines[4]}" = "baseline: SCHEMA=1" ]
+    [ "${lines[5]}" = "baseline: DISPLAY_MANAGER=gdm.service" ]
+    [ "${lines[6]}" = "FAIL: x" ]
+}
+
+@test "native health probe without a staged check exports a failure, not silence" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[2]}" = HEALTH_STATUS=127 ]
+    [[ "${lines[3]}" == "no health check at $d/etc/e2e-phase3-health.sh"* ]]
+}
+
 @test "Phase-3 copies the QGA sysconfig without Phase 2's label, and not qemu-ga.conf" {
     # Run 39874539856: the native bluefin:stable system reached GDM but QGA
     # never answered. The deployer writes these configs unlabeled; cp -a
@@ -531,13 +613,14 @@ graduation_stubs() {
     HOSTDIR="$TMP/host/wootc"; mkdir -p "$HOSTDIR/disks"
     printf '#!/bin/bash\necho "skopeo $*" >>"%s"\necho "2480000000 2480000000 "\n' "$CALLED" >"$STUBDIR/skopeo"
     printf '#!/bin/bash\necho "Avail"\necho "%s"\n' "$1" >"$STUBDIR/df"
-    for tool in truncate mkfs.ext4 unshare; do
+    for tool in truncate mkfs.ext4; do
         printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
     done
-    # The scratch must exist while the install runs; unshare checks it.
+    # The scratch must exist while the install runs; the staged-install
+    # child (GN_SELF) checks it.
     printf '#!/bin/bash\necho "truncate $*" >>"%s"\n: >"${@: -1}"\n' "$CALLED" >"$STUBDIR/truncate"
-    printf '#!/bin/bash\necho "unshare $* scratch-present=$([ -e "$7" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/unshare"
-    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/unshare
+    printf '#!/bin/bash\necho "gn-self $* scratch-present=$([ -e "$2" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/gn-self"
+    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/gn-self
 }
 
 @test "Phase-3 scratch size matches the deployer's scratch formula" {
@@ -552,13 +635,17 @@ graduation_stubs() {
 
 @test "Phase-3 stages the image in a scratch on the Windows volume, then deletes it" {
     graduation_stubs $(( 28 << 30 ))
-    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SELF="$2/gn-self"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
         _ "$GN" "$STUBDIR" "$HOSTDIR"
     echo "$output"; cat "$CALLED"
     [ "$status" -eq 0 ]
     grep -Fxq "truncate -s 21G $HOSTDIR/cache/native-scratch.img" "$CALLED"
     grep -Fxq "mkfs.ext4 -q -F $HOSTDIR/cache/native-scratch.img" "$CALLED"
-    grep -Fxq "unshare --mount --propagation private -- $GN __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    # A child process in the system's own mount namespace: bootc looks its
+    # source image up with podman in PID 1's namespace (probe 44825571768).
+    grep -Fxq "gn-self __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    run grep -n 'unshare' "$GN"
+    [ "$status" -ne 0 ]
     [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
 }
 
@@ -569,7 +656,7 @@ graduation_stubs() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"needs about 21 GiB of temporary space on the Windows drive"* ]]
     [[ "$output" == *"the drive has 15 GiB free"* ]]
-    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
     [ "$status" -ne 0 ]
     [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
 }
@@ -584,7 +671,7 @@ graduation_stubs() {
     [ "$status" -ne 0 ]
     [[ "$output" == *"cannot read the free space of the Windows drive at $HOSTDIR: df: $HOSTDIR: No such file or directory"* ]]
     [[ "$output" != *"GiB free"* ]]
-    run grep -E '^(truncate|mkfs.ext4|unshare) ' "$CALLED"
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
     [ "$status" -ne 0 ]
 }
 
@@ -601,24 +688,31 @@ graduation_stubs() {
     [[ "$output" == *"the drive has 15 GiB free"* ]]
 }
 
-@test "Phase-3 staged install mounts the scratch over podman's storage and /var/tmp before it pulls" {
+@test "Phase-3 staged install mounts the scratch over podman's storage before it pulls, and unmounts it" {
     for tool in mkdir chmod mount fisherman; do
         printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
     done
     # Nothing is local in a fresh scratch: `podman image exists` fails.
-    printf '#!/bin/bash\necho "podman $*" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
+    printf '#!/bin/bash\necho "podman $* TMPDIR=$TMPDIR" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
     chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/fisherman "$STUBDIR"/podman
     run bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/wootc/cache/native-scratch.img img:tag /run/r.json' \
         _ "$GN" "$STUBDIR"
     echo "$output"; cat "$CALLED"
     [ "$status" -eq 0 ]
+    # /var/tmp stays the session's own; podman stages blobs via TMPDIR.
+    run grep -E '^mount .* /var/tmp$' "$CALLED"
+    [ "$status" -ne 0 ]
     local want=(
         "mount -o loop /h/wootc/cache/native-scratch.img /var/fisherman-tmp"
         "mount --bind /var/fisherman-tmp/host-containers /var/lib/containers"
-        "mount --bind /var/fisherman-tmp/var-tmp /var/tmp"
         "mount -t tmpfs tmpfs /run/containers"
-        "podman pull img:tag"
+        "mount -t tmpfs tmpfs /run/libpod"
+        "podman pull img:tag TMPDIR=/var/fisherman-tmp/var-tmp"
         "fisherman /run/r.json"
+        "umount -R /run/libpod"
+        "umount -R /run/containers"
+        "umount -R /var/lib/containers"
+        "umount -R /var/fisherman-tmp"
     ) prev=0 line
     for w in "${want[@]}"; do
         line=$(grep -Fxn "$w" "$CALLED" | head -1 | cut -d: -f1)
@@ -717,9 +811,21 @@ find_host() {
 @test "E2E bounds Phase 3 by progress, not a fixed count of polls" {
     run grep -F 'seq 1 180' "$E2E_RUNNER"
     [ "$status" -ne 0 ]
-    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-600}' "$E2E_RUNNER"
-    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-2700}' "$E2E_RUNNER"
+    # Probe 44807218628: 6-8 minute registry stalls, a 41-minute pull.
+    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}' "$E2E_RUNNER"
+    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}' "$E2E_RUNNER"
     grep -Fq "stat -c %s /run/wootc-e2e-phase3.progress" "$E2E_RUNNER"
     grep -Fq 'rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress;' "$E2E_RUNNER"
     grep -Fq '> "$ARTIFACT_DIR/phase3-progress.log"' "$E2E_RUNNER"
+}
+
+@test "Phase-3 asks fisherman to validate the recipe before it pulls the image" {
+    # Probe 44807218628 pulled for 41 minutes, then fisherman refused the
+    # 40 GiB target (disk_too_small) at the start of the install.
+    local validate_line staged_line
+    validate_line=$(grep -nm1 '^[^#]*fisherman validate "\$recipe"' "$GN" | cut -d: -f1)
+    staged_line=$(grep -nm1 '^    native_install_staged "\$img" "\$recipe"' "$GN" | cut -d: -f1)
+    [ -n "$validate_line" ] && [ -n "$staged_line" ]
+    [ "$validate_line" -lt "$staged_line" ]
+    grep -A1 'fisherman validate "$recipe"' "$GN" | grep -Fq '|| die "fisherman refuses this install'
 }

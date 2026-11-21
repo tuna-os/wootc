@@ -88,7 +88,7 @@ esac
         self.assertNotIn("FAIL:", result.stdout)
         for observation in [
             "boot completed (running)",
-            "no unexpected failed units",
+            "no failed units outside the known-failure list",
             "system D-Bus is active",
             "logind answers over the bus",
             "display manager gdm.service is active",
@@ -104,6 +104,39 @@ esac
         self.assertIn("stub status for status", result.stdout)
         self.assertIn("every user and group", result.stdout)
 
+    def test_known_failure_is_reported_with_its_issue_not_counted(self):
+        self.capture_baseline()
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn(
+            "known-failure list: fisherman-boot-receipt.service "
+            "(https://github.com/tuna-os/fisherman/issues/508)",
+            result.stdout,
+        )
+        self.assertIn("no failed units outside the known-failure list", result.stdout)
+
+    def test_known_failure_list_matches_names_exactly(self):
+        self.capture_baseline()
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service.d")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service.d", result.stdout)
+
+    def test_phase2_failed_unit_outside_the_list_fails(self):
+        result = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="wootc-host-bind.service")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAIL: unit failed: wootc-host-bind.service", result.stdout)
+        clean = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertEqual(clean.returncode, 0, clean.stdout)
+
+    def test_every_known_failure_names_an_issue_and_a_removal_condition(self):
+        source = HEALTH.read_text()
+        block = source.split("KNOWN_FAILED_UNITS='", 1)[1].split("'", 1)[0]
+        entries = [line.split() for line in block.strip().splitlines()]
+        self.assertEqual([e[0] for e in entries], ["fisherman-boot-receipt.service"])
+        for unit, issue, removal in entries:
+            self.assertRegex(issue, r"^https://github\.com/tuna-os/[a-z-]+/issues/[0-9]+$")
+            self.assertTrue(removal.startswith("remove-when-"), removal)
+
     def test_display_manager_lost_during_graduation_fails(self):
         self.capture_baseline()
         result = self.run_probe("check", HEALTH_DM="")
@@ -116,7 +149,7 @@ esac
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: the pre-graduation health baseline is unavailable or invalid", result.stdout)
 
-    def test_new_selinux_mislabel_and_unlabeled_denial_fail(self):
+    def test_any_selinux_mislabel_and_unlabeled_denial_fail(self):
         self.capture_baseline(HEALTH_SELINUX="Enforcing")
         result = self.run_probe(
             "check",
@@ -129,22 +162,51 @@ esac
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: SELinux denied access to unlabeled files", result.stdout)
-        self.assertIn("FAIL: 1 path(s) under /etc or /var/home", result.stdout)
+        self.assertIn("FAIL: 1 path(s) under /etc or /var/home have incorrect SELinux labels", result.stdout)
+
+    def test_clean_labels_are_asserted_as_zero(self):
+        self.capture_baseline(HEALTH_SELINUX="Enforcing")
+        result = self.run_probe("check", HEALTH_SELINUX="Enforcing")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OK: 0 mislabeled paths under /etc and /var/home", result.stdout)
 
 
 class RunnerHealthVerdictTests(unittest.TestCase):
-    def consumer(self, output="OK: healthy\n", status="0", module=RUNNER):
+    BOOT = "c49ec976-2f51-420f-a1a7-2cda006e6053"
+
+    def export(self, output="OK: healthy", status="0", boot=BOOT):
+        return f"HEALTH_SCHEMA=1\nHEALTH_BOOT_ID={boot}\nHEALTH_STATUS={status}\n{output}\n"
+
+    def consumer(self, export=None, cat_status="0", module=RUNNER):
+        if export is None:
+            export = self.export()
         source = module.read_text()
         start = source.index("    # Phase 3 generic post-boot health gate.")
         end = source.index("    # The point of it all:", start)
         body = source[start:end]
+        # The agent answers the export read with HEALTH_EXPORT; any other
+        # request (the agent's own view) gets a stand-in. The wait ends at
+        # once: the deadline is already past.
         prefix = r'''set -Eeuo pipefail
 RED=; GREEN=; NC=; YELLOW=
-P3_HEALTH_BASELINE='SCHEMA=1'
+P3_NATIVE_BOOT_ID=c49ec976-2f51-420f-a1a7-2cda006e6053
 infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
-qga_call() { printf '%s' "$HEALTH_OUTPUT"; return "$HEALTH_STATUS"; }
+deadline_in() { echo 0; }
+past_deadline() { return 0; }
+sleep() { :; }
+# The guest's `cat ... && echo HEALTH_READ=complete`: the trailer only
+# when the read succeeded.
+qga_call() {
+    case "$*" in
+        *wootc-e2e-native-health*)
+            printf '%s' "$HEALTH_EXPORT"
+            [ "$HEALTH_CAT_STATUS" != 0 ] || echo HEALTH_READ=complete
+            return "$HEALTH_CAT_STATUS" ;;
+        *) echo "context: system_u:system_r:virt_qemu_ga_t:s0" ;;
+    esac
+}
 '''
         with tempfile.TemporaryDirectory() as artifact_dir:
             return subprocess.run(
@@ -154,30 +216,60 @@ qga_call() { printf '%s' "$HEALTH_OUTPUT"; return "$HEALTH_STATUS"; }
                 timeout=4,
                 env={
                     **os.environ,
-                    "HEALTH_OUTPUT": output,
-                    "HEALTH_STATUS": status,
+                    "HEALTH_EXPORT": export,
+                    "HEALTH_CAT_STATUS": cat_status,
                     "SCRIPT_DIR": str(ROOT / "tests/e2e"),
                     "ARTIFACT_DIR": artifact_dir,
                 },
             )
 
-    def test_clean_probe_records_required_native_health_assertion(self):
+    def test_clean_export_records_required_native_health_assertion(self):
         result = self.consumer()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PRODUCT-PASS native-health", result.stdout)
+        self.assertIn("agent view: context: system_u:system_r:virt_qemu_ga_t:s0", result.stdout)
 
-    def test_fail_line_fails_cell_even_when_guest_command_returns_zero(self):
-        result = self.consumer("OK: earlier\nFAIL: display manager stopped\n", "0")
+    def test_fail_line_fails_cell_even_when_check_returns_zero(self):
+        result = self.consumer(self.export("OK: earlier\nFAIL: display manager stopped", "0"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("PRODUCT-FAIL", result.stdout)
         self.assertNotIn("PRODUCT-PASS", result.stdout)
 
-    def test_command_failure_without_product_finding_is_infrastructure(self):
-        result = self.consumer("QGA: channel unavailable\n", "42")
+    def test_check_failure_without_product_finding_is_infrastructure(self):
+        result = self.consumer(self.export("no health check at /etc/wootc/e2e-phase3-health.sh", "127"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("INFRA", result.stdout)
         self.assertNotIn("PRODUCT-FAIL", result.stdout)
         self.assertNotIn("PRODUCT-PASS", result.stdout)
+
+    def test_export_from_another_boot_cannot_pass(self):
+        result = self.consumer(self.export(boot="00000000-0000-0000-0000-000000000000"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent, malformed or not from this boot", result.stdout)
+        self.assertNotIn("PRODUCT-PASS", result.stdout)
+
+    def test_absent_export_is_infrastructure_after_the_wait(self):
+        result = self.consumer("", cat_status="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent", result.stdout)
+        self.assertNotIn("PRODUCT", result.stdout)
+
+    def test_failed_read_of_a_clean_export_cannot_pass(self):
+        # The transport failed after a clean-looking body: without the
+        # trailer, nothing proves the body is whole.
+        result = self.consumer(self.export(), cat_status="42")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent", result.stdout)
+        self.assertNotIn("PRODUCT-PASS", result.stdout)
+
+    def test_check_is_staged_where_go_native_copies_it_from(self):
+        runner = RUNNER.read_text()
+        go_native = (ROOT / "payload/migration/wootc-go-native").read_text()
+        for staged in ("e2e-phase3-health.sh", "e2e-phase3-health.baseline"):
+            self.assertIn(f"/run/wootc-{staged}", runner)
+            self.assertIn(staged, go_native)
+        self.assertIn('"/run/wootc-$staged"', go_native)
+        self.assertIn("/run/wootc-e2e-native-health", go_native)
 
 
 if __name__ == "__main__":
