@@ -1006,18 +1006,32 @@ UNIT
     # system, and init_t was denied creating /var/lib/systemd/random-seed in
     # a var_t directory. setfiles, not restorecon: it applies the given
     # file_contexts with -r rooting the paths at the deployment/stateroot.
+    # The physical root's own directories need it too: the bootc in
+    # bluefin:stable keeps the unlabeled_t that /ostree/deploy inherits from
+    # the fresh filesystem root, and bootupd was denied getattr on
+    # /sysroot/ostree/deploy (probe 44843263310). Those paths are labeled as
+    # bootc labels them, rooted at the physical root; the deployments (their
+    # own logical roots), the stateroot /var (labeled above) and the object
+    # stores are excluded. ostree repo objects are hardlinks of deployment
+    # files, so the repo's system_conf_t must never reach them.
     if [[ -n "$dep" ]]; then
-        local fc stateroot
+        local fc stateroot d
+        local -a keep=()
         stateroot=$(dirname "$(dirname "$dep")")
         fc=$(ls "$dep"/etc/selinux/*/contexts/files/file_contexts 2>/dev/null | head -1)
         if [[ -n "$fc" ]]; then
+            for d in "$mnt"/ostree/deploy/*/deploy/* "$mnt"/ostree/deploy/*/var \
+                "$mnt"/ostree/repo "$mnt"/composefs; do
+                if [[ -d "$d" && ! -L "$d" ]]; then keep+=(-e "$d"); fi
+            done
             if ! command -v setfiles >/dev/null \
                 || ! setfiles -F -r "$dep" "$fc" "$dep/etc" \
-                || ! setfiles -F -r "$stateroot" "$fc" "$stateroot/var"; then
+                || ! setfiles -F -r "$stateroot" "$fc" "$stateroot/var" \
+                || ! setfiles -F -r "$mnt" "${keep[@]}" "$fc" "$mnt"; then
                 umount "$mnt" 2>/dev/null || true
-                die "could not apply the native system's SELinux labels to $dep/etc and $stateroot/var; the native boot is not scheduled"
+                die "could not apply the native system's SELinux labels to $dep/etc, $stateroot/var and the physical root; the native boot is not scheduled"
             fi
-            log "Applied the native system's SELinux labels to /etc and /var"
+            log "Applied the native system's SELinux labels to /etc, /var and the physical root"
         fi
     fi
     sync; umount "$mnt" 2>/dev/null || true
