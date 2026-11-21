@@ -106,36 +106,56 @@ esac
 
     def test_known_failure_is_reported_with_its_issue_not_counted(self):
         self.capture_baseline()
-        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="mcelog.service")
         self.assertEqual(result.returncode, 0, result.stdout)
         self.assertIn(
-            "known-failure list: fisherman-boot-receipt.service "
-            "(https://github.com/tuna-os/fisherman/issues/508)",
+            "known-failure list: mcelog.service "
+            "(https://github.com/ublue-os/bluefin/issues/5197)",
             result.stdout,
         )
         self.assertIn("no failed units outside the known-failure list", result.stdout)
 
     def test_known_failure_list_matches_names_exactly(self):
         self.capture_baseline()
-        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service.d")
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="mcelog.service.d")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service.d", result.stdout)
+        self.assertIn("FAIL: unit failed: mcelog.service.d", result.stdout)
+
+    def test_boot_receipt_is_no_longer_excused(self):
+        # The fisherman pin includes tuna-os/fisherman#509 (issue #508): the
+        # receipt collector waits for bootc-unified-storage.service, so a
+        # failed receipt unit is a real failure again.
+        self.capture_baseline()
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service", result.stdout)
+
+    def test_phase2_still_booting_asks_to_be_asked_again(self):
+        # Probe 44852542894: the QGA client stops a guest command at 60 s and
+        # Phase 2 was still booting; exit 3, never a verdict.
+        result = self.run_probe("phase2-units", HEALTH_SYSTEM_STATE="starting",
+                                HEALTH_FAILED_UNIT="wootc-host-bind.service")
+        self.assertEqual(result.returncode, 3, result.stdout)
+        self.assertIn("Phase 2 is still booting (starting)", result.stdout)
+        self.assertNotIn("FAIL:", result.stdout)
 
     def test_phase2_failed_unit_outside_the_list_fails(self):
         result = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="wootc-host-bind.service")
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: unit failed: wootc-host-bind.service", result.stdout)
-        clean = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        clean = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="mcelog.service")
         self.assertEqual(clean.returncode, 0, clean.stdout)
 
     def test_every_known_failure_names_an_issue_and_a_removal_condition(self):
         source = HEALTH.read_text()
         block = source.split("KNOWN_FAILED_UNITS='", 1)[1].split("'", 1)[0]
         entries = [line.split() for line in block.strip().splitlines()]
-        self.assertEqual([e[0] for e in entries], ["fisherman-boot-receipt.service"])
+        self.assertEqual([e[0] for e in entries], ["mcelog.service"])
         for unit, issue, removal in entries:
-            self.assertRegex(issue, r"^https://github\.com/tuna-os/[a-z-]+/issues/[0-9]+$")
+            self.assertRegex(issue, r"^https://github\.com/[a-z-]+/[a-z-]+/issues/[0-9]+$")
             self.assertTrue(removal.startswith("remove-when-"), removal)
+            # Every exemption expires: the note carries the date to drop it.
+            self.assertRegex(removal, r"-on-[0-9]{4}-[0-9]{2}-[0-9]{2}-", removal)
 
     def test_display_manager_lost_during_graduation_fails(self):
         self.capture_baseline()

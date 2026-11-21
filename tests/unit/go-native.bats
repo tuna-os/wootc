@@ -520,6 +520,47 @@ NTFSINFO
     grep -q 'die "could not apply the native system.s SELinux labels' "$GN"
 }
 
+# relabel_block — the relabel step of graduate_to_disk_execute, for eval in a
+# function that sets mnt and dep.
+relabel_block() {
+    awk '/^    # Label everything graduation wrote/ { a=1 }
+        a && /^    if \[\[ -n "\$dep" \]\]; then$/ { b=1 }
+        b { print }
+        b && /^    fi$/ { exit }' "$GN"
+}
+
+@test "Phase-3 labels the physical root without reaching the deployments, the stateroot /var or the repo" {
+    # Probe 44843263310: bootupd was denied getattr on an unlabeled
+    # /sysroot/ostree/deploy. Repo objects are hardlinks of deployment files:
+    # the repo's label must never reach them, nor the deployments' roots.
+    local block mnt dep fc
+    block=$(relabel_block)
+    [[ "$block" == *setfiles* ]]
+    mnt="$TMP/phys"; dep="$mnt/ostree/deploy/default/deploy/abc.0"
+    fc="$dep/etc/selinux/targeted/contexts/files/file_contexts"
+    mkdir -p "$(dirname "$fc")" "$mnt/ostree/repo/objects/ab" "$mnt/ostree/deploy/default/var/home" \
+        "$mnt/ostree/deploy/default/deploy/old.0" "$mnt/ostree/bootc"
+    : >"$fc"; : >"$mnt/ostree/deploy/default/deploy/abc.origin"
+    ln -s abc.0 "$mnt/ostree/deploy/default/deploy/current"
+    printf '#!/bin/bash\necho "setfiles $*" >>"%s"\n[[ "$*" != *"${SETFILES_FAIL:-none}"* ]]\n' \
+        "$CALLED" >"$STUBDIR/setfiles"
+    chmod +x "$STUBDIR/setfiles"
+    run env BLOCK="$block" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { echo "LOG: $*"; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^setfiles ' "$CALLED")" -eq 3 ]
+    grep -qxF "setfiles -F -r $dep $fc $dep/etc" "$CALLED"
+    grep -qxF "setfiles -F -r $mnt/ostree/deploy/default $fc $mnt/ostree/deploy/default/var" "$CALLED"
+    grep -qxF "setfiles -F -r $mnt -e $dep -e $mnt/ostree/deploy/default/deploy/old.0 -e $mnt/ostree/deploy/default/var -e $mnt/ostree/repo $fc $mnt" "$CALLED"
+    # A failed physical-root relabel stops before the boot is scheduled.
+    : >"$CALLED"
+    run env BLOCK="$block" SETFILES_FAIL="-r $mnt -e" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { :; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DIE: could not apply the native system's SELinux labels"*"the physical root"* ]]
+    grep -qx "umount $mnt" "$CALLED"
+}
+
 @test "Phase-3 runs the post-boot health check from a boot unit that does not hold the boot" {
     # Probe 44833993709: run through the confined agent on the native system,
     # every systemctl call answered "Access denied". The check runs from

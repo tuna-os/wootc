@@ -22,7 +22,7 @@ import (
 // installed system where wootc-passthrough.service has bridged the
 // Windows volume at /run/wootc/host. The Windows knowledge (which profile
 // folders bridge, which profile is the user's, where the look bundle
-// lives) comes from the shared slurp module, which fisherman uses too.
+// lives) comes from wootc's own slurp module; fisherman has no Windows code.
 
 const hostVolume = "/run/wootc/host"
 

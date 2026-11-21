@@ -36,8 +36,12 @@ ok() { echo "OK: $*"; }
 # Known failures: a reviewed list of exact unit names, never patterns. Each
 # entry is "<unit> <issue URL> <when to remove it>". Any failed unit that is
 # not on the list fails the check, in Phase 2 and on the native system.
+# mcelog.service: bluefin:stable enables it, and mcelog exits 1 on AMD Zen
+# ("AMD Processor family 25: mcelog does not support this processor"), the
+# CPU of the hosted runners (probe 44843263310). It is the image's unit, not
+# wootc's; the entry expires when the fix ships or on 2027-02-28.
 KNOWN_FAILED_UNITS='
-fisherman-boot-receipt.service https://github.com/tuna-os/fisherman/issues/508 remove-when-the-fisherman-submodule-includes-tuna-os/fisherman#509
+mcelog.service https://github.com/ublue-os/bluefin/issues/5197 remove-when-bluefin:stable-ships-the-fix-or-on-2027-02-28-whichever-is-first
 '
 
 describe_failed_unit() {
@@ -79,7 +83,16 @@ case "${1:-check}" in
         exit $?
         ;;
     phase2-units)
-        timeout 150 systemctl is-system-running --wait >/dev/null 2>&1 || :
+        # The QGA client stops a guest command after 60 s, and Phase 2 can
+        # still be booting for minutes (probe 44852542894: guest-exec timed
+        # out in is-system-running --wait). Exit 3 while it boots; the
+        # runner asks again.
+        _health_state=$(timeout 45 systemctl is-system-running --wait 2>/dev/null)
+        case "$_health_state" in
+            ''|initializing|starting)
+                echo "  Phase 2 is still booting (${_health_state:-no answer within 45 s})"
+                exit 3 ;;
+        esac
         check_failed_units
         exit "$fail"
         ;;
