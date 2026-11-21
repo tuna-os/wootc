@@ -2579,6 +2579,10 @@ QGAEOF
     fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-wsl-bridge"
+    # Developer setup (§4.6): public SSH files + Git identity, run per user on
+    # every Phase-2 boot by wootc-mount-user-dirs. /var/usrlocal, not /usr:
+    # composefs-sealed images hide deployer writes under /usr at runtime.
+    mig_opt 755 wootc-developer-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-developer-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
     # first boot (oneshot service), not in this minimal initramfs. Stage the
     # exported profiles into the deployment; the bridge imports then shreds them.

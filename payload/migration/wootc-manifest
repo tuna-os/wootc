@@ -204,15 +204,37 @@ def builtin_cat_identity(user):
     return True, items, "Password is never migrated"
 
 
+def builtin_cat_developer(user):
+    """Windows-native ~/.ssh and ~/.gitconfig; listing names only, never reading keys."""
+    root = os.path.join(HOST, "Users", user)
+    items = []
+    ssh = os.path.join(root, ".ssh")
+    try:
+        names = os.listdir(ssh) if os.path.isdir(ssh) and not os.path.islink(ssh) else []
+    except OSError:
+        names = []
+    public = [n for n in names if n.endswith(".pub") or n in ("config", "known_hosts", "authorized_keys")]
+    if public:
+        items.append({"id": "ssh", "label": "SSH public keys, config, known_hosts",
+                      "detail": f"{len(public)} file(s); private keys stay on Windows",
+                      "fileCount": len(public), "sizeBytes": 0})
+    if os.path.isfile(os.path.join(root, ".gitconfig")):
+        items.append({"id": "git-identity", "label": "Git identity",
+                      "detail": "user name, email, signing key and default branch only",
+                      "fileCount": 1, "sizeBytes": 0})
+    return bool(items), items, "SSH public keys + Git identity; private keys and Windows credentials stay on Windows"
+
+
 STANDARD_CATEGORIES = [
     ("files",    "Your files",        builtin_cat_files),
     ("browsers", "Browsers",          builtin_cat_browsers),
     ("office",   "Office documents",  builtin_cat_office),
     ("games",    "Games (Steam)",     builtin_cat_games),
     ("wifi",     "Wi-Fi networks",    builtin_cat_wifi),
-    ("wsl",      "WSL / developer",   builtin_cat_wsl),
+    ("wsl",      "WSL",               builtin_cat_wsl),
     ("look",     "Windows look",      builtin_cat_look),
     ("identity", "Identity",           builtin_cat_identity),
+    ("developer", "Developer setup",  builtin_cat_developer),
 ]
 
 

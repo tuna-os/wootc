@@ -381,6 +381,7 @@ jobs:
             payload/migration/wootc-go-native \
             payload/migration/wootc-wifi-bridge \
             payload/migration/wootc-wsl-bridge \
+            payload/migration/wootc-developer-bridge \
             payload/migration/wootc-apply-look
 
       - name: yamllint

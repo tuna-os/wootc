@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Office, Steam and external-file import: preserve native files, publish complete copies.
+"""Office, Steam, developer-setup and external-file import: preserve native files, publish complete copies.
 
 All destination operations are relative to an owned, no-symlink directory fd.
 Only newly created inodes are chowned. Existing application files are never
@@ -640,6 +640,196 @@ def wsl(home, rootfs, formulae, target):
     return finish(home, '.config/wootc/wsl-bridge.json', result)
 
 
+# Destination mode per copyable ~/.ssh file. config and authorized_keys are
+# 0600 because OpenSSH refuses a config or authorized_keys others can write,
+# and a config can name private hosts; keys and known_hosts are public.
+SSH_MODES = {'config': 0o600, 'authorized_keys': 0o600, 'known_hosts': 0o644}
+# The only Git settings that describe the person rather than the machine.
+GIT_IDENTITY = (('user', 'name'), ('user', 'email'), ('user', 'signingkey'), ('init', 'defaultbranch'))
+GIT_WINDOWS_ONLY = {'credential': 'Windows credential store; sign in again on Linux',
+                    'core.autocrlf': 'Windows line-ending conversion; Linux uses LF',
+                    'core.sshcommand': 'points at a Windows SSH client',
+                    'include': 'included config files are not followed',
+                    'includeif': 'included config files are not followed'}
+WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
+
+
+def git_entries(text):
+    """Yield (section, subsection, key, value) using git's own value rules.
+
+    A misread quote or continuation would attribute a key to the wrong
+    section, so anything git itself would reject is refused, not guessed.
+    """
+    lines = text.splitlines()
+    section = subsection = None
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        index += 1
+        if line.startswith('['):
+            header = re.match(r'\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\]\s*(.*)$', line)
+            if not header:
+                raise Refusal('unparseable .gitconfig section header')
+            name, quoted, line = header.groups()
+            section, _, legacy = name.lower().partition('.')
+            subsection = re.sub(r'\\(.)', r'\1', quoted) if quoted is not None else (legacy or None)
+        if not line or line[0] in '#;':
+            continue
+        if section is None:
+            raise Refusal('.gitconfig key outside a section')
+        entry = re.match(r'([A-Za-z][A-Za-z0-9-]*)\s*(=?)(.*)$', line)
+        if not entry or (not entry.group(2) and entry.group(3).strip()[:1] not in ('', '#', ';')):
+            raise Refusal('unparseable .gitconfig line')
+        key, assigned, chars = entry.group(1).lower(), entry.group(2), entry.group(3)
+        if not assigned:
+            yield section, subsection, key, None
+            continue
+        # git's parse_value: unquoted whitespace runs collapse into spaces
+        # only between characters, #/; start a comment, \ at end continues.
+        value, space, quote, position = [], 0, False, 0
+        while True:
+            if position >= len(chars):
+                if quote:
+                    raise Refusal('unterminated quote in .gitconfig')
+                break
+            char = chars[position]
+            position += 1
+            if char in ' \t' and not quote:
+                space += 1 if value else 0
+                continue
+            if char in '#;' and not quote:
+                break
+            if space:
+                value.append(' ' * space)
+            space = 0
+            if char == '\\':
+                if position >= len(chars):
+                    if index >= len(lines):
+                        break
+                    chars, position, index = lines[index], 0, index + 1
+                    continue
+                escaped = {'n': '\n', 't': '\t', 'b': '\b', '\\': '\\', '"': '"'}.get(chars[position])
+                if escaped is None:
+                    raise Refusal('invalid escape in .gitconfig')
+                position += 1
+                value.append(escaped)
+            elif char == '"':
+                quote = not quote
+            else:
+                value.append(char)
+        yield section, subsection, key, ''.join(value)
+
+
+def git_quote(value):
+    escaped = (value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+               .replace('\t', '\\t').replace('\b', '\\b'))
+    return '"' + escaped + '"' if escaped != escaped.strip() or any(c in escaped for c in '#;') else escaped
+
+
+def git_identity(raw, result):
+    """Return a .gitconfig holding only identity keys; record every key left behind."""
+    identity, skipped = {}, {}
+    for section, subsection, key, value in git_entries(raw.decode('utf-8-sig')):
+        name = '.'.join(part for part in (section, subsection, key) if part is not None)
+        if subsection is not None or (section, key) not in GIT_IDENTITY:
+            skipped.setdefault(name, GIT_WINDOWS_ONLY.get(section + '.' + key) or GIT_WINDOWS_ONLY.get(section)
+                               or 'only the Git identity (user name, email, signing key) and init.defaultBranch are carried')
+            continue
+        # git uses the last value, so a later unusable one cancels an earlier one.
+        identity.pop((section, key), None)
+        skipped.pop(name, None)
+        if value is None or not value.strip():
+            skipped[name] = 'no value'
+        elif WINDOWS_PATH.match(value):
+            skipped[name] = 'Windows path'
+        else:
+            identity[(section, key)] = value
+    result['notCarried'] += [{'path': '.gitconfig', 'key': name, 'reason': reason}
+                             for name, reason in sorted(skipped.items())]
+    if not identity:
+        return None
+    body = ('# Git identity carried over from Windows by wootc. Only these keys were\n'
+            '# copied; ~/.config/wootc/bridge-developer.json lists what stayed behind.\n')
+    for section in ('user', 'init'):
+        keys = [(key, identity[(s, key)]) for s, key in GIT_IDENTITY if s == section and (s, key) in identity]
+        if keys:
+            body += '[' + section + ']\n'
+            body += ''.join('\t' + {'defaultbranch': 'defaultBranch'}.get(key, key) + ' = ' + git_quote(value) + '\n'
+                            for key, value in keys)
+    return body.encode('utf-8')
+
+
+def developer(home, host, winuser):
+    """Public SSH material and Git identity; private keys are refused and listed."""
+    source = host / 'Users' / winuser
+    result = outcome()
+    result.update(leftOnWindows=[], notCarried=[])
+    copies, git_raw = [], None
+    with source_authority():
+        if not source.is_dir() or source.is_symlink():
+            raise Refusal('missing or symlinked Windows profile')
+        ssh = source / '.ssh'
+        entries = []
+        if ssh.is_symlink() or (ssh.exists() and not ssh.is_dir()):
+            result['failed'].append({'path': '.ssh', 'error': 'source .ssh must be a real directory'})
+        elif ssh.is_dir():
+            entries = sorted(ssh.iterdir())
+        names = {path.name for path in entries}
+        for path in entries:
+            relative = '.ssh/' + path.name
+            wanted = path.name in SSH_MODES or path.name.endswith('.pub')
+            if path.is_dir() and not path.is_symlink():
+                result['notCarried'].append({'path': relative, 'reason': 'subdirectories are not copied'})
+                continue
+            # Name rules first: a private key is never opened just to classify it.
+            if path.name + '.pub' in names:
+                reason = 'private key: a matching .pub file exists'
+            elif path.name.startswith('id_') and '.' not in path.name:
+                reason = 'private key: id_* file without an extension'
+            elif path.suffix.lower() == '.ppk':
+                reason = 'private key: PuTTY key file'
+            else:
+                try:
+                    with source_file(path) as stream:
+                        head = stream.readline(4096)
+                except (OSError, ValueError) as error:
+                    if wanted:
+                        result['failed'].append({'path': relative, 'error': str(error)})
+                    else:
+                        result['notCarried'].append({'path': relative, 'reason': 'not a regular file'})
+                    continue
+                reason = 'private key: first line is a PRIVATE KEY header' if b'PRIVATE KEY' in head else None
+            if reason:
+                result['leftOnWindows'].append({'path': relative, 'reason': reason})
+            elif wanted:
+                copies.append((path, relative, SSH_MODES.get(path.name, 0o644)))
+            else:
+                result['notCarried'].append({'path': relative, 'reason':
+                                             'only SSH public keys, config, known_hosts and authorized_keys are copied'})
+        gitconfig = source / '.gitconfig'
+        if gitconfig.exists() or gitconfig.is_symlink():
+            try:
+                git_raw = source_bytes(gitconfig)
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': '.gitconfig', 'error': str(error)})
+    for path, relative, mode in copies:
+        item(result, relative, lambda p=path, r=relative, m=mode: home.publish(r, source=p, mode=m))
+    if git_raw is not None:
+        try:
+            body = git_identity(git_raw, result)
+            # git also reads ~/.config/git/config; a native one is the user's
+            # identity, and a new ~/.gitconfig would silently override it.
+            if body is not None and home.read('.config/git/config') is not None:
+                result['preserved'].append('.config/git/config')
+            elif body is not None:
+                item(result, '.gitconfig', lambda: home.publish('.gitconfig', data=body))
+        except (OSError, ValueError) as error:
+            result['failed'].append({'path': '.gitconfig', 'error': str(error)})
+    result['note'] = ('Private SSH keys and Windows-only Git settings stay on Windows. '
+                      'Existing Linux files are preserved, never overwritten.')
+    return finish(home, '.config/wootc/bridge-developer.json', result)
+
+
 @contextlib.contextmanager
 def target_home(account):
     original_uid, original_gid = os.geteuid(), os.getegid()
@@ -751,7 +941,7 @@ def external_categories(account, winuser, target, categories):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('category', choices=('office', 'steam', 'files', 'wsl', 'external'))
+    parser.add_argument('category', choices=('office', 'steam', 'files', 'wsl', 'developer', 'external'))
     parser.add_argument('winuser', nargs='?')
     parser.add_argument('target', nargs='?')
     parser.add_argument('categories', nargs='*')
@@ -785,7 +975,7 @@ def main():
             with home.lock():
                 record = '.config/wootc/' + {'office': 'bridge-office.json',
                          'steam': 'bridge-steam.json', 'files': 'import-files.json',
-                         'wsl': 'wsl-bridge.json'}[args.category]
+                         'wsl': 'wsl-bridge.json', 'developer': 'bridge-developer.json'}[args.category]
                 home.record(record, {**outcome(), 'status': 'partial',
                                      'note': 'Import started; no completed result yet.'})
                 try:
@@ -793,6 +983,8 @@ def main():
                         raise Refusal('Windows source is not mounted')
                     if args.category == 'office':
                         result = office(home, host, args.winuser)
+                    elif args.category == 'developer':
+                        result = developer(home, host, args.winuser)
                     elif args.category == 'files':
                         result = files(home, host, args.winuser)
                     elif args.category == 'wsl':
