@@ -5051,36 +5051,11 @@ fi
 # Compare the persisted product record with facts collected from this running
 # installed Linux. Neither a lifecycle word nor a previous record proves this boot.
 FIRSTBOOT_RECORD_FILE="$ARTIFACT_DIR/installed-linux-boot-check.json"
-# The product collector is re-run here, now, and every identity field must
-# agree with what the first boot recorded. writtenAt is the measurement time;
-# failedUnits is reported, not identity, but no wootc unit may have failed at
-# either reading.
-if qga_call exec /usr/bin/python3 -c '
-import importlib.util,json,pathlib,sys
-host=pathlib.Path("/run/initramfs/wootc-host")
-sys.path.insert(0,"/var/usrlocal/lib/wootc")
-helper=pathlib.Path("/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py")
-spec=importlib.util.spec_from_file_location("firstboot_observer",helper)
-module=importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-current=module.collect(host)
-path=host/"wootc/install/installed-linux-boot.json"
-with path.open(encoding="utf-8-sig") as stream:
-    raw=stream.read(65537)
-if len(raw)>65536: raise ValueError("oversized firstboot record")
-persisted=json.loads(raw)
-for key in current:
-    if key not in ("writtenAt","failedUnits") and persisted.get(key) != current[key]:
-        raise ValueError("persisted firstboot record differs from current boot: "+key)
-for record in (persisted,current):
-    failed=[unit for unit in record.get("failedUnits",[]) if unit.startswith("wootc-")]
-    if failed: raise ValueError("wootc units failed: "+", ".join(failed))
-state=json.loads((host/"wootc/state.json").read_text(encoding="utf-8-sig"))
-if state.get("state") != "healthy": raise ValueError("firstboot state is not healthy")
-if not (host/"wootc/install/installed-linux-boot.complete").is_file():
-    raise ValueError("firstboot publication did not complete")
-print(json.dumps({"persisted":persisted,"current":current},indent=2))
-' > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
+# lib/firstboot_record_check.py re-runs the product collector now; every
+# identity field must agree with the first boot's record, the bridge net of
+# folders converted since (the migration suite converts one before this).
+if qga_call exec /usr/bin/python3 -c "$(cat "$SCRIPT_DIR/lib/firstboot_record_check.py")" \
+    > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
     pass "Installed Linux first-boot record matches this boot, disk, image, ESP and bridge"
     native_proof_capture_linux || { capture_vm_diagnostics; exit 1; }
 else

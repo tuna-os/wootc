@@ -180,17 +180,24 @@ def crypt_verify(password, stored):
     return result is not None and result.decode() == stored
 
 
-def su_login(user, password, nonce):
+# su prompts in the caller's locale, and the suite seeds a German Windows
+# (probe 44889931801: "Passwort:" never matched "Password", so no password was
+# sent and a working login read as failed). Run su in the C locale.
+SU_ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C"}
+
+
+def su_login(user, password, nonce, su=None, drop_privileges=True):
     """A real PAM password login: an unprivileged process runs su, which
     must authenticate the password through PAM before running anything."""
-    su = shutil.which("su") or "/usr/bin/su"
+    su = su or shutil.which("su") or "/usr/bin/su"
     pid, fd = pty.fork()
     if pid == 0:
         try:
-            os.setgroups([])
-            os.setgid(65534)
-            os.setuid(65534)
-            os.execv(su, [su, "-", user, "-c", f"echo {nonce}"])
+            if drop_privileges:
+                os.setgroups([])
+                os.setgid(65534)
+                os.setuid(65534)
+            os.execve(su, [su, "-", user, "-c", f"echo {nonce}"], SU_ENV)
         finally:
             os._exit(127)
     output, sent, deadline = b"", False, time.monotonic() + 60
