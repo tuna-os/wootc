@@ -288,6 +288,8 @@ Native graduation and Windows removal are different operations.
 The current execution path can graduate Linux onto a separate disk that the harness verifies as blank in the test harness.
 It retains Windows and the original `root.disk`.
 This proof does not establish an install onto free space on the same disk.
+The native disk keeps the name, time zone, language, keyboard layout and
+saved Wi-Fi networks of the Linux system that you graduate.
 
 The helper also prints plans for an in-place move and Windows removal.
 The app cannot execute those plans for normal use.
