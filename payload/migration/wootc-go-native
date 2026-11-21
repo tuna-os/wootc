@@ -623,6 +623,16 @@ phase2_recipe_settings() {
         "$(env_file_value "$etc/vconsole.conf" XKBMODEL)"
 }
 
+# carry_rtc_mode <native etc> — this system's hardware-clock mode
+# (/etc/adjtime; deploy.sh's write_rtc_adjtime sets LOCAL when Windows keeps
+# the RTC in local time). The dual-boot native system shares the RTC with the
+# same Windows, so it keeps the same mode. No adjtime: the RTC stays UTC.
+carry_rtc_mode() {
+    local etc=${WOOTC_GN_ETC:-/etc}
+    [[ -f "$etc/adjtime" ]] || return 0
+    cp -a "$etc/adjtime" "$1/adjtime"
+}
+
 # phase2_flatpak_apps — the app IDs of this system's system-wide Flatpak
 # installation, one per line. Nothing when flatpak is absent or lists none.
 phase2_flatpak_apps() {
@@ -859,6 +869,7 @@ EOF
     mkdir -p "$etcroot/wootc"
     cp -a /etc/wootc/. "$etcroot/wootc/" 2>/dev/null || true
     printf '%s\n' "$target" > "$etcroot/wootc/native-target"
+    carry_rtc_mode "$etcroot" || log "WARN: the hardware-clock mode (/etc/adjtime) was not carried"
     carry_wootc_printers /etc/cups /var/lib/wootc/printers.json "$etcroot" "$nvar" \
         || log "WARN: printer queues not carried to the native install"
     if [[ -x /var/usrlocal/libexec/wootc-e2e-phase3-dispatch ]]; then

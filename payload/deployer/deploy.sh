@@ -629,6 +629,53 @@ phase2_host_loader() {
     esac
 }
 
+# ── Hardware clock kept in Windows local time ───────────────────────────────
+# clock.json (app/clock_handoff.go) says how Windows keeps the RTC. Windows
+# stores local time there unless RealTimeIsUniversal is set, and this kernel
+# read it as UTC. On a PC set to Tokyo time the deployer ran 9 hours fast and
+# the E2E rejected deployer-started.json as written in the future (probe
+# 44869134695).
+#
+# correct_rtc_local_clock <clock.json> — subtract Windows' UTC offset from the
+# system clock, once per boot (a /run marker), before anything here writes a
+# timestamp. No record, an RTC kept in UTC, or an unreadable record: the clock
+# stays as the kernel read it. The RTC itself is not written.
+correct_rtc_local_clock() {
+    local record=$1 mark=${WOOTC_CLOCK_MARK:-/run/wootc-clock-corrected} fields local_rtc offset now
+    [[ -r "$record" && ! -e "$mark" ]] || return 0
+    fields=$(jq -r 'select(.schemaVersion == 1 and (.rtcLocal | type) == "boolean" and (.utcOffsetSeconds | type) == "number") | "\(.rtcLocal) \(.utcOffsetSeconds)"' "$record" 2>/dev/null || true)
+    read -r local_rtc offset <<<"$fields"
+    # Real offsets run from UTC-12 to UTC+14.
+    if [[ ! "$offset" =~ ^-?[0-9]{1,5}$ ]] || (( offset < -50400 || offset > 50400 )); then
+        err "  [WARN] clock.json is unreadable; the clock stays as the hardware clock reads"
+        return 0
+    fi
+    [[ "$local_rtc" == true && "$offset" != 0 ]] || return 0
+    now=$(date -u +%s)
+    if date -u -s "@$(( now - offset ))" >/dev/null; then
+        : > "$mark"
+        log "hardware clock holds Windows local time (UTC offset ${offset}s); system clock set to $(date -u +%FT%TZ)"
+    else
+        err "  [WARN] could not correct the clock for Windows local time"
+    fi
+}
+
+# write_rtc_adjtime <clock.json> <deployment etc> — dual boot with a Windows
+# that keeps the RTC in local time: the installed system keeps it in local
+# time too (/etc/adjtime LOCAL, adjtime(5)). Otherwise it boots hours off
+# until NTP steps, and then rtcsync writes UTC to the RTC and Windows is hours
+# off on return. LOCAL needs the right /etc/localtime: the record's zone,
+# which slurp_recipe_settings puts in the recipe when slurp.json has none. An
+# unmapped Windows zone (empty timezone) leaves the RTC in UTC.
+write_rtc_adjtime() {
+    local record=$1 etc=$2 zone
+    [[ -r "$record" ]] || return 0
+    zone=$(jq -r 'select(.schemaVersion == 1 and .rtcLocal == true) | .timezone | strings' "$record" 2>/dev/null || true)
+    [[ -n "$zone" ]] || return 0
+    printf '0.0 0 0.0\n0\nLOCAL\n' > "$etc/adjtime"
+    log "  /etc/adjtime: hardware clock in local time (${zone}), as Windows keeps it"
+}
+
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
 # written by exactly the code that can hang, so a wedge must still leave a
@@ -637,6 +684,7 @@ phase2_host_loader() {
 LOG_DIR=/mnt/ntfs/wootc/logs
 mkdir -p "$LOG_DIR"
 PERSIST_LOG="$LOG_DIR/deployer.log"
+correct_rtc_local_clock /mnt/ntfs/wootc/install/clock.json
 log "Persistent deployer log started: C:\\wootc\\logs\\deployer.log"
 (
     set +eu  # telemetry must survive any single command failing
@@ -1655,16 +1703,22 @@ locale_from_language_tag() {
     printf '%s_%s.UTF-8\n' "$lang" "$region"
 }
 
-# slurp_recipe_settings <slurp.json> — the recipe members for the time zone,
-# language and keyboard layout the installer read from Windows (slurp.json:
-# timezone, language, keyboardLayout). Nothing when the file is absent: the
-# image's settings stay.
+# slurp_recipe_settings <slurp.json> [clock.json] — the recipe members for the
+# time zone, language and keyboard layout the installer read from Windows
+# (slurp.json: timezone, language, keyboardLayout). slurp.json exists only
+# with Windows-Style Mode; clock.json is written on every install, and its
+# zone is the time zone when slurp.json has none (write_rtc_adjtime relies on
+# it). Nothing when neither names a value: the image's settings stay.
 slurp_recipe_settings() {
-    local slurp=$1 tz lang layout
-    [[ -f "$slurp" ]] || return 0
-    tz=$(jq -r '.timezone | strings' "$slurp" 2>/dev/null || true)
-    lang=$(jq -r '.language | strings' "$slurp" 2>/dev/null || true)
-    layout=$(jq -r '.keyboardLayout | strings' "$slurp" 2>/dev/null || true)
+    local slurp=$1 clock=${2:-} tz="" lang="" layout=""
+    if [[ -f "$slurp" ]]; then
+        tz=$(jq -r '.timezone | strings' "$slurp" 2>/dev/null || true)
+        lang=$(jq -r '.language | strings' "$slurp" 2>/dev/null || true)
+        layout=$(jq -r '.keyboardLayout | strings' "$slurp" 2>/dev/null || true)
+    fi
+    if [[ -z "$tz" && -n "$clock" && -f "$clock" ]]; then
+        tz=$(jq -r 'select(.schemaVersion == 1) | .timezone | strings' "$clock" 2>/dev/null || true)
+    fi
     fisherman_settings_members "$tz" "$(locale_from_language_tag "$lang")" "$layout" "" ""
 }
 
@@ -1724,7 +1778,7 @@ fi
 # automatically): fisherman writes them into the deployment's /etc, where
 # a composefs /usr is no obstacle.
 SETTINGS_ERR="${TMPDIR:-/tmp}/wootc-settings.err"
-SETTINGS_JSON=$(slurp_recipe_settings /mnt/ntfs/wootc/install/slurp/slurp.json 2>"$SETTINGS_ERR")
+SETTINGS_JSON=$(slurp_recipe_settings /mnt/ntfs/wootc/install/slurp/slurp.json /mnt/ntfs/wootc/install/clock.json 2>"$SETTINGS_ERR")
 while IFS= read -r _line; do err "  [WARN] $_line"; done <"$SETTINGS_ERR"
 if [[ -n "$SETTINGS_JSON" ]]; then
     log "  settings from Windows: $(tr -d '\n' <<<"$SETTINGS_JSON")"
@@ -2721,6 +2775,7 @@ QGAEOF
     # separate in host-esp.conf for Windows's installation-plan cross-check.
     mkdir -p "$DEPLOY_ROOT/etc/wootc"
     printf '%s\n' "$IMAGE" > "$DEPLOY_ROOT/etc/wootc/installed-image-ref"
+    write_rtc_adjtime /mnt/ntfs/wootc/install/clock.json "$DEPLOY_ROOT/etc"
 
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
     install -D -m644 /usr/libexec/wootc-steps.sh \
@@ -3431,6 +3486,7 @@ GRUBEOF
             /etc/systemd/system \
             /etc/xdg/autostart \
             /etc/wootc \
+            /etc/adjtime \
             /var/lib/wootc; do
             [[ -e "$DEPLOY_ROOT$_path" ]] && RELABEL_PATHS+=("$_path")
         done
