@@ -550,44 +550,99 @@ EOF"' _ "$GN" "$gecos"
     grep -q 'die "could not apply the native system.s SELinux labels' "$GN"
 }
 
-# relabel_block — the relabel step of graduate_to_disk_execute, for eval in a
-# function that sets mnt and dep.
+# relabel_block — the relabel step of graduate_to_disk_execute, with the
+# label_repo_object_dirs helper it calls, for eval in a function that sets
+# mnt and dep.
 relabel_block() {
-    awk '/^    # Label everything graduation wrote/ { a=1 }
+    awk '/^label_repo_object_dirs\(\) \{$/ { fn=1 }
+        fn { print }
+        fn && /^}$/ { fn=0 }
+        /^    # Label everything graduation wrote/ { a=1 }
         a && /^    if \[\[ -n "\$dep" \]\]; then$/ { b=1 }
         b { print }
         b && /^    fi$/ { exit }' "$GN"
 }
 
-@test "Phase-3 labels the physical root without reaching the deployments, the stateroot /var or the repo" {
+# relabel_fixture — a physical root at $mnt with a deployment $dep, its
+# file_contexts $fc, an object store with one object, and stubs for setfiles,
+# matchpathcon (CTX overrides the context it answers) and chcon.
+relabel_fixture() {
+    mnt="$TMP/phys"; dep="$mnt/ostree/deploy/default/deploy/abc.0"
+    fc="$dep/etc/selinux/targeted/contexts/files/file_contexts"
+    mkdir -p "$(dirname "$fc")" "$mnt/ostree/repo/objects/ab" "$mnt/ostree/repo/refs" \
+        "$mnt/ostree/deploy/default/var/home" "$mnt/ostree/deploy/default/deploy/old.0" "$mnt/ostree/bootc"
+    : >"$fc"; : >"$mnt/ostree/deploy/default/deploy/abc.origin"; : >"$mnt/ostree/repo/objects/ab/cdef.file"
+    ln -s abc.0 "$mnt/ostree/deploy/default/deploy/current"
+    printf '#!/bin/bash\necho "setfiles $*" >>"%s"\n[[ "$*" != *"${SETFILES_FAIL:-none}"* ]]\n' \
+        "$CALLED" >"$STUBDIR/setfiles"
+    cat >"$STUBDIR/matchpathcon" <<STUB
+#!/bin/bash
+echo "matchpathcon \$*" >>"$CALLED"
+while [[ \$1 == -* ]]; do case \$1 in -m|-f) shift 2 ;; *) shift ;; esac; done
+for p; do echo "\${CTX:-system_u:object_r:system_conf_t:s0}"; done
+STUB
+    printf '#!/bin/bash\necho "chcon $*" >>"%s"\n' "$CALLED" >"$STUBDIR/chcon"
+    chmod +x "$STUBDIR/setfiles" "$STUBDIR/matchpathcon" "$STUBDIR/chcon"
+}
+
+@test "Phase-3 labels the physical root without reaching the deployments, the stateroot /var or the repo objects" {
     # Probe 44843263310: bootupd was denied getattr on an unlabeled
     # /sysroot/ostree/deploy. Repo objects are hardlinks of deployment files:
     # the repo's label must never reach them, nor the deployments' roots.
     local block mnt dep fc
     block=$(relabel_block)
     [[ "$block" == *setfiles* ]]
-    mnt="$TMP/phys"; dep="$mnt/ostree/deploy/default/deploy/abc.0"
-    fc="$dep/etc/selinux/targeted/contexts/files/file_contexts"
-    mkdir -p "$(dirname "$fc")" "$mnt/ostree/repo/objects/ab" "$mnt/ostree/deploy/default/var/home" \
-        "$mnt/ostree/deploy/default/deploy/old.0" "$mnt/ostree/bootc"
-    : >"$fc"; : >"$mnt/ostree/deploy/default/deploy/abc.origin"
-    ln -s abc.0 "$mnt/ostree/deploy/default/deploy/current"
-    printf '#!/bin/bash\necho "setfiles $*" >>"%s"\n[[ "$*" != *"${SETFILES_FAIL:-none}"* ]]\n' \
-        "$CALLED" >"$STUBDIR/setfiles"
-    chmod +x "$STUBDIR/setfiles"
+    relabel_fixture
     run env BLOCK="$block" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { echo "LOG: $*"; }
         f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
     [ "$status" -eq 0 ]
     [ "$(grep -c '^setfiles ' "$CALLED")" -eq 3 ]
     grep -qxF "setfiles -F -r $dep $fc $dep/etc" "$CALLED"
     grep -qxF "setfiles -F -r $mnt/ostree/deploy/default $fc $mnt/ostree/deploy/default/var" "$CALLED"
-    grep -qxF "setfiles -F -r $mnt -e $dep -e $mnt/ostree/deploy/default/deploy/old.0 -e $mnt/ostree/deploy/default/var -e $mnt/ostree/repo $fc $mnt" "$CALLED"
+    grep -qxF "setfiles -F -r $mnt -e $dep -e $mnt/ostree/deploy/default/deploy/old.0 -e $mnt/ostree/deploy/default/var -e $mnt/ostree/repo/objects $fc $mnt" "$CALLED"
     # A failed physical-root relabel stops before the boot is scheduled.
     : >"$CALLED"
     run env BLOCK="$block" SETFILES_FAIL="-r $mnt -e" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { :; }
         f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
     [ "$status" -eq 1 ]
     [[ "$output" == *"DIE: could not apply the native system's SELinux labels"*"the physical root"* ]]
+    grep -qx "umount $mnt" "$CALLED"
+}
+
+@test "Phase-3 labels /ostree/repo and its object directories, never the objects" {
+    # Probe 44889931801: bootc 1.16.10 left /sysroot/ostree/repo unlabeled_t
+    # (bootc-dev/bootc#2368) and graduation excluded the whole repo from its
+    # relabel, so the enforcing native system denied searching it. The repo
+    # and its metadata are labeled with the physical root; objects/ and its
+    # fan-out directories by their own path; the object files keep the
+    # labels of the deployment files they are hardlinks of.
+    local block mnt dep fc ctx=system_u:object_r:system_conf_t:s0 line
+    block=$(relabel_block)
+    [[ "$block" == *'label_repo_object_dirs() {'* ]]
+    relabel_fixture
+    run env BLOCK="$block" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { echo "LOG: $*"; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 0 ]
+    # The physical-root relabel reaches /ostree/repo and refs/, not objects/.
+    line=$(grep "^setfiles -F -r $mnt -e " "$CALLED")
+    [[ " $line " != *" -e $mnt/ostree/repo "* ]]
+    [[ " $line " == *" -e $mnt/ostree/repo/objects "* ]]
+    # The object directories are labeled by their path on the physical root.
+    line=$(grep '^matchpathcon ' "$CALLED")
+    [[ "$line" == "matchpathcon -N -n -m dir -f $fc "* ]]
+    [ "$(printf '%s\n' ${line#"matchpathcon -N -n -m dir -f $fc "} | sort | tr '\n' ' ')" \
+        = "/ostree/repo/objects /ostree/repo/objects/ab " ]
+    [ "$(grep -c '^chcon ' "$CALLED")" -eq 2 ]
+    grep -qxF "chcon -- $ctx $mnt/ostree/repo/objects" "$CALLED"
+    grep -qxF "chcon -- $ctx $mnt/ostree/repo/objects/ab" "$CALLED"
+    [ "$(grep -c 'cdef.file' "$CALLED")" -eq 0 ]
+    # No context for an object directory stops before the boot is scheduled.
+    : >"$CALLED"
+    run env BLOCK="$block" CTX='<<none>>' bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { :; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DIE: could not apply the native system's SELinux labels"*"the physical root"* ]]
+    [ "$(grep -c '^chcon ' "$CALLED")" -eq 0 ]
     grep -qx "umount $mnt" "$CALLED"
 }
 
