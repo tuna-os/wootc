@@ -2,12 +2,13 @@
 # Generic post-boot health check for the Phase-3 native system.
 #
 # Adapted from tuna-os/bootc-migrate tests/e2e-health.sh at
-# f05f92d110b64228939defe45c772961d592ff8a. The runner sends this file to
-# /bin/sh through QGA; keep it POSIX-sh compatible.
+# f05f92d110b64228939defe45c772961d592ff8a. Keep it POSIX-sh compatible.
 #
-# `baseline` runs read-only in Phase 2 before graduation and prints a strict
-# record for the host runner to retain. `check` receives that record after the
-# native boot. No guest-side staging is needed from the confined QGA process.
+# `baseline` runs read-only in Phase 2 before graduation, through QGA, and
+# prints a strict record for the host runner to retain. `check` receives that
+# record after the native boot. It runs there from
+# wootc-e2e-native-health.service (wootc-go-native), not through QGA: the
+# confined agent on the enforcing native system cannot query systemd.
 #
 # Exit status: 0 when every check passes, 1 otherwise. Every check runs before
 # exit so a single expensive VM boot reports all observed product failures.

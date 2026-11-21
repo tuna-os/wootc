@@ -791,6 +791,71 @@ WantedBy=multi-user.target
 UNIT
         ln -sf ../wootc-e2e-native-root-probe.service \
             "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-root-probe.service"
+        # The generic post-boot health check cannot run through the agent
+        # either: on the enforcing native system every systemctl call from
+        # virt_qemu_ga_t answered "Failed to retrieve unit state: Access
+        # denied" (probe 44833993709), so the gate saw no boot state, no
+        # D-Bus and no display manager on a system that had booted. The
+        # harness stages the check (tests/e2e/phase3-health.sh) and its
+        # Phase-2 baseline in /run before graduation; run them here from
+        # init's context and export the verdict to /run. Plain cp: the
+        # native policy labels them as its own /etc/wootc files.
+        local staged
+        for staged in e2e-phase3-health.sh e2e-phase3-health.baseline; do
+            if [[ -f "/run/wootc-$staged" ]]; then
+                cp "/run/wootc-$staged" "$etcroot/wootc/$staged" \
+                    || log "WARN: could not copy the staged $staged into the native install"
+            fi
+        done
+        cat > "$etcroot/wootc/e2e-native-health.sh" <<'HEALTHPROBE'
+#!/bin/bash
+# Runs from init's unconfined context at boot; the confined guest agent
+# reads only the /run export. The check waits for the boot to finish
+# itself, so this unit must not hold the boot transaction (Type=exec).
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-health
+check=/etc/wootc/e2e-phase3-health.sh
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+read -r boot < /proc/sys/kernel/random/boot_id
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+status=0
+if [[ -f "$check" ]]; then
+    baseline=$(cat /etc/wootc/e2e-phase3-health.baseline 2>/dev/null || true)
+    output=$(/bin/sh "$check" check "$baseline" 2>&1) || status=$?
+else
+    status=127
+    output="no health check at $check: the harness did not stage it before graduation"
+fi
+temp=$(mktemp "${out}.XXXXXX")
+printf 'HEALTH_SCHEMA=1\nHEALTH_BOOT_ID=%s\nHEALTH_STATUS=%s\n%s\n' \
+    "$boot" "$status" "$output" > "$temp"
+chmod 0644 "$temp"
+read -r current < /proc/sys/kernel/random/boot_id
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
+HEALTHPROBE
+        chmod +x "$etcroot/wootc/e2e-native-health.sh"
+        # Type=exec: the start job completes once the script runs, so the
+        # boot can finish while the check waits for it. RuntimeMaxSec bounds
+        # a hung check; the harness then finds no export and refuses.
+        cat > "$etcroot/systemd/system/wootc-e2e-native-health.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export the post-boot health check to /run
+After=local-fs.target
+
+[Service]
+Type=exec
+RuntimeMaxSec=900
+ExecStart=/bin/bash /etc/wootc/e2e-native-health.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-health.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-health.service"
     fi
     sync; umount "$mnt" 2>/dev/null || true
 

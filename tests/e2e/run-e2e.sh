@@ -4562,10 +4562,9 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     pass "Phase 3: Linux guest agent reachable inside Phase 2"
 
-    # Capture the generic health baseline before graduation. /etc/wootc is
-    # copied into the fresh native install, so the final probe can distinguish
-    # label drift and a lost display-manager configuration from pre-existing
-    # image state.
+    # Capture the generic health baseline before graduation, so the final
+    # check can distinguish label drift and a lost display-manager
+    # configuration from pre-existing image state.
     if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
         infra_fail "Could not read Phase 3 health script"
         exit 1
@@ -4581,6 +4580,16 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     if [ "$P3_HEALTH_BASELINE_STATUS" -ne 0 ]; then
         infra_fail "Could not capture the Phase 3 pre-graduation health baseline"
+        exit 1
+    fi
+    # Stage the check and its baseline where wootc-go-native picks them up:
+    # it copies them into the native /etc/wootc, and a boot-time unit there
+    # runs the check from init's context. The confined agent on the enforcing
+    # native system cannot query systemd (probe 44833993709).
+    if ! WOOTC_QGA_CALL_TIMEOUT=60 qga_call exec /bin/sh -c \
+        'umask 022 && printf "%s\n" "$1" > /run/wootc-e2e-phase3-health.sh && printf "%s\n" "$2" > /run/wootc-e2e-phase3-health.baseline' \
+        wootc-phase3-health-stage "$P3_HEALTH_SCRIPT" "$P3_HEALTH_BASELINE" >/dev/null; then
+        infra_fail "Could not stage the Phase 3 health check for the native system"
         exit 1
     fi
 
@@ -5076,15 +5085,36 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # Phase 3 generic post-boot health gate. The script reports every observed
     # product finding before it exits. Gate on both channels: any explicit
     # FAIL line is a product failure even if a future script bug returns zero;
-    # a non-zero guest command without a finding is infrastructure-unknown.
-    if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
-        infra_fail "Could not read Phase 3 health script"
+    # a non-zero check without a finding is infrastructure-unknown.
+    #
+    # The check runs on the native system from wootc-e2e-native-health.service
+    # (wootc-go-native), which exports its output to /run; this only reads
+    # the export. Run through the agent, every systemctl call answered
+    # "Access denied" (probe 44833993709). Keep the agent's own view beside
+    # the export as the record of why.
+    WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        'echo "context: $(cat /proc/self/attr/current)"; echo "getenforce: $(getenforce 2>&1)"; echo "is-system-running: $(systemctl is-system-running 2>&1)"' \
+        > "$ARTIFACT_DIR/phase3-agent-view.log" 2>&1 || true
+    sed 's/^/  agent view: /' "$ARTIFACT_DIR/phase3-agent-view.log" || true
+    # The check waits up to 300 s for the boot to finish, then inspects
+    # labels under /etc and /var/home.
+    P3_HEALTH_DEADLINE=$(deadline_in "${WOOTC_E2E_P3_HEALTH_WAIT_SECS:-600}")
+    P3_HEALTH_EXPORT=""
+    until P3_HEALTH_EXPORT=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        'cat /run/wootc-e2e-native-health' 2>/dev/null); do
+        P3_HEALTH_EXPORT=""
+        past_deadline "$P3_HEALTH_DEADLINE" && break
+        sleep 5
+    done
+    if [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 1p)" != HEALTH_SCHEMA=1 ] \
+        || [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 2p)" != "HEALTH_BOOT_ID=$P3_NATIVE_BOOT_ID" ] \
+        || ! printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 3p | grep -Eq '^HEALTH_STATUS=[0-9]+$'; then
+        printf '%s\n' "$P3_HEALTH_EXPORT" | head -5
+        infra_fail "Phase 3 health export is absent, malformed or not from this boot ($P3_NATIVE_BOOT_ID)"
         exit 1
     fi
-    P3_HEALTH_STATUS=0
-    P3_HEALTH_OUTPUT=$(WOOTC_QGA_CALL_TIMEOUT=360 qga_call exec /bin/sh -c \
-        "$P3_HEALTH_SCRIPT" wootc-phase3-health check "$P3_HEALTH_BASELINE" 2>&1) \
-        || P3_HEALTH_STATUS=$?
+    P3_HEALTH_STATUS=$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 's/^HEALTH_STATUS=//p;3q')
+    P3_HEALTH_OUTPUT=$(printf '%s\n' "$P3_HEALTH_EXPORT" | tail -n +4)
     printf '%s\n' "$P3_HEALTH_OUTPUT"
     if ! printf '%s\n' "$P3_HEALTH_OUTPUT" > "$ARTIFACT_DIR/phase3-health.log"; then
         infra_fail "Could not retain the Phase 3 health observations"

@@ -133,18 +133,36 @@ esac
 
 
 class RunnerHealthVerdictTests(unittest.TestCase):
-    def consumer(self, output="OK: healthy\n", status="0", module=RUNNER):
+    BOOT = "c49ec976-2f51-420f-a1a7-2cda006e6053"
+
+    def export(self, output="OK: healthy", status="0", boot=BOOT):
+        return f"HEALTH_SCHEMA=1\nHEALTH_BOOT_ID={boot}\nHEALTH_STATUS={status}\n{output}\n"
+
+    def consumer(self, export=None, cat_status="0", module=RUNNER):
+        if export is None:
+            export = self.export()
         source = module.read_text()
         start = source.index("    # Phase 3 generic post-boot health gate.")
         end = source.index("    # The point of it all:", start)
         body = source[start:end]
+        # The agent answers the export read with HEALTH_EXPORT; any other
+        # request (the agent's own view) gets a stand-in. The wait ends at
+        # once: the deadline is already past.
         prefix = r'''set -Eeuo pipefail
 RED=; GREEN=; NC=; YELLOW=
-P3_HEALTH_BASELINE='SCHEMA=1'
+P3_NATIVE_BOOT_ID=c49ec976-2f51-420f-a1a7-2cda006e6053
 infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
-qga_call() { printf '%s' "$HEALTH_OUTPUT"; return "$HEALTH_STATUS"; }
+deadline_in() { echo 0; }
+past_deadline() { return 0; }
+sleep() { :; }
+qga_call() {
+    case "$*" in
+        *wootc-e2e-native-health*) printf '%s' "$HEALTH_EXPORT"; return "$HEALTH_CAT_STATUS" ;;
+        *) echo "context: system_u:system_r:virt_qemu_ga_t:s0" ;;
+    esac
+}
 '''
         with tempfile.TemporaryDirectory() as artifact_dir:
             return subprocess.run(
@@ -154,30 +172,52 @@ qga_call() { printf '%s' "$HEALTH_OUTPUT"; return "$HEALTH_STATUS"; }
                 timeout=4,
                 env={
                     **os.environ,
-                    "HEALTH_OUTPUT": output,
-                    "HEALTH_STATUS": status,
+                    "HEALTH_EXPORT": export,
+                    "HEALTH_CAT_STATUS": cat_status,
                     "SCRIPT_DIR": str(ROOT / "tests/e2e"),
                     "ARTIFACT_DIR": artifact_dir,
                 },
             )
 
-    def test_clean_probe_records_required_native_health_assertion(self):
+    def test_clean_export_records_required_native_health_assertion(self):
         result = self.consumer()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("PRODUCT-PASS native-health", result.stdout)
+        self.assertIn("agent view: context: system_u:system_r:virt_qemu_ga_t:s0", result.stdout)
 
-    def test_fail_line_fails_cell_even_when_guest_command_returns_zero(self):
-        result = self.consumer("OK: earlier\nFAIL: display manager stopped\n", "0")
+    def test_fail_line_fails_cell_even_when_check_returns_zero(self):
+        result = self.consumer(self.export("OK: earlier\nFAIL: display manager stopped", "0"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("PRODUCT-FAIL", result.stdout)
         self.assertNotIn("PRODUCT-PASS", result.stdout)
 
-    def test_command_failure_without_product_finding_is_infrastructure(self):
-        result = self.consumer("QGA: channel unavailable\n", "42")
+    def test_check_failure_without_product_finding_is_infrastructure(self):
+        result = self.consumer(self.export("no health check at /etc/wootc/e2e-phase3-health.sh", "127"))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("INFRA", result.stdout)
         self.assertNotIn("PRODUCT-FAIL", result.stdout)
         self.assertNotIn("PRODUCT-PASS", result.stdout)
+
+    def test_export_from_another_boot_cannot_pass(self):
+        result = self.consumer(self.export(boot="00000000-0000-0000-0000-000000000000"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent, malformed or not from this boot", result.stdout)
+        self.assertNotIn("PRODUCT-PASS", result.stdout)
+
+    def test_absent_export_is_infrastructure_after_the_wait(self):
+        result = self.consumer("", cat_status="1")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent", result.stdout)
+        self.assertNotIn("PRODUCT", result.stdout)
+
+    def test_check_is_staged_where_go_native_copies_it_from(self):
+        runner = RUNNER.read_text()
+        go_native = (ROOT / "payload/migration/wootc-go-native").read_text()
+        for staged in ("e2e-phase3-health.sh", "e2e-phase3-health.baseline"):
+            self.assertIn(f"/run/wootc-{staged}", runner)
+            self.assertIn(staged, go_native)
+        self.assertIn('"/run/wootc-$staged"', go_native)
+        self.assertIn("/run/wootc-e2e-native-health", go_native)
 
 
 if __name__ == "__main__":

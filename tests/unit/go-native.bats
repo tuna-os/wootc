@@ -504,6 +504,71 @@ NTFSINFO
     [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
 }
 
+@test "Phase-3 runs the post-boot health check from a boot unit that does not hold the boot" {
+    # Probe 44833993709: run through the confined agent on the native system,
+    # every systemctl call answered "Access denied". The check runs from
+    # init's context instead. It waits for the boot itself, so a oneshot
+    # (or ordering before the agent) would wait on its own start job.
+    local block unit
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        heredoc && $0 == heredoc { heredoc=""; next }
+        heredoc { next }
+        active { print }
+        active && match($0, /<<.[A-Z]+.$/) { heredoc=substr($0, RSTART+3, RLENGTH-4) }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'"/run/wootc-$staged" "$etcroot/wootc/$staged"'* ]]
+    [[ "$block" == *'e2e-native-health.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-health.service'* ]]
+    unit=$(awk '/wootc-e2e-native-health.service" <<.UNIT.$/ { active=1; next }
+        active && /^UNIT$/ { exit }
+        active { print }' "$GN")
+    [[ "$unit" == *'Type=exec'* ]]
+    [[ "$unit" == *'RuntimeMaxSec='* ]]
+    [[ "$unit" != *'Before='* ]]
+    [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-health.sh'* ]]
+}
+
+# native_health_probe <dir>: the HEALTHPROBE script with its /run, /etc and
+# /proc paths moved under <dir>.
+native_health_probe() {
+    awk '/<<.HEALTHPROBE.$/ { active=1; next } active && /^HEALTHPROBE$/ { exit } active { print }' "$GN" \
+        | sed -e "s#/run/wootc-e2e-native-health#$1/out#" \
+              -e "s#/etc/wootc/#$1/etc/#g" \
+              -e "s#/proc/sys/kernel/random/boot_id#$1/boot_id#g" > "$1/probe"
+}
+
+@test "native health probe exports the check's output, status and boot" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    printf 'SCHEMA=1\nDISPLAY_MANAGER=gdm.service\n' > "$d/etc/e2e-phase3-health.baseline"
+    printf '%s\n' 'echo "mode=$1"; printf "%s\n" "$2" | sed "s/^/baseline: /"; echo "FAIL: x"; exit 1' \
+        > "$d/etc/e2e-phase3-health.sh"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[0]}" = HEALTH_SCHEMA=1 ]
+    [ "${lines[1]}" = HEALTH_BOOT_ID=c49ec976-2f51-420f-a1a7-2cda006e6053 ]
+    [ "${lines[2]}" = HEALTH_STATUS=1 ]
+    [ "${lines[3]}" = mode=check ]
+    [ "${lines[4]}" = "baseline: SCHEMA=1" ]
+    [ "${lines[5]}" = "baseline: DISPLAY_MANAGER=gdm.service" ]
+    [ "${lines[6]}" = "FAIL: x" ]
+}
+
+@test "native health probe without a staged check exports a failure, not silence" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[2]}" = HEALTH_STATUS=127 ]
+    [[ "${lines[3]}" == "no health check at $d/etc/e2e-phase3-health.sh"* ]]
+}
+
 @test "Phase-3 copies the QGA sysconfig without Phase 2's label, and not qemu-ga.conf" {
     # Run 39874539856: the native bluefin:stable system reached GDM but QGA
     # never answered. The deployer writes these configs unlabeled; cp -a
