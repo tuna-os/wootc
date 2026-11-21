@@ -111,7 +111,14 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 			// The apps the person kept checked (SPEC §4.3), for the deployer
 			// to install from Flathub. Written on every install, empty when
 			// none were kept, beside the vault on the storage root.
-			return writeAppsHandoff(wootcDir(), cfg.Flatpaks)
+			if err := writeAppsHandoff(wootcDir(), cfg.Flatpaks); err != nil {
+				return err
+			}
+			// How Windows keeps the hardware clock, so the deployer's
+			// timestamps and the installed system's clock are not off by
+			// the Windows time zone (ClockHandoff).
+			rtcUniversal, zone := windowsClock()
+			return writeClockHandoff(wootcDir(), clockHandoffFor(rtcUniversal, zone, time.Now()))
 		}},
 		{StepInstallerSavingYourBitLockerRecoveryKey, 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery

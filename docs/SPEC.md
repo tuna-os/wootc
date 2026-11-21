@@ -563,8 +563,8 @@ region gets the main region of its language (`ja` becomes `ja_JP.UTF-8`).
 fisherman writes `/etc/localtime`, `/etc/locale.conf`, `/etc/vconsole.conf`
 and the X11 keyboard file in the deployment's `/etc`. The deployer leaves
 out a value that fisherman's recipe rules refuse, and logs it, because one
-refused value stops the whole install. Without `slurp.json`, the image's
-settings stay.
+refused value stops the whole install. Without `slurp.json`, the time zone
+comes from `clock.json` (below) and the image's other settings stay.
 
 When the user moves to a native disk (Phase 3), `wootc-go-native` gives
 fisherman the settings of the Phase-2 system. These are its hostname
@@ -572,11 +572,39 @@ fisherman the settings of the Phase-2 system. These are its hostname
 (`/etc/locale.conf`) and its keyboard (the `XKB*` keys of
 `/etc/vconsole.conf`). It also sets `"copyNetworkProfiles": true`, so
 fisherman copies the Phase-2 NetworkManager profiles, which include the
-Wi-Fi networks from Windows.
+Wi-Fi networks from Windows. It copies the Phase-2 `/etc/adjtime` to the
+native install, which keeps Windows next to it.
 
 On first boot, the display manager presents a login prompt. The user
 types the same password they chose on Screen 1 — it matches the hash.
 No cleartext ever touched disk.
+
+#### Hardware clock
+
+Windows keeps the hardware clock (RTC) in local time unless
+`RealTimeIsUniversal` is set, and Linux reads the RTC as UTC by default. In
+the "Saving your settings" step the engine writes
+`<storage drive>:\wootc\install\clock.json` on every install:
+
+```json
+{"schemaVersion":1,"rtcLocal":true,"utcOffsetSeconds":32400,"timezone":"Asia/Tokyo"}
+```
+
+`utcOffsetSeconds` is the Windows offset from UTC when the install ran,
+daylight saving included. `timezone` is the IANA name of the Windows zone,
+or empty when wootc has no mapping for it. When `rtcLocal` is true:
+
+- Before it writes any timestamp, the deployer subtracts the offset from
+  its system clock, once per boot. On a PC set to Tokyo time, deployer
+  timestamps were 9 hours in the future without this (probe 44869134695).
+- When `timezone` is set, the deployer writes `/etc/adjtime` with `LOCAL`
+  in the deployment. When `slurp.json` has no time zone, the recipe uses
+  this zone. The installed system then reads and writes the RTC in local
+  time, as Windows does. Otherwise Linux runs hours off until NTP corrects
+  it. Then Linux writes UTC to the RTC, and Windows is hours off.
+
+With no `clock.json`, `rtcLocal` false or an empty `timezone`, the clock
+stays as the kernel reads it and the RTC stays in UTC.
 
 ### 2.4 Filesystem Selection
 
