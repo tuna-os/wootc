@@ -482,8 +482,11 @@ echo "RESULT: $PASS passed, $FAIL failed"
 INNER
 )
 
+# The app map sits where the deployer initramfs has it; wootc-detect-apps
+# matches the registry manifest against it.
 podman run --rm --privileged \
     -v "$REPO_ROOT/payload/migration:/scripts:ro,Z" \
+    -v "$REPO_ROOT/app/data/app-flatpaks.json:/usr/lib/wootc/migration/lib/app-flatpaks.json:ro,Z" \
     "$IMG" bash -c "$INNER"
 
 # ── #73: the single-user fallback, in its own container ──────────────────────
