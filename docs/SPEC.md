@@ -1267,7 +1267,9 @@ are torn down (`ExecStop`) **before** `wootc-host-bind.service` unmounts
 
 The user sees their Windows files immediately inside their Linux home
 directory. No copy. No import wizard. Files are writable from Linux
-(via the rw NTFS mount).
+(via the rw NTFS mount). While Linux runs, wootc removes the Windows
+read-only attribute from bridged folders and sets it again at shutdown. See
+[Linux access to the Windows volume](ntfs-on-linux.md#linux-access-to-the-windows-volume).
 
 **Steam libraries** are detected and reused in-place, without a
 re-download:
