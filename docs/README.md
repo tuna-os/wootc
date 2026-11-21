@@ -65,6 +65,7 @@ and plans are context, not current operating instructions.
 - [WSL migration](wsl-migration.md) — manual transfer boundaries; no automatic WSL distro or account import.
 - [IT-admin quick start](it-admin-quick-start.md) — bounded single-machine evaluation, not fleet rollout.
 - [Adoption outreach](adoption-outreach.md) — approval-gated invitations and scenario briefs, not claimed success stories.
+- [E2E migration coverage](e2e-coverage.md) — each migrated item, its code, and its hosted E2E check.
 - [Native GUI soak](soak.md) — shell stability ledger for long runs.
 - [Agent lessons](agent-lessons.md) — operational traps from E2E work.
 - [Docs truth pass](docs-truth-pass.md) — dated documentation-versus-build checks.
