@@ -291,6 +291,39 @@ class Look(unittest.TestCase):
         self.assertEqual(self.verdict("")[2], "no wallpaper was collected")
 
 
+class SuLogin(unittest.TestCase):
+    """The PAM login runs su on a guest seeded in German (probe 44889931801)."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.su = os.path.join(self.dir, "su")
+        # Prompts like pam_unix in the caller's locale, then runs the command
+        # only for the right password.
+        Path(self.su).write_text(
+            "#!/bin/sh\n"
+            'case "${LC_ALL:-${LC_MESSAGES:-$LANG}}" in de*) printf "Passwort: " ;; *) printf "Password: " ;; esac\n'
+            "read -r pw\n"
+            '[ "$pw" = right ] && /bin/sh -c "$4"\n'
+            "exit 0\n")
+        os.chmod(self.su, 0o755)
+        self.saved = {k: os.environ.get(k) for k in ("LANG", "LC_ALL", "LC_MESSAGES")}
+        os.environ.update(LANG="de_DE.UTF-8", LC_ALL="de_DE.UTF-8", LC_MESSAGES="de_DE.UTF-8")
+
+    def tearDown(self):
+        for key, value in self.saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    def test_german_guest_locale_still_logs_in(self):
+        ok, transcript = check.su_login("wootc", "right", "NONCE_1", su=self.su, drop_privileges=False)
+        self.assertTrue(ok, transcript)
+
+    def test_wrong_password_is_still_refused(self):
+        ok, transcript = check.su_login("wootc", "wrong", "NONCE_2", su=self.su, drop_privileges=False)
+        self.assertFalse(ok, transcript)
+
 
 if __name__ == "__main__":
     unittest.main()
