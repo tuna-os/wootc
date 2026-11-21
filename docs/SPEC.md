@@ -1432,11 +1432,13 @@ authentication in Linux.
 
 #### Printers
 
-Printers move as connections, never as drivers: a Windows driver cannot run
-on Linux, and CUPS builds an IPP Everywhere queue from what the printer itself
-reports. The installer always records every printer during the "Collecting
-your look and Wi-Fi" step (`Get-Printer`, `Get-PrinterPort`, the default from
-`Win32_Printer`). It writes `<storage root>\wootc\install\printers.json`:
+wootc moves printers as connections, never as drivers. A Windows driver
+cannot run on Linux. CUPS builds an IPP Everywhere queue from the data that the
+printer itself reports.
+
+The installer records every printer in the `Collecting your look and Wi-Fi`
+step. It uses `Get-Printer`, `Get-PrinterPort` and the default from
+`Win32_Printer`. It writes `<storage root>\wootc\install\printers.json`:
 
 ```json
 {"schemaVersion": 1, "printers": [{"name": "Office Laser", "portName": "IP_10.0.0.9",
@@ -1444,47 +1446,60 @@ your look and Wi-Fi" step (`Get-Printer`, `Get-PrinterPort`, the default from
   "host": "10.0.0.9", "port": 9100, "protocol": "raw"}]}
 ```
 
-`portKind` comes from the port, not the driver: `tcpip` (Standard TCP/IP,
-`protocol` raw/lpr, `lprQueue`), `ipp` (the port name is an http/https/ipp/ipps
-URL, kept in `uri`), `wsd`, `usb`, `lpt`, `com`, `file` (`FILE:`, `nul:`),
-`virtual` (`PORTPROMPT:`, XPS, OneNote, fax, PDF ports) or `other`.
+The port sets `portKind`, not the driver. The kinds are `tcpip`, `ipp`,
+`wsd`, `usb`, `lpt`, `com`, `file`, `virtual` and `other`. A `tcpip` printer
+has a Standard TCP/IP port and records `host`, `port`, `protocol` (raw or lpr)
+and `lprQueue`. An `ipp` printer has an http, https, ipp or ipps URL as its
+port name, and `uri` keeps it. `file` is `FILE:` or `nul:`. `virtual` is
+`PORTPROMPT:` or an XPS, OneNote, fax or PDF port.
 
-On every Phase-2 boot, `wootc-printer-import.service` (root, after
-`cups.service`, `network-online.target` and `wootc-host-bind.service`) reads
-that file from the Windows volume. It records the result in
-`/var/lib/wootc/printers.json` (mode 0644): `{"schemaVersion": 1,
-"printers": [{"name", "queue", "status", "uri", "reason", "default",
-"lastTried"}]}`. It also writes one journal line per printer:
-`wootc-printer-import: <name>: added <uri>`, `… waiting: <reason>`, or
-`… not migrated: <reason>`.
+On every Phase-2 boot, `wootc-printer-import.service` reads that file from the
+Windows volume. The unit runs as root after `cups.service`,
+`network-online.target` and `wootc-host-bind.service`. It writes the result to
+`/var/lib/wootc/printers.json` with mode 0644:
 
-- `tcpip` printers get `ipp://<host>:631/ipp/print`. `ipp` printers keep
-  their URL, with http becoming ipp and https becoming ipps (an implied port 80
-  or 443 is made explicit). wootc first checks that the address answers on
-  its IPP port, then runs `lpadmin -p <queue> -E -v <uri> -m everywhere`,
-  limited to 90 s. The queue name is the Windows name with each run of
-  characters outside `[A-Za-z0-9_-]` replaced by one `_`, with leading and
-  trailing `_` removed. It is cut to 127 characters (`printer` if nothing is
-  left) and made unique case-insensitively with `-2`, `-3`, ….
-- Success is `added`. The Windows default becomes the CUPS default when
-  CUPS has none. Failure is `waiting`, with lpadmin's message or the
-  unanswered address, and is tried again at the next boot. A queue wootc
-  added is never touched again, even if the user removed or changed it. A
-  queue that already exists under the same name is left alone
-  (`not-migrated`).
-- Everything else is `not-migrated`, with a reason. Cable printers
-  (usb/lpt/com) show: "connected by cable to this PC: plug it in, and a
-  driverless USB printer is set up automatically; others need their Linux
-  driver". WSD printers show: "found by Windows on the network (WSD); if it
-  supports driverless printing, Settings → Printers lists it". Virtual and
-  file printers show: "Windows-only virtual printer".
+```json
+{"schemaVersion": 1, "printers": [{"name": "Office Laser", "queue": "Office_Laser",
+  "status": "added", "uri": "ipp://10.0.0.9:631/ipp/print", "default": true,
+  "lastTried": "2026-11-21T04:10:29Z"}]}
+```
 
-The migration chooser lists every printer with its status under
-**Printers**. Switching the category or a printer off stops new queues and
-removes none. Phase 3 carries the queues wootc added (their `printers.conf`
-entries and PPDs) and the report to the native disk. The native system does
-not mount Windows, so a printer that was waiting stays waiting there.
-Scanners are not migrated.
+A `waiting` or `not-migrated` record also has a `reason`. The journal gets one
+line for each printer: `wootc-printer-import: <name>: added <uri>`,
+`… waiting: <reason>` or `… not migrated: <reason>`.
+
+- A `tcpip` printer gets `ipp://<host>:631/ipp/print`.
+- An `ipp` printer keeps its URL. The importer changes http to ipp and https
+  to ipps, and adds an implied port 80 or 443.
+- The importer first makes sure that the address answers on its IPP port.
+  Then it runs `lpadmin -p <queue> -E -v <uri> -m everywhere` with a 90 s
+  limit.
+- The queue name starts as the Windows name. Each run of characters outside
+  `[A-Za-z0-9_-]` becomes one `_`. The importer removes a leading or trailing
+  `_` and keeps at most 127 characters. An empty result becomes `printer`. A
+  name that is already in the list gets `-2`, `-3` and so on. The comparison
+  ignores case.
+- If `lpadmin` succeeds, the status is `added`. The Windows default becomes
+  the CUPS default if CUPS has no default.
+- If `lpadmin` fails or the address does not answer, the status is `waiting`
+  and the reason tells why. The importer tries again at the next boot.
+- The importer never changes a queue that it added before, also when the user
+  removed or changed it. It also does not change a queue that has the same
+  name: that printer is `not-migrated`.
+- All other printers are `not-migrated` with a reason:
+  - Cable printers (usb, lpt, com): `connected by cable to this PC: plug it
+    in, and a driverless USB printer is set up automatically; others need
+    their Linux driver`
+  - WSD printers: `found by Windows on the network (WSD); if it supports
+    driverless printing, Settings → Printers lists it`
+  - Virtual and file printers: `Windows-only virtual printer`
+
+The migration chooser shows every printer and its status under **Printers**.
+If the user turns the category or a printer off, the importer adds no new
+queue. It removes no queue. Phase 3 copies the queues that wootc added to the
+native disk: their `printers.conf` entries and PPDs, and the report. The native
+system does not mount Windows, so a `waiting` printer stays `waiting` there.
+wootc does not migrate scanners.
 
 #### Bluetooth devices
 
