@@ -653,6 +653,79 @@ verify_native_flatpaks() {
     done
 }
 
+# carry_wootc_printers <cups dir> <printer state> <native etc> <native var> —
+# put the CUPS queues wootc-printer-import added (their printers.conf entries
+# and PPDs) and its report on the native disk (SPEC §4.6). fisherman has no
+# such member, and the importer cannot redo the work there: the native system
+# never mounts the Windows volume. A queue the user removed since is not in
+# printers.conf, so it stays removed; printers still "waiting" stay listed as
+# waiting in the report. Never fatal: the native system boots without them.
+carry_wootc_printers() {
+    local cups=$1 state=$2 netc=$3 nvar=$4 q i
+    [[ -f "$state" ]] || return 0
+    install -D -m644 "$state" "$nvar/lib/wootc/printers.json" \
+        || { log "WARN: printer report not carried to the native install"; return 0; }
+    local -a queues=()
+    mapfile -t queues < <(python3 -c 'import json, sys
+for r in json.load(open(sys.argv[1])).get("printers", []):
+    if r.get("status") == "added" and r.get("queue"):
+        print(r["queue"])' "$state" 2>/dev/null)
+    (( ${#queues[@]} > 0 )) || return 0
+    # cupsd writes printers.conf lazily (DirtyCleanInterval, 30 s by
+    # default): a queue added moments ago can be live yet not on disk. Give
+    # it a minute rather than drop a queue CUPS still knows.
+    for q in "${queues[@]}"; do
+        for (( i = 0; i < 60; i++ )); do
+            grep -qiE "^<(Default)?Printer ${q}>\$" "$cups/printers.conf" 2>/dev/null && break
+            LC_ALL=C lpstat -v "$q" >/dev/null 2>&1 || break
+            sleep 1
+        done
+    done
+    mkdir -p "$netc/cups/ppd"
+    # Append to the image's own printers.conf rather than replace it; the
+    # setfiles pass at the end of graduation labels what is written here.
+    local carried
+    carried=$(python3 - "$cups/printers.conf" "$netc/cups/printers.conf" "${queues[@]}" <<'PY'
+import re, sys
+src, dst, wanted = sys.argv[1], sys.argv[2], {q.lower() for q in sys.argv[3:]}
+try:
+    text = open(src).read()
+except OSError:
+    sys.exit(0)
+try:
+    have = open(dst).read()
+except OSError:
+    have = ""
+present = {m.group(2).lower() for m in re.finditer(r"^<(Default)?Printer (\S+)>$", have, re.M)}
+has_default = re.search(r"^<DefaultPrinter ", have, re.M) is not None
+out = []
+# cupsd closes the default queue's block with </DefaultPrinter>.
+for m in re.finditer(r"^<(Default)?Printer (\S+)>\n(.*?)^</(?:Default)?Printer>\n", text, re.M | re.S):
+    default, name, body = m.group(1), m.group(2), m.group(3)
+    if name.lower() not in wanted or name.lower() in present:
+        continue
+    tag = "DefaultPrinter" if default and not has_default else "Printer"
+    has_default = has_default or tag == "DefaultPrinter"
+    out.append(f"<{tag} {name}>\n{body}</{tag}>\n")
+    print(name)
+if out:
+    with open(dst, "a") as f:
+        f.write("".join(out))
+PY
+    )
+    [[ -n "$carried" ]] || { log "WARN: no wootc printer queue found in $cups/printers.conf to carry"; return 0; }
+    chown root:lp "$netc/cups/printers.conf" 2>/dev/null || true
+    chmod 0600 "$netc/cups/printers.conf" 2>/dev/null || true
+    while IFS= read -r q; do
+        # Never Phase 2's attributes (cp -a): root:lp 0640 like cupsd's own.
+        if [[ -f "$cups/ppd/$q.ppd" ]]; then
+            install -m 0640 "$cups/ppd/$q.ppd" "$netc/cups/ppd/$q.ppd"
+            chown root:lp "$netc/cups/ppd/$q.ppd" 2>/dev/null || true
+        fi
+        log "wootc: carried printer queue $q to the native install"
+    done <<<"$carried"
+}
+
 # graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
 # fisherman (reusing the local image, same as the deployer), migrate /home, and let
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
@@ -742,13 +815,15 @@ EOF
     local dest="$mnt/home"
     local dep; dep=$(ls -d "$mnt"/ostree/deploy/*/deploy/*.0 2>/dev/null | head -1)
     [[ -n "$dep" ]] && dest="$(dirname "$(dirname "$dep")")/var/home"
+    # The native deployment's /var: the stateroot's on ostree, the shared
+    # state var on composefs-native.
+    local nvar="$mnt/var"
+    if [[ -n "$dep" ]]; then
+        nvar="$(dirname "$(dirname "$dep")")/var"
+    elif [[ -d "$mnt/state/deploy" ]]; then
+        nvar="$mnt/state/os/default/var"
+    fi
     if (( ${#gflatpaks[@]} > 0 )); then
-        local nvar="$mnt/var"
-        if [[ -n "$dep" ]]; then
-            nvar="$(dirname "$(dirname "$dep")")/var"
-        elif [[ -d "$mnt/state/deploy" ]]; then
-            nvar="$mnt/state/os/default/var"
-        fi
         verify_native_flatpaks "$nvar/lib/flatpak" "${gflatpaks[@]}"
     fi
     mkdir -p "$dest"
@@ -784,6 +859,8 @@ EOF
     mkdir -p "$etcroot/wootc"
     cp -a /etc/wootc/. "$etcroot/wootc/" 2>/dev/null || true
     printf '%s\n' "$target" > "$etcroot/wootc/native-target"
+    carry_wootc_printers /etc/cups /var/lib/wootc/printers.json "$etcroot" "$nvar" \
+        || log "WARN: printer queues not carried to the native install"
     if [[ -x /var/usrlocal/libexec/wootc-e2e-phase3-dispatch ]]; then
         mkdir -p "$etcroot/systemd/system/multi-user.target.wants"
         ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \

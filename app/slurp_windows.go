@@ -29,6 +29,31 @@ func collectWifi() error {
 	return err
 }
 
+// collectPrinters records every Windows printer and how it is connected in
+// <storage root>\wootc\install\printers.json (SPEC §4.6). The Linux importer
+// sets the network ones up as driverless IPP queues and reports the rest; no
+// driver is ever copied. Best-effort — a stopped print spooler or a PC with no
+// printers never fails the install.
+func collectPrinters() error {
+	out, err := runPowerShellOutput(printerInventoryScript)
+	if err != nil {
+		return fmt.Errorf("printer inventory: %w: %s", err, strings.TrimSpace(out))
+	}
+	m, err := printersFromInventory([]byte(out))
+	if err != nil {
+		return err
+	}
+	dir := filepath.Join(wootcDir(), "install")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	data, err := marshalJSON(m)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "printers.json"), data, 0o644)
+}
+
 // collectLook gathers the user's Windows look (wallpaper, dark mode,
 // accent color, timezone) into C:\wootc\install\slurp\slurp.json (a
 // slurp.Look, the type the shared slurp module owns) for the target

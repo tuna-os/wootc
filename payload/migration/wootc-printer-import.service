@@ -1,0 +1,18 @@
+[Unit]
+Description=wootc — set up the Windows network printers as driverless queues (SPEC §4.6)
+# Every boot, not once: a printer that did not answer stays "waiting" and is
+# tried again, since a laptop often starts away from the office network.
+# Queues it added once are never touched again (state in
+# /var/lib/wootc/printers.json). cups.service is socket-activated on the
+# target images, so lpadmin starts it on demand; the ordering only matters
+# where it is enabled outright.
+After=cups.service network-online.target wootc-host-bind.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=WOOTC_HOST=/run/initramfs/wootc-host
+ExecStart=/var/usrlocal/bin/wootc-printer-import
+
+[Install]
+WantedBy=multi-user.target

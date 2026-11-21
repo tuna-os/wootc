@@ -1409,8 +1409,8 @@ three consent tiers:
 
 | Tier | Policy | Examples |
 |---|---|---|
-| Apply automatically | Non-secret preferences with an obvious Linux equivalent, plus the connectivity a user cannot comfortably be without | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage, personal Wi-Fi networks (open/WPA-PSK/WPA3-SAE) |
-| Offer with preview | Useful data or configuration whose effect the user can inspect | browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, printers, display/audio preferences |
+| Apply automatically | Non-secret preferences with an obvious Linux equivalent, plus the connectivity a user cannot comfortably be without | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage, personal Wi-Fi networks (open/WPA-PSK/WPA3-SAE), network printers (driverless IPP queues) |
+| Offer with preview | Useful data or configuration whose effect the user can inspect | browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, display/audio preferences |
 | Never migrate silently | Secrets, identity material, executable automation, or controller-specific state | passwords, private keys, access tokens, certificates, Bluetooth pairing keys, enterprise Wi-Fi credentials, scheduled-task commands |
 
 The maintenance control panel includes a **Bring your setup over** dashboard.
@@ -1435,6 +1435,77 @@ device-managed profiles, certificates, and user credentials are detected but
 not copied. The dashboard explains what was found and asks the user to finish
 authentication in Linux.
 
+#### Printers
+
+wootc moves printers as connections, never as drivers. A Windows driver
+cannot run on Linux. CUPS builds an IPP Everywhere queue from the data that the
+printer itself reports.
+
+The installer records every printer in the `Collecting your look and Wi-Fi`
+step. It uses `Get-Printer`, `Get-PrinterPort` and the default from
+`Win32_Printer`. It writes `<storage root>\wootc\install\printers.json`:
+
+```json
+{"schemaVersion": 1, "printers": [{"name": "Office Laser", "portName": "IP_10.0.0.9",
+  "driverName": "…", "default": true, "shared": false, "portKind": "tcpip",
+  "host": "10.0.0.9", "port": 9100, "protocol": "raw"}]}
+```
+
+The port sets `portKind`, not the driver. The kinds are `tcpip`, `ipp`,
+`wsd`, `usb`, `lpt`, `com`, `file`, `virtual` and `other`. A `tcpip` printer
+has a Standard TCP/IP port and records `host`, `port`, `protocol` (raw or lpr)
+and `lprQueue`. An `ipp` printer has an http, https, ipp or ipps URL as its
+port name, and `uri` keeps it. `file` is `FILE:` or `nul:`. `virtual` is
+`PORTPROMPT:` or an XPS, OneNote, fax or PDF port.
+
+On every Phase-2 boot, `wootc-printer-import.service` reads that file from the
+Windows volume. The unit runs as root after `cups.service`,
+`network-online.target` and `wootc-host-bind.service`. It writes the result to
+`/var/lib/wootc/printers.json` with mode 0644:
+
+```json
+{"schemaVersion": 1, "printers": [{"name": "Office Laser", "queue": "Office_Laser",
+  "status": "added", "uri": "ipp://10.0.0.9:631/ipp/print", "default": true,
+  "lastTried": "2026-11-21T04:10:29Z"}]}
+```
+
+A `waiting` or `not-migrated` record also has a `reason`. The journal gets one
+line for each printer: `wootc-printer-import: <name>: added <uri>`,
+`… waiting: <reason>` or `… not migrated: <reason>`.
+
+- A `tcpip` printer gets `ipp://<host>:631/ipp/print`.
+- An `ipp` printer keeps its URL. The importer changes http to ipp and https
+  to ipps, and adds an implied port 80 or 443.
+- The importer first makes sure that the address answers on its IPP port.
+  Then it runs `lpadmin -p <queue> -E -v <uri> -m everywhere` with a 90 s
+  limit.
+- The queue name starts as the Windows name. Each run of characters outside
+  `[A-Za-z0-9_-]` becomes one `_`. The importer removes a leading or trailing
+  `_` and keeps at most 127 characters. An empty result becomes `printer`. A
+  name that is already in the list gets `-2`, `-3` and so on. The comparison
+  ignores case.
+- If `lpadmin` succeeds, the status is `added`. The Windows default becomes
+  the CUPS default if CUPS has no default.
+- If `lpadmin` fails or the address does not answer, the status is `waiting`
+  and the reason tells why. The importer tries again at the next boot.
+- The importer never changes a queue that it added before, also when the user
+  removed or changed it. It also does not change a queue that has the same
+  name: that printer is `not-migrated`.
+- All other printers are `not-migrated` with a reason:
+  - Cable printers (usb, lpt, com): `connected by cable to this PC: plug it
+    in, and a driverless USB printer is set up automatically; others need
+    their Linux driver`
+  - WSD printers: `found by Windows on the network (WSD); if it supports
+    driverless printing, Settings → Printers lists it`
+  - Virtual and file printers: `Windows-only virtual printer`
+
+The migration chooser shows every printer and its status under **Printers**.
+If the user turns the category or a printer off, the importer adds no new
+queue. It removes no queue. Phase 3 copies the queues that wootc added to the
+native disk: their `printers.conf` entries and PPDs, and the report. The native
+system does not mount Windows, so a `waiting` printer stays `waiting` there.
+wootc does not migrate scanners.
+
 #### Bluetooth devices
 
 wootc may inventory paired Bluetooth devices (friendly name, class, and
@@ -1450,7 +1521,7 @@ The dashboard can offer the following independent, reversible import actions:
 
 | Category | Import behavior |
 |---|---|
-| Printers/scanners | Detect names and network addresses; offer driverless IPP setup, never copy Windows drivers. |
+| Printers/scanners | Network printers become driverless IPP Everywhere queues; cable, WSD and virtual printers are listed with the reason they did not move (see [Printers](#printers)). Windows drivers are never copied. Scanners are not migrated. |
 | VPN | Import endpoint, protocol, and non-secret settings; require passwords, certificates, and MFA again. |
 | Browser | Import bookmarks by default; offer history, extensions, and password migration only with separate consent. |
 | Cloud folders | Detect OneDrive, Dropbox, Google Drive, Syncthing, and Nextcloud; reconnect a Linux client rather than sharing or copying sync databases. |
