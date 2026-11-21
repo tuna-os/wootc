@@ -35,7 +35,14 @@ class BrowserImportSafetyTests(unittest.TestCase):
         account = f"alice:x:{os.getuid()}:{os.getgid()}::{self.home}:/bin/sh"
         self.command("getent", "printf '%s\\n' " + shlex.quote(account))
         self.command("wootc-selection", "exit 0")
+        # Which browsers "are installed" is part of the fixture, never the
+        # machine running the tests.
+        self.flatpaks = self.base / "flatpak"
+        self.native_bin = self.base / "usr-bin"
+        (self.flatpaks / "app").mkdir(parents=True)
+        self.native_bin.mkdir()
         self.env = dict(os.environ, WOOTC_HOST=str(self.host), HOME=str(self.home),
+                        WOOTC_FLATPAK_SYSTEM_DIR=str(self.flatpaks), WOOTC_NATIVE_BIN_DIR=str(self.native_bin),
                         PATH=str(self.bin) + os.pathsep + os.environ.get("PATH", os.defpath))
         self.ledger = self.home / ".config/wootc/bridge-browser.json"
 
@@ -207,13 +214,49 @@ class BrowserImportSafetyTests(unittest.TestCase):
         self.assertEqual((outside / "Bookmarks").read_bytes(), b"external work")
         self.assertFalse((outside / "History").exists())
 
-    def test_chrome_edge_destination_collision_is_partial_not_success(self):
-        source = self.seed_chromium("chrome")
+    def test_chrome_and_edge_each_import_into_their_own_profile(self):
+        # Edge used to share Chrome's destination: with both browsers on
+        # Windows, Edge's files always collided and were never imported.
+        chrome = self.seed_chromium("chrome")
+        edge = self.seed_chromium("edge")
+        result = self.run_import()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        ledger = self.result()
+        self.assertEqual(ledger["state"], "native")
+        self.assertEqual(ledger["imported"], ["chrome-bookmarks", "chrome-history", "edge-bookmarks", "edge-history"])
+        self.assertEqual((self.chrome / "Bookmarks").read_bytes(), (chrome / "Bookmarks").read_bytes())
+        edge_profile = self.home / ".var/app/com.microsoft.Edge/config/microsoft-edge/Default"
+        self.assertEqual((edge_profile / "Bookmarks").read_bytes(), (edge / "Bookmarks").read_bytes())
+        self.assertEqual((edge_profile / "History").read_bytes(), (edge / "History").read_bytes())
+
+    def test_fresh_account_imports_where_the_installed_browser_looks(self):
+        # A brand-new account has no ~/.mozilla and no ~/.config: no browser
+        # has run yet. The import used to refuse ("no existing Linux Firefox
+        # parent directory") and Firefox data never arrived.
+        for directory in (self.home / ".mozilla", self.home / ".config"):
+            for path in sorted(directory.rglob("*"), reverse=True):
+                path.rmdir()
+            directory.rmdir()
+        self.seed_firefox()
+        self.seed_chromium("chrome")
         self.seed_chromium("edge")
-        ledger = self.assert_failed(self.run_import())
-        self.assertEqual(ledger["status"], "partial")
-        self.assertEqual(ledger["imported"], ["chrome-bookmarks", "chrome-history"])
-        self.assertEqual((self.chrome / "Bookmarks").read_bytes(), (source / "Bookmarks").read_bytes())
+        (self.flatpaks / "app/org.mozilla.firefox").mkdir()  # the image's Flatpak Firefox
+        (self.native_bin / "microsoft-edge").write_text("")  # a native Edge
+        result = self.run_import()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        firefox = self.home / ".var/app/org.mozilla.firefox/.mozilla/firefox"
+        self.assertTrue((firefox / "windows-import.wootc/places.sqlite").is_file())
+        parser = configparser.RawConfigParser()
+        parser.read(firefox / "profiles.ini")
+        self.assertEqual(parser.get("Profile0", "Path"), "windows-import.wootc")
+        # Nothing installed for Chrome: the Flathub Chrome's profile.
+        self.assertTrue((self.home / ".var/app/com.google.Chrome/config/google-chrome/Default/Bookmarks").is_file())
+        self.assertTrue((self.home / ".config/microsoft-edge/Default/Bookmarks").is_file())
+        for created in (firefox, self.home / ".var", self.home / ".config/microsoft-edge"):
+            self.assertEqual(created.stat().st_mode & 0o777, 0o700, created)
+            self.assertEqual(created.stat().st_uid, os.getuid())
+        self.assertEqual(self.result()["imported"],
+                         ["firefox", "chrome-bookmarks", "chrome-history", "edge-bookmarks", "edge-history"])
 
     def test_file_appearing_at_publication_is_not_overwritten(self):
         self.seed_chromium()

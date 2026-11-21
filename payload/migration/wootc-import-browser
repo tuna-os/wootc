@@ -9,10 +9,20 @@
 #   Firefox  — the complete profile (bookmarks, history, passwords,
 #              extensions): Firefox profiles are portable directories.
 #   Chrome   — Bookmarks (plain JSON). History is copyable (SQLite).
-#   Edge     — Bookmarks + History (same Chromium formats → Chrome).
+#   Edge     — Bookmarks + History into Edge for Linux's own profile, so a
+#              Windows user with both browsers keeps both (Edge used to land
+#              in Chrome's profile and lose to Chrome's files).
 #   Chromium passwords do NOT migrate: they are DPAPI-encrypted with the
 #   Windows login credential and cannot be decrypted offline. The
 #   dashboard says so up front instead of pretending.
+#
+# Destinations: the browser's existing Linux profile parent wins (Flatpak,
+# then native). A fresh account has none — no browser has run yet — so the
+# import creates the profile where the installed browser will look: the
+# Flatpak's when it is installed (system or per user), the native one when
+# only a native binary exists, and the Flatpak's otherwise (atomic images
+# install browsers from Flathub). Env for tests: WOOTC_FLATPAK_SYSTEM_DIR
+# (/var/lib/flatpak), WOOTC_NATIVE_BIN_DIR (/usr/bin).
 #
 # Everything is copy-only: the Windows profile is never modified, so the
 # stage stays reversible (delete the imported Linux profile to undo).
@@ -292,8 +302,6 @@ def import_firefox(source_tree, destination_tree, target):
         return
     parts = relative_profile(read_file(source, "profiles.ini"))
     profile = source_tree.directory(("Users", username, "AppData", "Roaming", "Mozilla", "Firefox", *parts))
-    if target is None:
-        raise ValueError("no existing Linux Firefox parent directory")
     destination = destination_tree.directory(target, create=True)
     if exists(destination, "windows-import.wootc"):
         raise FileExistsError("existing Firefox import preserved; choose another profile explicitly")
@@ -353,12 +361,11 @@ def import_chromium(app, source_tree, destination_tree, target):
     files = [name for name in ("Bookmarks", "History") if exists(source, name)]
     if not files:
         return
-    if target is None:
-        raise ValueError("no existing Linux Chrome parent directory")
+    label = "Chrome" if app == "chrome" else "Edge"
     destination = destination_tree.directory(target, create=True)
     for filename in files:
         if exists(destination, filename):
-            raise FileExistsError("existing Linux Chrome " + filename + " preserved")
+            raise FileExistsError("existing Linux " + label + " " + filename + " preserved")
     name, staged = stage_directory(destination, app)
     complete = False
     staged_files = {}
@@ -391,9 +398,22 @@ def import_chromium(app, source_tree, destination_tree, target):
             os.fsync(destination)
 
 
-def choose_parent(candidates):
-    return next((parts for parts, parent in candidates
-                 if os.path.isdir(os.path.join(home, *parent))), None)
+FLATPAK_SYSTEM = os.environ.get("WOOTC_FLATPAK_SYSTEM_DIR", "/var/lib/flatpak")
+NATIVE_BIN = os.environ.get("WOOTC_NATIVE_BIN_DIR", "/usr/bin")
+
+
+def choose_target(flatpak_id, flatpak_parts, native_parts, native_marker, binaries):
+    """Where this browser's imported profile goes (header: Destinations)."""
+    if os.path.isdir(os.path.join(home, ".var", "app", flatpak_id)):
+        return flatpak_parts
+    if os.path.isdir(os.path.join(home, *native_marker)):
+        return native_parts
+    if (os.path.isdir(os.path.join(FLATPAK_SYSTEM, "app", flatpak_id))
+            or os.path.isdir(os.path.join(home, ".local", "share", "flatpak", "app", flatpak_id))):
+        return flatpak_parts
+    if any(os.path.exists(os.path.join(NATIVE_BIN, binary)) for binary in binaries):
+        return native_parts
+    return flatpak_parts
 
 
 destination_tree = source_tree = state_tree = None
@@ -403,16 +423,19 @@ try:
     # getent supplies the trusted home; resolve distro-owned /home aliases
     # once, then pin and recheck every user-controlled descendant.
     destination_tree = Tree(os.path.realpath(home), owner=uid)
-    firefox_target = choose_parent((
-        ((".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
-         (".var", "app", "org.mozilla.firefox", ".mozilla")),
-        ((".mozilla", "firefox"), (".mozilla",)),
-    ))
-    chromium_target = choose_parent((
-        ((".var", "app", "com.google.Chrome", "config", "google-chrome", "Default"),
-         (".var", "app", "com.google.Chrome", "config")),
-        ((".config", "google-chrome", "Default"), (".config",)),
-    ))
+    targets = {
+        "firefox": choose_target("org.mozilla.firefox",
+                                 (".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
+                                 (".mozilla", "firefox"), (".mozilla",), ("firefox",)),
+        "chrome": choose_target("com.google.Chrome",
+                                (".var", "app", "com.google.Chrome", "config", "google-chrome", "Default"),
+                                (".config", "google-chrome", "Default"), (".config", "google-chrome"),
+                                ("google-chrome", "google-chrome-stable")),
+        "edge": choose_target("com.microsoft.Edge",
+                              (".var", "app", "com.microsoft.Edge", "config", "microsoft-edge", "Default"),
+                              (".config", "microsoft-edge", "Default"), (".config", "microsoft-edge"),
+                              ("microsoft-edge", "microsoft-edge-stable")),
+    }
     # Browser-directory races must not prevent recording a failed result in
     # the independently pinned state directory.
     state_tree = Tree(os.path.realpath(home), owner=uid)
@@ -449,9 +472,9 @@ try:
         for app in selected:
             try:
                 if app == "firefox":
-                    import_firefox(source_tree, destination_tree, firefox_target)
+                    import_firefox(source_tree, destination_tree, targets["firefox"])
                 else:
-                    import_chromium(app, source_tree, destination_tree, chromium_target)
+                    import_chromium(app, source_tree, destination_tree, targets[app])
             except (OSError, ValueError, configparser.Error, UnicodeError) as error:
                 failures.append({"app": app, "error": str(error)})
     except (OSError, ValueError) as error:

@@ -669,6 +669,23 @@ if command -v wootc-detect-apps >/dev/null; then
                 log "identity: skipped for $uname (turned off in the migration chooser)"
             fi
         fi
+        # Browser bookmarks/history/profile (copy-only, never clobbers): run
+        # until one attempt completes, so the browser opens with the
+        # Windows bookmarks on first use. It used to be reachable only from
+        # the CLI for the internal Windows disk (wootc-import scan excludes
+        # the boot disk), so no user ever got it. A failed attempt retries
+        # next boot; the per-browser chooser items are honoured inside.
+        if command -v wootc-import-browser >/dev/null; then
+            browser_record="$userhome.config/wootc/bridge-browser.json"
+            browser_state=$(jq -r '.state // empty' "$browser_record" 2>/dev/null || true)
+            if ! sel_on "$uname" browsers; then
+                log "browsers: skipped for $uname (turned off in the migration chooser)"
+            elif [[ "$browser_state" == native || "$browser_state" == unchanged ]]; then
+                :
+            else
+                wootc-import-browser "$winuser" "$uname" || log "browser import failed for $winuser → $uname (non-fatal; retried next boot)"
+            fi
+        fi
     done
     shopt -u nullglob
 fi

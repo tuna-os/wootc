@@ -1255,13 +1255,18 @@ one time in Steam **Settings > Storage > Add Library**. After that step, the
 games run in place, with Proton for compatibility. Games do not appear
 without that step.
 
-**Browser profiles** are detected and offered for import:
+**Browser profiles:** the first Phase-2 boot copies them. The copy does not
+change Linux browser data. The user can turn off the category or one browser
+in the migration chooser. If the copy fails, the next boot tries again.
+Each browser gets its own Linux profile. The profile goes where the browser
+looks: its existing profile, else the installed Flatpak, else the installed
+native browser, else the Flathub Flatpak location.
 
 | Windows browser | Linux equivalent | What migrates |
 |---|---|---|
-| Chrome | Chrome (Flatpak) | bookmarks, history, passwords (with consent) |
-| Edge | Chrome (Flatpak) | bookmarks, history |
-| Firefox | Firefox (Flatpak) | bookmarks, history, passwords, extensions |
+| Chrome | Chrome (Flatpak or native) | bookmarks, history; passwords only through the separate, consented session migration |
+| Edge | Edge for Linux (Flatpak or native) | bookmarks, history |
+| Firefox | Firefox (Flatpak or native) | bookmarks, history, passwords, extensions |
 
 ### 4.2 Staged Native Conversion
 
@@ -1288,7 +1293,7 @@ Each stage is independent and reversible (before deletion):
 |---|---|---|
 | 1. Use Windows Documents | Bind-mount into `$HOME` | Yes (undo bind mount) |
 | 2. Use Steam libraries | Detect and reference in-place | Yes (nothing changed) |
-| 3. Import browser profile | Copy bookmarks/passwords/history | Yes (delete imported profile) |
+| 3. Import browser profile | Copy bookmarks/history (Firefox: whole profile) at first boot | Yes (delete imported profile) |
 | 4. Convert Documents to native | Copy files, update bind mount | Yes (files still on NTFS until stage 6) |
 | 5. Convert home to native | Move `$HOME` to native Linux filesystem | Yes (snapshot rollback) |
 | 6. Remove Windows | Delete Windows partition, expand Linux | **No** (Windows is gone) |
