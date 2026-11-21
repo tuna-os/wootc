@@ -323,19 +323,28 @@ class IntegrityTests(unittest.TestCase):
 class WaitArtifactTests(unittest.TestCase):
     SCRIPT = ROOT / '.github/scripts/wait-run-artifact.sh'
 
-    def run_with(self, answers, *names, budget='0'):
+    def run_with(self, answers, *names, budget='0', jobs=None, runner='GitHub Actions 2'):
         with tempfile.TemporaryDirectory() as tmp:
             fake = Path(tmp) / 'gh'
-            # Answers the artifact count per name from $ANSWERS (name=count;...).
+            # Answers the artifact count per name from $ANSWERS (name=count;...)
+            # and this attempt's job list (name<TAB>status<TAB>runner lines,
+            # what the script's --jq makes of it) from $JOBS.
             fake.write_text('#!/usr/bin/env bash\n'
+                            'case "$*" in *"/attempts/7/jobs"*) [ "$JOBS" = error ] && exit 1; printf "%s\\n" "$JOBS"; exit 0 ;; esac\n'
                             'for a in "$@"; do case "$a" in name=*) n=${a#name=} ;; esac; done\n'
                             'v=$(printf "%s" "$ANSWERS" | tr ";" "\\n" | sed -n "s/^$n=//p")\n'
                             '[ "$v" = error ] && exit 1\n'
                             'echo "${v:-0}"\n')
             fake.chmod(0o755)
             env = dict(os.environ, PATH=f'{tmp}:{os.environ["PATH"]}', ANSWERS=answers,
-                       GITHUB_REPOSITORY='o/r', GITHUB_RUN_ID='1', WAIT_RUN_ARTIFACT_INTERVAL='0')
-            return subprocess.run(['bash', str(self.SCRIPT), budget, *names], env=env, text=True, capture_output=True)
+                       GITHUB_REPOSITORY='o/r', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='7',
+                       RUNNER_NAME=runner, WAIT_RUN_ARTIFACT_INTERVAL='0')
+            env.pop('WAIT_RUN_ARTIFACT_PEER', None)
+            if jobs is not None:
+                env['WAIT_RUN_ARTIFACT_PEER'] = 'native-shell'
+                env['JOBS'] = jobs if jobs == 'error' else '\n'.join('\t'.join(job) for job in jobs)
+            return subprocess.run(['bash', str(self.SCRIPT), budget, *names], env=env, text=True,
+                                  capture_output=True, timeout=30)
 
     def test_the_first_present_name_is_printed(self):
         result = self.run_with('a=0;b=1', 'a', 'b')
@@ -352,6 +361,48 @@ class WaitArtifactTests(unittest.TestCase):
     def test_bad_arguments(self):
         self.assertEqual(self.run_with('', 'a', budget='soon').returncode, 2)
         self.assertEqual(self.run_with('').returncode, 2)
+
+    # Release run 44920191678 attempt 2: "re-run failed jobs" re-ran only e2e.
+    # native-shell was carried over from attempt 1, completed, and never
+    # published this attempt's installer.
+    GATE = 'E2E gate (real Windows VM)'
+
+    def test_a_peer_carried_over_from_an_earlier_attempt_stops_the_wait_at_once(self):
+        jobs = [(f'{self.GATE} / e2e', 'in_progress', 'GitHub Actions 2'),
+                (f'{self.GATE} / native-shell', 'completed', 'GitHub Actions 9'),
+                ('fast + integration', 'completed', 'GitHub Actions 3')]
+        result = self.run_with('i=0', 'i', budget='3600', jobs=jobs)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("job 'native-shell' already finished in attempt 7", result.stderr)
+        self.assertIn('Re-run all jobs', result.stderr)
+
+    def test_a_running_peer_or_an_unreadable_job_list_keeps_the_wait(self):
+        running = [(f'{self.GATE} / e2e', 'in_progress', 'GitHub Actions 2'),
+                   (f'{self.GATE} / native-shell', 'in_progress', 'GitHub Actions 9')]
+        for jobs in (running, 'error', []):
+            result = self.run_with('i=0', 'i', jobs=jobs)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('within 0s', result.stderr, jobs)
+
+    def test_a_finished_peer_that_published_is_a_success(self):
+        jobs = [('e2e', 'in_progress', 'GitHub Actions 2'), ('native-shell', 'completed', 'GitHub Actions 9')]
+        result = self.run_with('i=1', 'i', budget='3600', jobs=jobs)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 'i')
+
+    def test_with_several_calls_the_peer_is_the_one_in_this_jobs_call(self):
+        jobs = [('cell (a) / native-shell GUI acceptance', 'in_progress', 'GitHub Actions 2'),
+                ('cell (a) / native-shell', 'in_progress', 'GitHub Actions 9'),
+                ('cell (b) / e2e', 'completed', 'GitHub Actions 4'),
+                ('cell (b) / native-shell', 'completed', 'GitHub Actions 5')]
+        result = self.run_with('i=0', 'i', jobs=jobs)
+        self.assertIn('within 0s', result.stderr)
+        jobs[1] = ('cell (a) / native-shell', 'completed', 'GitHub Actions 9')
+        result = self.run_with('i=0', 'i', budget='3600', jobs=jobs)
+        self.assertIn("job 'native-shell' already finished", result.stderr)
+        # Without its own job in the list it cannot tell which peer is its own.
+        result = self.run_with('i=0', 'i', jobs=jobs, runner='GitHub Actions 77')
+        self.assertIn('within 0s', result.stderr)
 
 
 class ResultLedgerTests(unittest.TestCase):
@@ -390,6 +441,22 @@ class WorkflowTests(unittest.TestCase):
         start = WORKFLOW.index(f'\n  {name}:\n')
         end = re.search(r'\n  [\w-]+:\n', WORKFLOW[start + 1:])
         return WORKFLOW[start:start + 1 + end.start()] if end else WORKFLOW[start:]
+
+    def test_handoff_artifacts_belong_to_one_attempt_and_each_wait_names_its_peer(self):
+        # A rerun keeps the earlier attempts' artifacts, and each e2e attempt
+        # signs with a new key: run 44920191678 attempt 2 installed attempt 1's
+        # engine and refused its own manifest ("signature is invalid").
+        names = re.findall(r'^\s+(NATIVE_\w+_ARTIFACT): (.*)$', WORKFLOW, re.M)
+        self.assertEqual(len(names), 6, names)
+        for variable, value in names:
+            self.assertTrue(value.endswith('-${{ github.run_id }}-${{ github.run_attempt }}'), (variable, value))
+        for job, peer in (('native-shell', "${{ inputs.native_proof && 'native-shell GUI acceptance' || 'e2e' }}"),
+                          ('e2e', 'native-shell')):
+            text = self.job(job)
+            waits = text.count('bash .github/scripts/wait-run-artifact.sh')
+            self.assertGreaterEqual(waits, 1, job)
+            self.assertEqual(text.count(f'WAIT_RUN_ARTIFACT_PEER: {peer}\n'), waits, job)
+        self.assertIn("name: ${{ inputs.native_proof && 'native-shell GUI acceptance' || 'e2e' }}", self.job('e2e'))
 
     def test_the_installer_is_compiled_on_windows_around_the_e2e_engine(self):
         native = self.job('native-shell')
