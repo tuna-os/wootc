@@ -151,6 +151,24 @@ The helpers cover these categories:
 - **WSL:** selected dotfiles and package lists can help rebuild tools, not clone
   an entire WSL system or transfer its accounts. Follow the
   [WSL migration guide](wsl-migration.md) and keep a separate export/backup.
+- **Developer setup:** from your Windows `C:\Users\<you>\.ssh` folder, Linux
+  copies your public keys (`*.pub`), `config`, `known_hosts` and
+  `authorized_keys` into `~/.ssh`. The copies are byte for byte, private to
+  your account, and have the permissions OpenSSH expects. Linux does **not**
+  copy your private keys. They stay on Windows, and
+  `~/.config/wootc/bridge-developer.json` gives each one with its reason under
+  `leftOnWindows`. To use one
+  on Linux, copy it yourself or create a new key with `ssh-keygen`. From
+  `C:\Users\<you>\.gitconfig`, Linux takes only your Git name, email, commit
+  signature key and default branch name, and writes them to `~/.gitconfig`. It does
+  this only if you have no `~/.gitconfig` or `~/.config/git/config` yet.
+  Linux does not copy credential helpers, `core.autocrlf`, `core.sshCommand`,
+  included files or Windows paths; the same file gives them under `notCarried`. The copy runs on
+  each Windows-backed boot and never overwrites a file you changed on Linux.
+  To turn it off, uncheck **Developer setup** in **Bring Over From Windows**.
+  Files already copied stay until you delete them. The copied files, with
+  their permissions and SELinux labels, move with `/home` when you move to
+  Linux only.
 - **Wi-Fi:** the helper creates NetworkManager connections from saved networks.
   Enterprise networks can need a fresh sign-in.
 - **Windows look:** the helpers transfer your selected preferences and shortcuts on supported desktops.
@@ -190,7 +208,7 @@ automatically.
 The Steam bridge keeps an existing library VDF byte-for-byte. If Steam has not
 registered the Windows library, use Steam's **Add Library** UI. The bridge does not
 silently rewrite the configuration of native libraries. WSL dotfiles, `.ssh`
-and Brewfile imports will also preserve bytes that differ from those at the source.
+files and Brewfile imports will also preserve bytes that differ from those at the source.
 Manually merge the configuration/formulae you want; do not assume a retry
 replaces them.
 

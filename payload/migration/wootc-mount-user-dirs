@@ -255,6 +255,18 @@ sel_on() {
     return 0
 }
 
+# Developer setup (§4.6): public SSH files + Git identity, never private keys.
+# A function, not inline in the per-user loop, so the chooser gate is testable.
+# developer_bridge <windows-profile> <linux-user>
+developer_bridge() {
+    command -v wootc-developer-bridge >/dev/null || return 0
+    if sel_on "$2" developer; then
+        wootc-developer-bridge "$1" "$2" || log "developer bridge failed for $1 → $2 (non-fatal)"
+    else
+        log "developer: skipped for $2 (turned off in the migration chooser)"
+    fi
+}
+
 bound=0
 copied=0
 matched=0
@@ -648,6 +660,7 @@ if command -v wootc-detect-apps >/dev/null; then
                 log "office: skipped for $uname (turned off in the migration chooser)"
             fi
         fi
+        developer_bridge "$winuser" "$uname"
         # Copy the account picture + full name over (never the password).
         if command -v wootc-identity >/dev/null; then
             if sel_on "$uname" identity; then

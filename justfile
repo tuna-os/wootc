@@ -623,7 +623,8 @@ ssh:
 check:
     shellcheck -S warning "{{ E2E_DIR }}/run-e2e.sh" "{{ E2E_DIR }}/setup-kvm-runner.sh"
     shellcheck payload/migration/wootc-go-native payload/migration/wootc-wifi-bridge \
-        payload/migration/wootc-wsl-bridge payload/migration/wootc-apply-look || true
+        payload/migration/wootc-wsl-bridge payload/migration/wootc-developer-bridge \
+        payload/migration/wootc-apply-look || true
 
 # ── GUI E2E ───────────────────────────────────────────────────────────────────
 
