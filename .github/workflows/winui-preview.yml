@@ -423,6 +423,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      actions: write             # dispatch winget-publish.yml for a full release
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -446,9 +447,10 @@ jobs:
           if [ "$tagged" != "$GITHUB_SHA" ]; then
             echo "::error::Tag $tag is $tagged; these packages were tested at $GITHUB_SHA"; exit 1
           fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft > release.json
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,isPrerelease > release.json
           jq -e --arg t "$tag" '.tagName == $t and (.isDraft | not)' release.json > /dev/null
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$(jq -r '.isPrerelease' release.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v8.0.2
         with:
           pattern: winui-preview-package-*
@@ -497,3 +499,30 @@ jobs:
           set -euo pipefail
           # No --clobber: a tested native asset never replaces one already published.
           gh release upload "$TAG" preview-assets/* --repo "$GITHUB_REPOSITORY"
+      # release.yml publishes a full release with make_latest: false, so
+      # releases/latest/download/TunaOS-Installer.exe keeps serving the
+      # previous release until this job has attached the native setup under
+      # that name. Only then does the release become latest, and only then is
+      # winget dispatched: it renders its manifest from wootc-Installer-Setup.exe.
+      # GitHub never triggers workflows from GITHUB_TOKEN events (the
+      # v0.1.0-alpha.1 publish had 0 winget runs), so the dispatch from
+      # release.yml's run is explicit; a release a person published already
+      # triggered winget-publish.yml through its release event.
+      - name: Make the full release latest and dispatch winget
+        if: ${{ needs.release-context.outputs.production == 'true' && steps.tag.outputs.prerelease == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors -o /dev/null \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/TunaOS-Installer.exe"
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .id)
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -f make_latest=true > /dev/null
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          [ "$latest" = "$TAG" ] || { echo "::error::releases/latest is $latest, not $TAG"; exit 1; }
+          curl -fsSL --retry 5 --retry-all-errors -o /dev/null \
+            "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/TunaOS-Installer.exe"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            gh workflow run winget-publish.yml --repo "$GITHUB_REPOSITORY" -f tag="$TAG"
+          fi

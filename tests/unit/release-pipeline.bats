@@ -5,21 +5,79 @@ RELEASE=.github/workflows/release.yml
 WINGET=.github/workflows/winget-publish.yml
 WINUI=.github/workflows/winui-preview.yml
 
-@test "full releases hand the tag to winget-publish themselves" {
-    # winget-publish.yml listens on release:published, but every release this
-    # pipeline cuts is created with GITHUB_TOKEN — and GitHub never triggers
-    # workflows from events its own token caused (recursion guard). The
-    # v0.1.0-alpha.1 publish proved the failure mode: release live, zero
-    # winget runs. The publish job must therefore dispatch winget-publish
-    # explicitly, and only for full releases (prerelease channels stay out
-    # of winget by design).
-    grep -q 'gh workflow run winget-publish.yml' "$RELEASE"
-    grep -q "prerelease == 'false'" "$RELEASE"
+@test "a full release becomes latest and goes to winget only after its native setup is attached" {
+    # v0.1.0-alpha.2: release.yml published the boot artifacts as the new
+    # latest release, and releases/latest/download/TunaOS-Installer.exe gave
+    # 404 until winui-preview.yml attached the native setup about an hour
+    # later; the winget run it dispatched gave up on the setup after 30 min.
+    grep -q 'make_latest: false' "$RELEASE"
+    ! grep -q 'gh workflow run winget-publish.yml' "$RELEASE"
     grep -q 'actions: write' "$RELEASE"
-    # The receiving side must accept a tag over workflow_dispatch, or the
-    # hand-off dispatches into a workflow that cannot use it.
+    # winui-preview.yml makes it latest after the upload, for full production
+    # releases, then dispatches winget (GitHub never triggers workflows from
+    # GITHUB_TOKEN events: v0.1.0-alpha.1 had 0 winget runs).
+    awk '/^  publish-preview:/,0' "$WINUI" | grep -q 'actions: write'
+    grep -q "steps.tag.outputs.prerelease == 'false'" "$WINUI"
+    upload=$(grep -n -- '- name: Upload beside the existing release assets' "$WINUI" | cut -d: -f1)
+    latest=$(grep -n -- '- name: Make the full release latest and dispatch winget' "$WINUI" | cut -d: -f1)
+    [ "$upload" -lt "$latest" ]
+    # The receiving side must accept a tag over workflow_dispatch.
     grep -q 'workflow_dispatch' "$WINGET"
     grep -q "inputs.tag" "$WINGET"
+}
+
+# Run winui-preview.yml's "make latest" step with gh and curl recording their
+# calls in $work/calls. FAKE_LATEST is what releases/latest answers.
+run_make_latest() {  # <work dir> <event name> <latest tag>
+    local script
+    script=$(awk '/- name: Make the full release latest and dispatch winget/{f=1; next}
+                  f && /^      - /{exit}
+                  f && /^        run: \|/{r=1; next}
+                  r && /^          /{sub(/^          /, ""); print}' "$WINUI")
+    [ -n "$script" ]
+    mkdir -p "$1/bin"
+    cat > "$1/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "gh $*" >> "$CALLS"
+case "$*" in
+    *releases/tags/*) echo 42 ;;
+    *releases/latest*) echo "$FAKE_LATEST" ;;
+esac
+EOF
+    printf '#!/usr/bin/env bash\necho "curl ${*: -1}" >> "$CALLS"\n' > "$1/bin/curl"
+    chmod +x "$1/bin/gh" "$1/bin/curl"
+    (PATH="$1/bin:$PATH" CALLS="$1/calls" FAKE_LATEST=$3 GITHUB_EVENT_NAME=$2 \
+        GITHUB_REPOSITORY=o/r TAG=v9 bash -c "set -euo pipefail; $script")
+}
+
+@test "make latest: the tag's setup is checked, then latest, then winget is dispatched" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" workflow_dispatch v9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    run cat "$work/calls"
+    [ "${lines[0]}" = "curl https://github.com/o/r/releases/download/v9/TunaOS-Installer.exe" ]
+    [[ "${lines[2]}" == "gh api -X PATCH repos/o/r/releases/42 -f make_latest=true" ]]
+    [ "${lines[4]}" = "curl https://github.com/o/r/releases/latest/download/TunaOS-Installer.exe" ]
+    [ "${lines[5]}" = "gh workflow run winget-publish.yml --repo o/r -f tag=v9" ]
+    rm -rf "$work"
+}
+
+@test "make latest: a release a person published does not dispatch winget a second time" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" release v9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    grep -q 'make_latest=true' "$work/calls"
+    ! grep -q 'winget-publish' "$work/calls"
+    rm -rf "$work"
+}
+
+@test "make latest: latest still naming another release fails before winget" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" workflow_dispatch v8
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"releases/latest is v8, not v9"* ]]
+    ! grep -q 'winget-publish' "$work/calls"
+    rm -rf "$work"
 }
 
 @test "phase D publishes native setup assets and one Wails fallback" {

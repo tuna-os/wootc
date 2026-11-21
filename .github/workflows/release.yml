@@ -94,7 +94,7 @@ jobs:
     permissions:
       contents: write
       packages: read
-      actions: write             # dispatch native packaging and winget
+      actions: write             # dispatch native packaging (it dispatches winget)
       # GitHub OIDC for Azure Trusted Signing (#229). This job only: the
       # token proves "the release job of tuna-os/wootc", and no other job
       # needs to prove that. No Azure configuration = never requested.
@@ -436,11 +436,17 @@ jobs:
           } > NOTES.md
           cat NOTES.md
 
+      # A full release does not become `latest` here. Its primary download,
+      # TunaOS-Installer.exe, is the native setup that winui-preview.yml
+      # attaches about an hour later, and releases/latest/download/... would
+      # 404 for that hour (v0.1.0-alpha.2). winui-preview.yml marks the
+      # release latest after the upload and then dispatches winget.
       - uses: softprops/action-gh-release@v3.0.4 # zizmor: ignore[superfluous-actions] replacing the release action would change how releases publish
         with:
           tag_name: ${{ steps.chan.outputs.tag }}
           target_commitish: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || (github.ref_type != 'tag' && github.sha || '') }}
           prerelease: ${{ steps.chan.outputs.prerelease }}
+          make_latest: false
           files: release-assets/*
           body_path: NOTES.md
           draft: false
@@ -472,25 +478,11 @@ jobs:
       - name: Dispatch native setup packaging
         # The release has to exist before winui-preview.yml can fetch the
         # public half of artifact-public-key.hex. It builds and attaches the
-        # setup assets at this exact tag; winget waits for the primary generic
-        # setup below.
+        # setup assets at this exact tag, then makes a full release `latest`
+        # and dispatches winget.
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.chan.outputs.tag }}
         run: |
           gh workflow run winui-preview.yml --repo "${{ github.repository }}" \
             --ref "$RELEASE_TAG" -f release_tag="$RELEASE_TAG"
-
-      - name: Dispatch winget submission (full releases only)
-        # winget-publish.yml listens on release:published, but releases cut
-        # here are created with GITHUB_TOKEN, and GitHub never triggers
-        # workflows from events its own token caused (recursion guard) — the
-        # v0.1.0-alpha.1 publish proved it: 0 winget runs. An explicit
-        # workflow_dispatch through the API DOES fire, so hand it the tag.
-        if: ${{ steps.chan.outputs.prerelease == 'false' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
-        run: |
-          gh workflow run winget-publish.yml --repo "${{ github.repository }}" \
-            -f tag="$RELEASE_TAG"
