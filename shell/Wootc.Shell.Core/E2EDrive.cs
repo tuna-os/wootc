@@ -20,6 +20,13 @@ namespace Wootc.Shell.Core;
 // one whose target matches no observed volume or more than one, is refused
 // and the refusal is reported as the drive error. Nothing is mapped and
 // Install is never clicked.
+//
+// Two optional install keys set the rest of the form. windowsLook (true or
+// false) sets the Windows appearance checkbox; absent keeps the engine's
+// default. flatpaks (an array of Flatpak IDs) is exactly the apps to keep
+// checked; absent keeps every detected app checked, as a person's form
+// starts. An ID the engine did not detect, or one named twice, is refused
+// like an unknown target (E2EDriveApps): reported, never mapped.
 
 public sealed class E2EDriveDirective
 {
@@ -42,6 +49,10 @@ public sealed class E2EDriveDirective
     public string Encryption { get; private init; } = "";
     public string StorageId { get; private init; } = "";
     public int DiskSizeGb { get; private init; }
+    public const int MaximumFlatpaks = 64;
+    // Null when the directive did not name the key.
+    public bool? WindowsLook { get; private init; }
+    public IReadOnlyList<string>? Flatpaks { get; private init; }
 
     private E2EDriveDirective() { }
 
@@ -59,6 +70,8 @@ public sealed class E2EDriveDirective
         var seen = new HashSet<string>(StringComparer.Ordinal);
         string runId = "", directiveId = "", action = "";
         int schema = 0, diskSize = 0;
+        bool? windowsLook = null;
+        List<string>? flatpaks = null;
         var text = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var property in document.RootElement.EnumerateObject())
         {
@@ -78,6 +91,19 @@ public sealed class E2EDriveDirective
                     if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out diskSize) || diskSize < 0)
                         throw new InvalidDataException("Invalid drive disk size");
                     break;
+                case "windowsLook":
+                    windowsLook = value.ValueKind switch
+                    {
+                        JsonValueKind.True => true,
+                        JsonValueKind.False => false,
+                        _ => throw new InvalidDataException("Invalid drive Windows appearance"),
+                    };
+                    break;
+                case "flatpaks":
+                    if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() > MaximumFlatpaks)
+                        throw new InvalidDataException("Invalid drive app list");
+                    flatpaks = value.EnumerateArray().Select(RequireString).ToList();
+                    break;
                 default:
                     if (!TextFields.Contains(property.Name)) throw new InvalidDataException("Unknown drive directive key");
                     text[property.Name] = RequireString(value);
@@ -93,7 +119,7 @@ public sealed class E2EDriveDirective
             SchemaVersion = schema, RunId = runId, DirectiveId = directiveId, Action = action,
             Image = Text("image"), Username = Text("username"), Password = Text("password"),
             Hostname = Text("hostname"), Encryption = Text("encryption"), StorageId = Text("storageId"),
-            DiskSizeGb = diskSize,
+            DiskSizeGb = diskSize, WindowsLook = windowsLook, Flatpaks = flatpaks?.AsReadOnly(),
         };
     }
 
@@ -107,6 +133,7 @@ public sealed class E2EDriveDirective
             SchemaVersion = SchemaVersion, RunId = RunId, DirectiveId = DirectiveId, Action = Action,
             ImageRef = Image, Username = Username, Password = Password, Hostname = Hostname,
             DiskSizeGb = DiskSizeGb, Encryption = Encryption, StorageId = StorageId,
+            WindowsLook = WindowsLook, Flatpaks = Flatpaks,
         };
 
     public override string ToString() => $"E2E drive directive {Action} {DirectiveId} (private configuration omitted)";
@@ -117,6 +144,31 @@ public sealed class E2EDriveDirective
 public sealed class E2EDriveRefusal : Exception
 {
     public E2EDriveRefusal(string message) : base(message) { }
+}
+
+// Resolves an install directive's flatpaks against the engine's detected
+// apps. Absent (null) selects every detected app, the form's default. A
+// named list must name only detected apps, each once; the refusal names the
+// first ID that is not, so the report says which one.
+public static class E2EDriveApps
+{
+    public static IReadOnlyList<string> Resolve(IReadOnlyList<string>? requested, IReadOnlyList<ConfigurationApp> detected)
+    {
+        ArgumentNullException.ThrowIfNull(detected);
+        if (requested is null) return detected.Select(app => app.Flatpak).ToArray();
+        var known = detected.Select(app => app.Flatpak).ToHashSet(StringComparer.Ordinal);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string id in requested)
+        {
+            // Messages avoid apostrophes and quotes, which the report writer escapes.
+            string named = ConsumerConfiguration.FlatpakId.IsMatch(id) && id.Length <= 128 ? id : $"({id.Length} characters, not a Flatpak ID)";
+            if (!known.Contains(id))
+                throw new E2EDriveRefusal($"The install drive directive names app {named}, which the engine did not detect on this computer.");
+            if (!seen.Add(id))
+                throw new E2EDriveRefusal($"The install drive directive names app {named} more than once.");
+        }
+        return requested.ToArray();
+    }
 }
 
 // Resolves an install directive's storageId against the engine's storage

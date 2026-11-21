@@ -40,6 +40,124 @@ public sealed class ConsumerConfigurationTests
         return model;
     }
 
+    private static readonly ConfigurationApp[] Apps =
+    {
+        new("org.gimp.GIMP", "GIMP", "GIMP 2.10.36"),
+        new("org.inkscape.Inkscape", "Inkscape", "Inkscape 1.4.2"),
+        new("org.audacityteam.Audacity", "Audacity", "Audacity 3.7.1"),
+    };
+
+    private static ConsumerConfiguration CompleteWithApps()
+    {
+        var model = Complete();
+        model.ApplyCatalogue(Catalogue() with { Apps = Apps });
+        Assert.True(model.SelectImage("yellowfin"));
+        Assert.True(model.SelectStorage(StorageId));
+        model.Username = "linux_user";
+        model.Password = model.PasswordConfirmation = "public fixture password";
+        model.ApplyInstallSpace(new(Reference, "F", ConsumerConfiguration.MinimumInstallReserveGb, "registry"));
+        return model;
+    }
+
+    [Fact]
+    public void EveryDetectedAppStartsCheckedAndThePlanSendsTheCheckedOnes()
+    {
+        var model = CompleteWithApps();
+        Assert.Equal(Apps, model.DetectedApps);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.inkscape.Inkscape", "org.audacityteam.Audacity" }, model.CreateDraft().Flatpaks);
+        model.SelectApp("org.inkscape.Inkscape", false);
+        Assert.False(model.IsAppSelected("org.inkscape.Inkscape"));
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.audacityteam.Audacity" }, model.CreateDraft().Flatpaks);
+        // Order stays the engine's, whatever order the boxes were clicked in.
+        model.SelectApp("org.inkscape.Inkscape", true);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.inkscape.Inkscape", "org.audacityteam.Audacity" }, model.CreateDraft().Flatpaks);
+        foreach (var app in Apps) model.SelectApp(app.Flatpak, false);
+        Assert.Empty(model.CreateDraft().Flatpaks);
+        Assert.Throws<InvalidOperationException>(() => model.SelectApp("org.kde.krita", true));
+        Assert.Equal("GIMP (for GIMP 2.10.36)", ConsumerConfiguration.AppLabel(Apps[0]));
+    }
+
+    [Fact]
+    public void NoDetectedAppSendsAnEmptyListAndANewReadChecksEveryAppAgain()
+    {
+        var model = Complete();
+        Assert.Empty(model.DetectedApps);
+        Assert.Empty(model.CreateDraft().Flatpaks);
+        var withApps = CompleteWithApps();
+        withApps.SelectApp("org.gimp.GIMP", false);
+        withApps.ApplyCatalogue(Catalogue() with { Apps = Apps });
+        Assert.True(withApps.IsAppSelected("org.gimp.GIMP"));
+    }
+
+    [Fact]
+    public void AnAmbiguousOrMalformedAppObservationIsRefused()
+    {
+        var model = new ConsumerConfiguration("wootc");
+        foreach (var apps in new[]
+        {
+            new[] { Apps[0], Apps[0] with { DisplayName = "GIMP 3" } },
+            new[] { Apps[0] with { Flatpak = "gimp" } },
+            new[] { Apps[0] with { Flatpak = "org.gimp.GIMP; rm -rf /" } },
+            new[] { Apps[0] with { Name = " " } },
+            new[] { Apps[0] with { DisplayName = "" } },
+            new ConfigurationApp[] { null! },
+        }) Assert.Throws<InvalidDataException>(() => model.ApplyCatalogue(Catalogue() with { Apps = apps }));
+    }
+
+    [Fact]
+    public void ADriveDirectiveSetsTheAppsAndTheWindowsAppearance()
+    {
+        var absent = CompleteWithApps();
+        Assert.True(absent.ApplyDriveMapping(Directive(), "hosted-current").Mapped);
+        // Absent keys: every detected app, and the engine's appearance default.
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.inkscape.Inkscape", "org.audacityteam.Audacity" }, absent.SelectedFlatpaks);
+        Assert.False(absent.WindowsLook);
+
+        var named = CompleteWithApps();
+        var directive = Directive();
+        Assert.True(named.ApplyDriveMapping(new InstallDriveMapping
+        {
+            SchemaVersion = 1, RunId = directive.RunId, DirectiveId = directive.DirectiveId, Action = "install", ImageRef = Reference,
+            Username = "fixture", Password = "public fixture password", Hostname = "fixture-pc", StorageId = StorageId,
+            WindowsLook = true, Flatpaks = new[] { "org.audacityteam.Audacity", "org.inkscape.Inkscape" },
+        }, "hosted-current").Mapped);
+        Assert.Equal(new[] { "org.inkscape.Inkscape", "org.audacityteam.Audacity" }, named.SelectedFlatpaks);
+        Assert.True(named.WindowsLook);
+        Assert.True(named.CreateDraft().WindowsLook);
+
+        var none = CompleteWithApps();
+        Assert.True(none.ApplyDriveMapping(new InstallDriveMapping
+        {
+            SchemaVersion = 1, RunId = directive.RunId, DirectiveId = directive.DirectiveId, Action = "install", ImageRef = Reference,
+            Username = "fixture", Password = "public fixture password", Hostname = "fixture-pc", StorageId = StorageId,
+            Flatpaks = Array.Empty<string>(),
+        }, "hosted-current").Mapped);
+        Assert.Empty(none.CreateDraft().Flatpaks);
+    }
+
+    [Theory]
+    [InlineData("org.kde.krita", "names app org.kde.krita, which the engine did not detect")]
+    [InlineData("org.gimp.GIMP,org.gimp.GIMP", "names app org.gimp.GIMP more than once")]
+    [InlineData("not an id", "not a Flatpak ID")]
+    public void AnUndetectedOrRepeatedAppRefusesTheDirectiveAndMapsNothing(string flatpaks, string says)
+    {
+        var model = CompleteWithApps();
+        model.SelectApp("org.gimp.GIMP", false);
+        var directive = Directive();
+        var outcome = model.ApplyDriveMapping(new InstallDriveMapping
+        {
+            SchemaVersion = 1, RunId = directive.RunId, DirectiveId = directive.DirectiveId, Action = "install", ImageRef = Reference,
+            Username = "fixture", Password = "public fixture password", Hostname = "fixture-pc", StorageId = StorageId,
+            Flatpaks = flatpaks.Split(','),
+        }, "hosted-current");
+        Assert.False(outcome.Mapped);
+        Assert.False(outcome.ImageMismatch);
+        Assert.Contains(says, outcome.BlockedReason);
+        // Nothing was mapped: the form keeps what it had.
+        Assert.Equal("linux_user", model.Username);
+        Assert.False(model.IsAppSelected("org.gimp.GIMP"));
+    }
+
     [Fact]
     public void ProfileAccountsAreShownEditedAndCopiedIntoTheNextPlan()
     {

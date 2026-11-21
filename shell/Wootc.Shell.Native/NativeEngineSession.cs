@@ -163,6 +163,8 @@ internal sealed class NativeEngineSession : IConfigurationEngineSession, IInstal
             ["imageRef"] = plan.ImageRef, ["diskSizeGB"] = plan.DiskSizeGB, ["username"] = plan.Username, ["password"] = plan.Password,
             ["hostname"] = plan.Hostname, ["bootloader"] = plan.Bootloader, ["composeFs"] = plan.ComposeFs, ["storageDrive"] = plan.StorageDrive,
             ["encryption"] = plan.Encryption, ["luksPassphrase"] = plan.LuksPassphrase, ["windowsLook"] = plan.WindowsLook,
+            // Always sent, empty when every app is unchecked; null is refused.
+            ["flatpaks"] = plan.Flatpaks ?? new List<string>(),
         };
         if (plan.ProfileAccounts is not null) parameters["profileAccounts"] = plan.ProfileAccounts;
         var grant = await CallAsync<NativeInstallGrant>("PrepareNativeInstall", parameters, deadline.Token);

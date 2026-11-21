@@ -419,7 +419,7 @@ func (a *App) installPolicy(systemInfo func() SystemInfo) installPolicy {
 	return installPolicy{
 		support: a.GetSupportPolicy(), images: a.GetImages, systemInfo: systemInfo,
 		checkPlatform: validatePlatformConfig, checkSpace: checkInstallSpace,
-		profiles: resolveProfileAccounts,
+		profiles: resolveProfileAccounts, detectedApps: detectInstalledApps,
 	}
 }
 

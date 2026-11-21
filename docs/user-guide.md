@@ -94,7 +94,11 @@ This guide asserts no RC SHA for the retained image.*
    do not assume the frontend selects this box. On supported Wayland desktops, the
    helpers transfer your selected wallpaper, accent, keyboard layout, and shortcuts.
    Saved Wi-Fi networks use a separate path.
-4. Click **Install**. The app creates the Linux disk file and stages boot files.
+4. **Review “Apps.”** The app lists the Windows apps that have a Linux version on
+   Flathub, for example GIMP or Audacity. All of them start checked. Clear a box
+   to not install that app. The section is not shown when no app is found.
+   [SPEC §4.3](SPEC.md#43-app-detection) has the list and the rules.
+5. Click **Install**. The app creates the Linux disk file and stages boot files.
    It also configures a one-time boot into the deployer and disables Fast Startup and hibernation.
 
 ![Install progress](screenshots/03-progress.png)
@@ -138,7 +142,8 @@ The helpers cover these categories:
   database is not proof that the browser opens signed in.
 - **Steam:** a library bridge can use games in place, without another download.
 - **Office:** the helper copies your selected styles, dictionaries, and preferences for LibreOffice.
-- **Apps:** the dashboard lists apps from Windows and suggests alternatives for Linux.
+- **Apps:** the deployer installs the Flathub apps that you kept checked on the
+  install form. The dashboard lists apps from Windows and suggests alternatives for Linux.
 - **WSL:** selected dotfiles and package lists can help rebuild tools, not clone
   an entire WSL system or transfer its accounts. Follow the
   [WSL migration guide](wsl-migration.md) and keep a separate export/backup.

@@ -11,9 +11,12 @@ public sealed record ConfigurationImage(string Id, string Name, string ImageRef,
 public sealed record ConfigurationDefaults(int DiskSizeGb, string Encryption, string Bootloader, bool ComposeFs, bool WindowsLook);
 public sealed record ConfigurationStorage(string Id, string DriveLetter, string DiskGuid, string PartitionGuid,
     string NtfsSerial, long FreeBytes, int MaximumRootDiskSizeGb);
+// One Windows program the engine detected with a Flathub counterpart: Name is
+// the Linux app installed, DisplayName the Windows program it was found as.
+public sealed record ConfigurationApp(string Flatpak, string Name, string DisplayName);
 public sealed record ConfigurationCatalogue(int SchemaVersion, string BrandId, string Source, string MetadataSha256,
     IReadOnlyList<ConfigurationImage> Images, string Channel, bool ExperimentalImages,
-    ConfigurationDefaults Defaults, IReadOnlyList<ConfigurationStorage> Storage);
+    ConfigurationDefaults Defaults, IReadOnlyList<ConfigurationStorage> Storage, IReadOnlyList<ConfigurationApp>? Apps = null);
 
 public sealed class InstallDriveMapping
 {
@@ -29,6 +32,9 @@ public sealed class InstallDriveMapping
     public string Encryption { get; init; } = "";
     public string StorageId { get; init; } = "";
     public string LuksPassphrase { get; init; } = "";
+    // Null: the directive did not name it, and the form keeps its default.
+    public bool? WindowsLook { get; init; }
+    public IReadOnlyList<string>? Flatpaks { get; init; }
     public override string ToString() => "Native install directive (private configuration omitted)";
 }
 
@@ -49,6 +55,11 @@ public sealed class ConsumerConfiguration
     // The smallest image's reserve: the engine's minimumInstallReserveGiB and
     // the launchpad's MIN_INSTALL_RESERVE_GB.
     public const int MinimumInstallReserveGb = 22;
+    // The engine's flatpakIDPattern (app/app_flatpaks.go).
+    public static readonly Regex FlatpakId = new(@"^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+){2,}$", RegexOptions.CultureInvariant);
+    // The Apps section's one-line disclosure (SPEC §4.3).
+    public const string AppsDisclosure = "We'll install the Linux versions of these apps from Flathub; uncheck any you don't want.";
+    private readonly HashSet<string> selectedApps = new(StringComparer.Ordinal);
     private readonly string brandId;
     private readonly Dictionary<(string ImageRef, string StorageDrive), ConfigurationInstallSpace> installSpaces = new();
     private ConfigurationCatalogue? catalogue;
@@ -72,6 +83,10 @@ public sealed class ConsumerConfiguration
     public IReadOnlyList<ConfigurationImage> Images => catalogue?.Images ?? Array.Empty<ConfigurationImage>();
     // Null until the authenticated configuration has been read.
     public IReadOnlyList<ConfigurationStorage>? ObservedStorage => catalogue?.Storage;
+    // The engine's detected apps, in its order. Every one starts checked.
+    public IReadOnlyList<ConfigurationApp> DetectedApps => catalogue?.Apps ?? Array.Empty<ConfigurationApp>();
+    // The checked apps' Flatpak IDs, in detection order: what the plan sends.
+    public IReadOnlyList<string> SelectedFlatpaks => DetectedApps.Where(app => selectedApps.Contains(app.Flatpak)).Select(app => app.Flatpak).ToArray();
     // The configuration view cannot grant engine capabilities. A future
     // operation route must obtain and bind authorization separately.
     public bool CanInstall => false;
@@ -112,7 +127,14 @@ public sealed class ConsumerConfiguration
             volumes.Select(volume => volume.Id).Distinct(StringComparer.Ordinal).Count() != volumes.Length ||
             volumes.Select(volume => volume.DriveLetter).Distinct(StringComparer.Ordinal).Count() != volumes.Length)
             throw new InvalidDataException("Storage identity or capacity observation is invalid");
-        catalogue = observation with { Images = Array.AsReadOnly(images), Storage = Array.AsReadOnly(volumes) };
+        var apps = (observation.Apps ?? Array.Empty<ConfigurationApp>()).ToArray();
+        if (apps.Length > 256 || apps.Any(app => app is null || !FlatpakId.IsMatch(app.Flatpak ?? "") ||
+            string.IsNullOrWhiteSpace(app.Name) || string.IsNullOrWhiteSpace(app.DisplayName)) ||
+            apps.Select(app => app.Flatpak).Distinct(StringComparer.Ordinal).Count() != apps.Length)
+            throw new InvalidDataException("Detected app observation is invalid or ambiguous");
+        catalogue = observation with { Images = Array.AsReadOnly(images), Storage = Array.AsReadOnly(volumes), Apps = Array.AsReadOnly(apps) };
+        selectedApps.Clear();
+        selectedApps.UnionWith(apps.Select(app => app.Flatpak));
         DiskSizeGb = observation.Defaults.DiskSizeGb;
         Encryption = observation.Defaults.Encryption;
         WindowsLook = observation.Defaults.WindowsLook;
@@ -136,6 +158,20 @@ public sealed class ConsumerConfiguration
         storage = catalogue?.Storage.SingleOrDefault(volume => volume.Id == id);
         return storage is not null;
     }
+
+    public bool IsAppSelected(string flatpak) => selectedApps.Contains(flatpak);
+
+    // A person's checkbox. Only an app the engine detected can be checked.
+    public void SelectApp(string flatpak, bool chosen)
+    {
+        if (!DetectedApps.Any(app => app.Flatpak == flatpak))
+            throw new InvalidOperationException("This app was not detected by the engine");
+        if (chosen) selectedApps.Add(flatpak);
+        else selectedApps.Remove(flatpak);
+    }
+
+    // What the Apps section shows for one detected app.
+    public static string AppLabel(ConfigurationApp app) => $"{app.Name} (for {app.DisplayName})";
 
     // The image and drive whose install space the form still needs, or null.
     public (string ImageRef, string StorageDrive)? PendingInstallSpace =>
@@ -228,7 +264,8 @@ public sealed class ConsumerConfiguration
             Hostname = Hostname, DiskSizeGB = DiskSizeGb, Encryption = Encryption, LuksPassphrase = LuksPassphrase,
             WindowsLook = WindowsLook, Bootloader = catalogue!.Defaults.Bootloader,
             ComposeFs = catalogue.Defaults.ComposeFs, StorageDrive = storage!.DriveLetter,
-            ProfileAccounts = profileAccounts?.Select(account => new ProfileAccount { WindowsDir = account.WindowsDir, LinuxUser = account.LinuxUser }).ToList() };
+            ProfileAccounts = profileAccounts?.Select(account => new ProfileAccount { WindowsDir = account.WindowsDir, LinuxUser = account.LinuxUser }).ToList(),
+            Flatpaks = SelectedFlatpaks.ToList() };
     }
 
     public void ApplyProfileAccounts(NativeInstallGrant grant)
@@ -260,9 +297,13 @@ public sealed class ConsumerConfiguration
         // The directive must name its target volume; one observed volume is
         // never taken as the answer (E2EDriveTarget).
         ConfigurationStorage requestedStorage;
+        IReadOnlyList<string> requestedApps;
         try
         {
             requestedStorage = E2EDriveTarget.Resolve(directive.StorageId, catalogue?.Storage ?? Array.Empty<ConfigurationStorage>());
+            // Absent: every detected app, as a person's form starts. Named:
+            // exactly those, each one the engine detected (E2EDriveApps).
+            requestedApps = E2EDriveApps.Resolve(directive.Flatpaks, DetectedApps);
         }
         catch (E2EDriveRefusal refusal)
         {
@@ -283,6 +324,9 @@ public sealed class ConsumerConfiguration
         // directive that names no encryption installs unencrypted.
         Encryption = directive.Encryption.Length == 0 ? "none" : directive.Encryption;
         LuksPassphrase = directive.LuksPassphrase;
+        WindowsLook = directive.WindowsLook ?? catalogue!.Defaults.WindowsLook;
+        selectedApps.Clear();
+        selectedApps.UnionWith(requestedApps);
         // Mapping a directive is not an Install click or a backend mutation.
         return new(directive.RunId, directive.DirectiveId, true, false, false, InstallationBlockedReason);
     }

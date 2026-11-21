@@ -43,6 +43,7 @@ function makeApp(mock) {
     ExistingInstallFound: () => P(!!mock.existing),
     GetStatus: () => P(mock.status || { running: false, done: false, existing: false }),
     StartInstall: (cfg) => {
+      window.__wootcStartInstallConfig = cfg;
       // Drive the progress screen through a scripted sequence, fast.
       const steps = mock.installSteps || [];
       let i = 0;
@@ -64,6 +65,8 @@ function makeApp(mock) {
     // Decryptability-only findings, never tokens. Empty by default so the
     // consent block only renders in scenarios that ask for it.
     GetSessionCandidates: () => P(mock.sessionCandidates || []),
+    // Detected Windows apps with a Flathub counterpart; none by default.
+    GetDetectedApps: () => P(mock.detectedApps || []),
     // Session consent is a recorded opt-in only — the mock just remembers it.
     SetSessionConsent: (app, consent) => {
       const list = mock.apps || [];
