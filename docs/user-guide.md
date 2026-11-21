@@ -154,15 +154,16 @@ The helpers cover these categories:
 - **Developer setup:** from your Windows `C:\Users\<you>\.ssh` folder, Linux
   copies your public keys (`*.pub`), `config`, `known_hosts` and
   `authorized_keys` into `~/.ssh`. The copies are byte for byte, private to
-  your account, and have the permissions OpenSSH expects. Your private keys
-  are **not** copied. They stay on Windows and are listed with the reason in
-  `~/.config/wootc/bridge-developer.json` under `leftOnWindows`. To use one
+  your account, and have the permissions OpenSSH expects. Linux does **not**
+  copy your private keys. They stay on Windows, and
+  `~/.config/wootc/bridge-developer.json` gives each one with its reason under
+  `leftOnWindows`. To use one
   on Linux, copy it yourself or create a new key with `ssh-keygen`. From
-  `C:\Users\<you>\.gitconfig`, Linux takes only your Git name, email, signing
-  key and default branch name, and writes them to `~/.gitconfig`. It does
+  `C:\Users\<you>\.gitconfig`, Linux takes only your Git name, email, commit
+  signature key and default branch name, and writes them to `~/.gitconfig`. It does
   this only if you have no `~/.gitconfig` or `~/.config/git/config` yet.
-  Credential helpers, `core.autocrlf`, `core.sshCommand`, included files and
-  Windows paths are left out and listed under `notCarried`. The copy runs on
+  Linux does not copy credential helpers, `core.autocrlf`, `core.sshCommand`,
+  included files or Windows paths; the same file gives them under `notCarried`. The copy runs on
   each Windows-backed boot and never overwrites a file you changed on Linux.
   To turn it off, uncheck **Developer setup** in **Bring Over From Windows**.
   Files already copied stay until you delete them. The copied files, with
