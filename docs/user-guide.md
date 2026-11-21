@@ -177,6 +177,24 @@ The helpers cover these categories:
   Linux only.
 - **Wi-Fi:** the helper creates NetworkManager connections from saved networks.
   Enterprise networks can need a fresh sign-in.
+- **Printers:** the installer records each Windows printer's name and
+  connection, never its driver. At every start-up, Linux sets up each network
+  printer (a Standard TCP/IP port or an IPP web address) as a driverless
+  queue (IPP Everywhere at `ipp://<address>:631/ipp/print`). Your Windows
+  default printer becomes the Linux default if Linux has none. A printer that
+  does not answer, for example because you are away from the office, is
+  **waiting**, and Linux tries again at the next start-up. A printer that
+  does not support driverless printing stays waiting; add it in
+  **Settings → Printers**. These printers are not set up: printers on a USB,
+  parallel or serial cable (plug in a driverless USB printer and Linux sets it
+  up; the others need their Linux driver), printers that Windows found
+  through WSD (if one supports driverless printing, Settings → Printers lists
+  it), and Windows-only virtual printers such as Microsoft Print to PDF.
+  **Bring Over From Windows** shows each printer with its status and reason.
+  Switching printers off there stops new setup. It does not remove a queue
+  that is already set up. If you remove or change a queue that wootc set up,
+  wootc leaves it as you left it. The report is in
+  `/var/lib/wootc/printers.json`.
 - **Windows look:** the helpers transfer your selected preferences and shortcuts on supported desktops.
 
 A category's presence does not prove every account or application will transfer.
@@ -321,8 +339,10 @@ Native graduation and Windows removal are different operations.
 The current execution path can graduate Linux onto a separate disk that the harness verifies as blank in the test harness.
 It retains Windows and the original `root.disk`.
 This proof does not establish an install onto free space on the same disk.
-The native disk keeps the name, time zone, language, keyboard layout and
-saved Wi-Fi networks of the Linux system that you graduate.
+The native disk keeps the name, time zone, language, keyboard layout,
+saved Wi-Fi networks and wootc's printer queues of the Linux system that you
+graduate. A printer that is still waiting stays waiting: the native system
+does not read the Windows drive, so add it in Settings → Printers.
 It also keeps the system Flatpak apps, which include your Windows apps.
 
 The helper also prints plans for an in-place move and Windows removal.

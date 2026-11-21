@@ -90,6 +90,7 @@ func writeBitLockerKey(key string) error { return nil }
 
 func collectLook() error     { return nil }
 func collectWifi() error     { return nil }
+func collectPrinters() error { return nil }
 func collectPrograms() error { return nil }
 
 // uninstallDisplayNames reads the Windows uninstall keys; elsewhere there are none.

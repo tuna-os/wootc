@@ -233,12 +233,51 @@ def builtin_cat_developer(user):
     return bool(items), items, "SSH public keys + Git identity; private keys and Windows credentials stay on Windows"
 
 
+def builtin_cat_printers(_user):
+    """Every Windows printer and what happened to it, from the importer itself.
+
+    wootc-printer-import --report merges its state (/var/lib/wootc/printers.json)
+    with the Windows list, so the chooser shows the same verdict the importer
+    reached — or, before its first run, the plan — and the reason strings live
+    in one place. The machine's printers are the same for every profile.
+    """
+    env = dict(os.environ)
+    env["WOOTC_HOST"] = HOST
+    proc = subprocess.run(
+        [os.path.join(SCRIPT_DIR, "wootc-printer-import"), "--report"],
+        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, timeout=10, check=True,
+    )
+    items, counts = [], {}
+    for r in json.loads(proc.stdout).get("printers", []):
+        status, queue, uri = r.get("status"), r.get("queue", ""), r.get("uri", "")
+        reason = r.get("reason", "")
+        if status == "added":
+            detail = f"Set up as {queue} ({uri})"
+        elif status == "waiting":
+            detail = f"Waiting: {reason}. wootc tries again at every start-up"
+        elif status == "pending":
+            detail = f"Will be set up as {queue} ({uri}) at the next start-up"
+        else:
+            detail = f"Not migrated: {reason}"
+        if r.get("default"):
+            detail += " · your Windows default printer"
+        counts[status] = counts.get(status, 0) + 1
+        items.append({"id": r["name"], "label": r["name"], "detail": detail,
+                      "fileCount": 0, "sizeBytes": 0})
+    words = (("added", "set up"), ("pending", "to set up"), ("waiting", "waiting"),
+             ("not-migrated", "not migrated"))
+    summary = ", ".join(f"{counts[k]} {w}" for k, w in words if counts.get(k))
+    return bool(items), items, summary
+
+
 STANDARD_CATEGORIES = [
     ("files",    "Your files",        builtin_cat_files),
     ("browsers", "Browsers",          builtin_cat_browsers),
     ("office",   "Office documents",  builtin_cat_office),
     ("games",    "Games (Steam)",     builtin_cat_games),
     ("wifi",     "Wi-Fi networks",    builtin_cat_wifi),
+    ("printers", "Printers",          builtin_cat_printers),
     ("wsl",      "WSL",               builtin_cat_wsl),
     ("look",     "Windows look",      builtin_cat_look),
     ("identity", "Identity",           builtin_cat_identity),

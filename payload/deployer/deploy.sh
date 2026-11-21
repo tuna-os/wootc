@@ -2645,6 +2645,20 @@ QGAEOF
         chmod 600 "$DEPLOY_ROOT"/var/lib/wootc/wifi-import/*.xml 2>/dev/null || true
         log "  Staged Wi-Fi profiles for first-boot import"
     fi
+    # Printer migration (§4.6): the importer reads the Windows printer list
+    # straight off the NTFS volume on EVERY boot (a printer that did not
+    # answer is retried), so nothing is staged and the unit is enabled
+    # whether or not a list exists; without one it exits at once. The wants
+    # link only goes in beside both files, never dangling.
+    mig_opt 755 wootc-printer-import "$DEPLOY_ROOT/var/usrlocal/bin/wootc-printer-import"
+    mig_opt 644 wootc-printer-import.service "$DEPLOY_ROOT/etc/systemd/system/wootc-printer-import.service"
+    if [[ -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-printer-import" \
+       && -f "$DEPLOY_ROOT/etc/systemd/system/wootc-printer-import.service" ]]; then
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+        ln -sf ../wootc-printer-import.service \
+            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-printer-import.service"
+        log "  Printer import enabled (wootc-printer-import.service)"
+    fi
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after bootc updates of the installed loop-root deployment.
     # Keep the verifier's loader and libraries together on every target ABI.

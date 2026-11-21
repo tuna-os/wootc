@@ -181,6 +181,8 @@ install() {
     inst /usr/lib/wootc/migration/wootc-developer-bridge
     inst /usr/lib/wootc/migration/wootc-wifi-bridge
     inst /usr/lib/wootc/migration/wootc-wifi-import.service
+    inst /usr/lib/wootc/migration/wootc-printer-import
+    inst /usr/lib/wootc/migration/wootc-printer-import.service
     inst /usr/lib/wootc/migration/wootc-import
     inst /usr/lib/wootc/migration/wootc-import-gui
     inst /usr/lib/wootc/migration/wootc-import.desktop

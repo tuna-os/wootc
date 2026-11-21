@@ -185,6 +185,13 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 			if err := collectWifi(); err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] wifi export skipped: %v\n", err)
 			}
+			// Printers (§4.6) are recorded unconditionally too: names and
+			// connections only, never drivers. The Linux importer turns the
+			// network ones into driverless queues and the chooser shows the
+			// rest with the reason they cannot move.
+			if err := collectPrinters(); err != nil {
+				fmt.Fprintf(os.Stderr, "[wootc] printer inventory skipped: %v\n", err)
+			}
 			// Windows-Style Mode (SPEC §4.4) is on by default and opt-out in
 			// the GUI. When declined we collect nothing and the deployed
 			// system keeps the image maker's desktop defaults — no slurp data
