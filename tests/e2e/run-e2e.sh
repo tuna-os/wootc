@@ -3168,10 +3168,17 @@ else {
     step "Driving the REAL install through the live form (drive directive)..."
     local drive_directive_id drive_payload drive_ack
     drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
-    # The native shell's directive names its target volume (storageId "C:");
-    # the Wails directive is unchanged. See gui-drive-directive.py.
+    # The native shell's directive names its target volume (storageId "C:"),
+    # turns Windows-Style Mode on and keeps two of the detected apps; the
+    # Wails directive is unchanged. See gui-drive-directive.py.
     drive_payload=$(python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF") \
         || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # What the directive chose is what the migration checks hold the
+    # installed system to (look applied, kept apps installed, unchecked absent).
+    if [ -s "$MIGRATION_EXPECTED" ]; then
+        python3 "$SCRIPT_DIR/gui-drive-directive.py" --manifest "$GUI_FRONTEND" >> "$MIGRATION_EXPECTED" \
+            || { infra_fail "Could not record this run's GUI choices in the migration manifest"; return 1; }
+    fi
     # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
     # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
     # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
