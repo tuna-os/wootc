@@ -736,6 +736,29 @@ PY
     done <<<"$carried"
 }
 
+# label_repo_object_dirs MNT FC — give the ostree object store's directories
+# (objects/ and its fan-out objects/00..ff) the label FC gives their path on
+# the physical root MNT. bootc 1.16.10 leaves them unlabeled_t, like
+# /ostree/repo (bootc-dev/bootc#2368, fixed in 1.16.11, relabels them and
+# skips the objects). Only the directories: the files in them are hardlinks
+# of deployment files that carry their commit's labels, and setfiles always
+# recurses, so each directory is labeled by itself with chcon.
+label_repo_object_dirs() {
+    local mnt=$1 fc=$2 objects=$1/ostree/repo/objects d out i
+    local -a dirs=() paths=() contexts=()
+    [[ -d "$objects" && ! -L "$objects" ]] || return 0
+    while IFS= read -r -d '' d; do
+        dirs+=("$d"); paths+=("${d#"$mnt"}")
+    done < <(find "$objects" -maxdepth 1 -type d -print0)
+    out=$(matchpathcon -N -n -m dir -f "$fc" "${paths[@]}") || return 1
+    mapfile -t contexts <<<"$out"
+    (( ${#contexts[@]} == ${#dirs[@]} )) || return 1
+    for i in "${!dirs[@]}"; do
+        [[ "${contexts[i]}" == *:*:* ]] || return 1
+        chcon -- "${contexts[i]}" "${dirs[i]}" || return 1
+    done
+}
+
 # graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
 # fisherman (reusing the local image, same as the deployer), migrate /home, and let
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
@@ -1181,8 +1204,11 @@ UNIT
     # /sysroot/ostree/deploy (probe 44843263310). Those paths are labeled as
     # bootc labels them, rooted at the physical root; the deployments (their
     # own logical roots), the stateroot /var (labeled above) and the object
-    # stores are excluded. ostree repo objects are hardlinks of deployment
-    # files, so the repo's system_conf_t must never reach them.
+    # stores are excluded. The repo itself is not: bootc left /ostree/repo
+    # unlabeled_t too, and the confined guest agent was denied searching it
+    # (probe 44889931801). ostree repo objects are hardlinks of deployment
+    # files, so the repo's system_conf_t must never reach them; only the
+    # object store's directories get it (label_repo_object_dirs).
     if [[ -n "$dep" ]]; then
         local fc stateroot d
         local -a keep=()
@@ -1190,13 +1216,14 @@ UNIT
         fc=$(ls "$dep"/etc/selinux/*/contexts/files/file_contexts 2>/dev/null | head -1)
         if [[ -n "$fc" ]]; then
             for d in "$mnt"/ostree/deploy/*/deploy/* "$mnt"/ostree/deploy/*/var \
-                "$mnt"/ostree/repo "$mnt"/composefs; do
+                "$mnt"/ostree/repo/objects "$mnt"/composefs; do
                 if [[ -d "$d" && ! -L "$d" ]]; then keep+=(-e "$d"); fi
             done
             if ! command -v setfiles >/dev/null \
                 || ! setfiles -F -r "$dep" "$fc" "$dep/etc" \
                 || ! setfiles -F -r "$stateroot" "$fc" "$stateroot/var" \
-                || ! setfiles -F -r "$mnt" "${keep[@]}" "$fc" "$mnt"; then
+                || ! setfiles -F -r "$mnt" "${keep[@]}" "$fc" "$mnt" \
+                || ! label_repo_object_dirs "$mnt" "$fc"; then
                 umount "$mnt" 2>/dev/null || true
                 die "could not apply the native system's SELinux labels to $dep/etc, $stateroot/var and the physical root; the native boot is not scheduled"
             fi
