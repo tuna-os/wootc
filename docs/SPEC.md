@@ -1255,13 +1255,12 @@ one time in Steam **Settings > Storage > Add Library**. After that step, the
 games run in place, with Proton for compatibility. Games do not appear
 without that step.
 
-**Browser profiles** are imported at the first Phase-2 boot (copy-only,
-never replacing Linux browser data; turn the category or a single browser
-off in the migration chooser). A failed attempt is retried at the next boot.
-Each browser gets its own Linux profile, created where the installed
-browser looks (its existing profile, else the Flatpak when installed, else
-the native browser when only that is installed, else the Flathub
-Flatpak's location):
+**Browser profiles:** the first Phase-2 boot copies them. The copy does not
+change Linux browser data. The user can turn off the category or one browser
+in the migration chooser. If the copy fails, the next boot tries again.
+Each browser gets its own Linux profile. The profile goes where the browser
+looks: its existing profile, else the installed Flatpak, else the installed
+native browser, else the Flathub Flatpak location.
 
 | Windows browser | Linux equivalent | What migrates |
 |---|---|---|
