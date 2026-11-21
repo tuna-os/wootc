@@ -2429,7 +2429,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [WARN] dracut 99wootc-boot module source tree not found under \$DEPLOY_ROOT (the built initramfs was verified above)"
     fi
 
-    vstage "before-userbridge (writes \$DEPLOY_ROOT/usr/local + /usr/share — read-only under composefs)"
+    vstage "before-userbridge (writes \$DEPLOY_ROOT/var/usrlocal, /etc and /var/lib/wootc — never /usr, sealed under composefs)"
     # ── [generic] User Data Bridge (native passthrough) ──────────────────
     # Distro-agnostic: installs units/scripts into the target root. Only
     # its *placement inside* the verification mount is provisioner-hosted.
@@ -2508,8 +2508,13 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_import_safety.py"
     install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
+    # Nothing the running system needs may go under $DEPLOY_ROOT/usr: on a
+    # composefs deployment (bluefin, prepare-root [composefs] enabled) the
+    # sealed image is mounted over /usr and such a write is invisible at
+    # runtime. polkit also reads /etc/polkit-1/actions; desktop entries go to
+    # /usr/local/share/applications (= /var/usrlocal, in XDG_DATA_DIRS).
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
-        "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+        "$DEPLOY_ROOT/etc/polkit-1/actions/org.tunaos.wootc.policy"
     # Optional post-install utilities. These are not required for the deployer
     # to run, so a payload that a given initramfs did not carry must WARN, never
     # abort the whole deploy (set -e) — a missing GUI helper is not worth losing
@@ -2523,28 +2528,28 @@ QGAEOF
     # BitLocker) + its GUI launcher. Post-install utility — no autostart.
     mig_opt 755 wootc-import     "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import"
     mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-gui"
-    mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
+    mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-import.desktop"
     # Migration chooser (§4.6): discover everything migratable, default-on, opt-out.
     mig_opt 755 wootc-manifest "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest"
     mig_opt 755 wootc-manifest-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest-gui"
-    mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
+    mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
     mig_opt 755 wootc-identity "$DEPLOY_ROOT/var/usrlocal/bin/wootc-identity"
     # Account setup screen: pre-fills the identity, asks for the one thing that
     # cannot be migrated (the password). Never persists the secret.
     mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-user-gui"
-    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-user.desktop"
+    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-user.desktop"
     # Gates the bridges on the migration chooser's opt-out selection.
     mig_opt 755 wootc-selection "$DEPLOY_ROOT/var/usrlocal/bin/wootc-selection"
-    # Program migrator plugins and schemas (docs/plugin-architecture.md).
+    # Program migrator plugins and schemas (docs/plugin-architecture.md),
+    # where wootc-manifest finds a deployed first-party plugin set.
     if [[ -d /usr/lib/wootc/migration/plugins.d ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/lib/wootc/plugins.d" "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d"
-        cp -a /usr/lib/wootc/migration/plugins.d/* "$DEPLOY_ROOT/usr/lib/wootc/plugins.d/" 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d"
         cp -a /usr/lib/wootc/migration/plugins.d/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d/" 2>/dev/null || true
     fi
     if [[ -d /usr/lib/wootc/migration/schemas ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/lib/wootc/schemas"
-        cp -a /usr/lib/wootc/migration/schemas/* "$DEPLOY_ROOT/usr/lib/wootc/schemas/" 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/schemas"
+        cp -a /usr/lib/wootc/migration/schemas/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/schemas/" 2>/dev/null || true
     fi
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
@@ -2555,7 +2560,7 @@ QGAEOF
     install -D -m755 /usr/bin/fisherman "$DEPLOY_ROOT/var/usrlocal/bin/fisherman"
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native"
     mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native-gui"
-    mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
+    mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-go-native.desktop"
     # QGA commands run in virt_qemu_ga_t, which SELinux prevents from executing podman/bootc.
     # Stage a narrow systemd request bridge so PID 1 runs the migration engine in a normal domain.
     mkdir -p "$DEPLOY_ROOT/var/usrlocal/libexec" "$DEPLOY_ROOT/var/usrlocal/libexec" 2>/dev/null || true
@@ -2714,12 +2719,17 @@ QGAEOF
     # Slurped Windows look (wallpaper/theme), if the installer collected it.
     # The time zone, language and keyboard went into the fisherman recipe.
     # Session envelopes remain encrypted on the NTFS source for the explicit
-    # per-user unlock/import flow (#1). Never install them into /usr/share:
-    # only non-secret look/identity data belongs in the immutable target.
+    # per-user unlock/import flow (#1); only non-secret look/identity data is
+    # installed. /var/lib/wootc, not /usr/share: under composefs the sealed
+    # /usr hides anything written into the deployment's /usr, and first-login
+    # apply-look found no look data at all on bluefin.
     if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        mkdir -p "$DEPLOY_ROOT/var/lib/wootc/slurp"
         find /mnt/ntfs/wootc/install/slurp -mindepth 1 -maxdepth 1 ! -name session \
-            -exec cp -a {} "$DEPLOY_ROOT/usr/share/wootc/slurp/" \;
+            -exec cp -a {} "$DEPLOY_ROOT/var/lib/wootc/slurp/" \;
+        # apply-look runs as each user: NTFS modes must not decide that.
+        chown -R 0:0 "$DEPLOY_ROOT/var/lib/wootc/slurp"
+        chmod -R u=rwX,go=rX "$DEPLOY_ROOT/var/lib/wootc/slurp"
         # Retain the encrypted .enc inputs and status-only exports.json on
         # NTFS. An unlock or database rewrite is not verified authentication;
         # neither is authority to erase the source. Cleanup requires explicit
@@ -3359,9 +3369,7 @@ GRUBEOF
         for _path in \
             /var/usrlocal \
             /usr/local \
-            /usr/share/applications \
-            /usr/share/polkit-1/actions \
-            /usr/share/wootc \
+            /etc/polkit-1/actions \
             /etc/systemd/system \
             /etc/xdg/autostart \
             /etc/wootc \

@@ -7,8 +7,10 @@
 #   1. WOOTC_PLUGINS_DIR (environment override)
 #   2. /etc/wootc/plugins.d/ (Enterprise / Custom stage path)
 #   3. $HOME/.local/share/wootc/plugins.d/ (User installed plugins)
-#   4. /usr/lib/wootc/plugins.d/ (First-party system plugins)
-#   5. Bundled plugins.d/ alongside this script
+#   4. /usr/lib/wootc/plugins.d/ (First-party plugins an image ships)
+#   5. <script dir>/../lib/wootc/plugins.d (what the deployer installs:
+#      /var/usrlocal/lib/wootc/plugins.d — never /usr, sealed under composefs)
+#   6. Bundled plugins.d/ alongside this script
 #
 # The migration GUI (wootc-manifest-gui) turns this catalog into a checklist —
 # everything defaults ON; the user opts OUT of any item or whole category. The
@@ -244,7 +246,12 @@ def get_plugin_search_dirs():
     if os.path.isdir("/usr/lib/wootc/plugins.d"):
         dirs.append("/usr/lib/wootc/plugins.d")
 
-    # 5. Bundled plugins.d alongside this script / repository
+    # 5. The deployer's install, beside the installed script
+    deployed = os.path.normpath(os.path.join(SCRIPT_DIR, "..", "lib", "wootc", "plugins.d"))
+    if os.path.isdir(deployed) and deployed not in dirs:
+        dirs.append(deployed)
+
+    # 6. Bundled plugins.d alongside this script / repository
     bundled = os.path.join(SCRIPT_DIR, "plugins.d")
     if os.path.isdir(bundled) and bundled not in dirs:
         dirs.append(bundled)

@@ -16,7 +16,8 @@ set -Eeuo pipefail
 
 log() { printf '[wootc-apply-look] %s\n' "$*"; }
 
-SLURP_DIR="${WOOTC_SLURP_DIR:-/usr/share/wootc/slurp}"
+# Installed by the deployer under /var: /usr is sealed on composefs images.
+SLURP_DIR="${WOOTC_SLURP_DIR:-/var/lib/wootc/slurp}"
 MARKER="${WOOTC_LOOK_MARKER:-$HOME/.config/wootc/look-applied}"
 
 [[ -f "$SLURP_DIR/slurp.json" ]] || { log "no slurp data; nothing to apply"; exit 0; }
