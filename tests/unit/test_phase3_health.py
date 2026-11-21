@@ -157,9 +157,14 @@ product_pass() { echo "PRODUCT-PASS $*"; }
 deadline_in() { echo 0; }
 past_deadline() { return 0; }
 sleep() { :; }
+# The guest's `cat ... && echo HEALTH_READ=complete`: the trailer only
+# when the read succeeded.
 qga_call() {
     case "$*" in
-        *wootc-e2e-native-health*) printf '%s' "$HEALTH_EXPORT"; return "$HEALTH_CAT_STATUS" ;;
+        *wootc-e2e-native-health*)
+            printf '%s' "$HEALTH_EXPORT"
+            [ "$HEALTH_CAT_STATUS" != 0 ] || echo HEALTH_READ=complete
+            return "$HEALTH_CAT_STATUS" ;;
         *) echo "context: system_u:system_r:virt_qemu_ga_t:s0" ;;
     esac
 }
@@ -209,6 +214,14 @@ qga_call() {
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("INFRA Phase 3 health export is absent", result.stdout)
         self.assertNotIn("PRODUCT", result.stdout)
+
+    def test_failed_read_of_a_clean_export_cannot_pass(self):
+        # The transport failed after a clean-looking body: without the
+        # trailer, nothing proves the body is whole.
+        result = self.consumer(self.export(), cat_status="42")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("INFRA Phase 3 health export is absent", result.stdout)
+        self.assertNotIn("PRODUCT-PASS", result.stdout)
 
     def test_check_is_staged_where_go_native_copies_it_from(self):
         runner = RUNNER.read_text()

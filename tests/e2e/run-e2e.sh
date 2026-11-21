@@ -5097,11 +5097,16 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         > "$ARTIFACT_DIR/phase3-agent-view.log" 2>&1 || true
     sed 's/^/  agent view: /' "$ARTIFACT_DIR/phase3-agent-view.log" || true
     # The check waits up to 300 s for the boot to finish, then inspects
-    # labels under /etc and /var/home.
+    # labels under /etc and /var/home. The trailer proves the guest read the
+    # whole export; a failed or cut-off read is asked again.
     P3_HEALTH_DEADLINE=$(deadline_in "${WOOTC_E2E_P3_HEALTH_WAIT_SECS:-600}")
-    P3_HEALTH_EXPORT=""
-    until P3_HEALTH_EXPORT=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
-        'cat /run/wootc-e2e-native-health' 2>/dev/null); do
+    while :; do
+        P3_HEALTH_EXPORT=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+            'cat /run/wootc-e2e-native-health && echo HEALTH_READ=complete' 2>/dev/null || true)
+        if [ "${P3_HEALTH_EXPORT##*$'\n'}" = HEALTH_READ=complete ]; then
+            P3_HEALTH_EXPORT=${P3_HEALTH_EXPORT%$'\n'HEALTH_READ=complete}
+            break
+        fi
         P3_HEALTH_EXPORT=""
         past_deadline "$P3_HEALTH_DEADLINE" && break
         sleep 5
