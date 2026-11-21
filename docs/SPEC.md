@@ -1255,13 +1255,19 @@ one time in Steam **Settings > Storage > Add Library**. After that step, the
 games run in place, with Proton for compatibility. Games do not appear
 without that step.
 
-**Browser profiles** are detected and offered for import:
+**Browser profiles** are imported at the first Phase-2 boot (copy-only,
+never replacing Linux browser data; turn the category or a single browser
+off in the migration chooser). A failed attempt is retried at the next boot.
+Each browser gets its own Linux profile, created where the installed
+browser looks (its existing profile, else the Flatpak when installed, else
+the native browser when only that is installed, else the Flathub
+Flatpak's location):
 
 | Windows browser | Linux equivalent | What migrates |
 |---|---|---|
-| Chrome | Chrome (Flatpak) | bookmarks, history, passwords (with consent) |
-| Edge | Chrome (Flatpak) | bookmarks, history |
-| Firefox | Firefox (Flatpak) | bookmarks, history, passwords, extensions |
+| Chrome | Chrome (Flatpak or native) | bookmarks, history; passwords only through the separate, consented session migration |
+| Edge | Edge for Linux (Flatpak or native) | bookmarks, history |
+| Firefox | Firefox (Flatpak or native) | bookmarks, history, passwords, extensions |
 
 ### 4.2 Staged Native Conversion
 
@@ -1288,7 +1294,7 @@ Each stage is independent and reversible (before deletion):
 |---|---|---|
 | 1. Use Windows Documents | Bind-mount into `$HOME` | Yes (undo bind mount) |
 | 2. Use Steam libraries | Detect and reference in-place | Yes (nothing changed) |
-| 3. Import browser profile | Copy bookmarks/passwords/history | Yes (delete imported profile) |
+| 3. Import browser profile | Copy bookmarks/history (Firefox: whole profile) at first boot | Yes (delete imported profile) |
 | 4. Convert Documents to native | Copy files, update bind mount | Yes (files still on NTFS until stage 6) |
 | 5. Convert home to native | Move `$HOME` to native Linux filesystem | Yes (snapshot rollback) |
 | 6. Remove Windows | Delete Windows partition, expand Linux | **No** (Windows is gone) |

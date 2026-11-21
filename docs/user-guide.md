@@ -139,8 +139,9 @@ The helpers cover these categories:
 
 - **Files:** Documents, Desktop, Pictures, Downloads, Music, and Videos.
   A folder can initially share its Windows contents. Conversion makes a separate Linux copy.
-- **Browsers:** Firefox imports a complete profile, which can include saved passwords.
-  Chrome and Edge can import bookmarks and history. Their encrypted Windows
+- **Browsers:** imported at the first Linux start, each into its own Linux
+  browser profile. Firefox imports a complete profile, which can include saved
+  passwords. Chrome and Edge import bookmarks and history. Their encrypted Windows
   stores and login tokens have separate consent, keyring and service-specific
   limits; see [session migration](session-migration.md). A copied or rewritten
   database is not proof that the browser opens signed in.
