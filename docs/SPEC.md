@@ -1211,14 +1211,12 @@ re-download:
 /host/Program Files (x86)/Steam/steamapps/  →  found by the Steam bridge
 ```
 
-The bridge registers a library itself only while Linux Steam has a
-`steamapps/` directory without its own `libraryfolders.vdf`; Steam's first
-start writes that file, and the bridge never rewrites Steam's metadata. In
-practice, then, the bridge records each Windows library's path and tells the
-user to add it once in Steam **Settings > Storage > Add Library**; the games
-are then playable in place. (An earlier version of this section said games
-appear immediately: no deployed code did that, and the E2E now holds the
-bridge to the guidance instead.) Proton handles compatibility.
+Linux Steam writes its own `libraryfolders.vdf` at its first start. The
+bridge never changes that file. Thus the bridge records the path of each
+Windows library. The migration chooser tells the user to add each library
+one time in Steam **Settings > Storage > Add Library**. After that step, the
+games run in place, with Proton for compatibility. Games do not appear
+without that step.
 
 **Browser profiles** are detected and offered for import:
 
