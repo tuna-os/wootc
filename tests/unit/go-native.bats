@@ -459,10 +459,40 @@ NTFSINFO
     # foreign labels. The account must ride the recipe (fisherman CreateUser)
     # with the crypt hash copied verbatim, and the migrated home chowned to
     # the user (rsync preserves the fuse binds' root:root ownership).
-    grep -Fq '\"user\": {' "$GN"
-    grep -Fq '\"username\": \"$guser\"' "$GN"
+    grep -Fq '\"user\": $guserjson' "$GN"
+    grep -Fq 'guserjson=$(phase2_user_json "$guser" "$gfull" "$ghash")' "$GN"
     grep -qE '^[^#]*ghash=.*etc/shadow' "$GN"
     grep -qE '^[^#]*chown -R .*guser' "$GN"
+    run bash -c 'source "$1"; phase2_user_json wootc "" "\$6\$salt\$hash"' _ "$GN"
+    [ "$status" -eq 0 ]
+    [ "$(jq -c . <<<"$output")" = '{"username":"wootc","password":"$6$salt$hash","groups":["wheel"]}' ]
+}
+
+@test "Phase-3 recipe carries the GECOS full name JSON-escaped, first subfield only" {
+    # The GECOS name used to be pasted into the recipe raw: a quote or
+    # backslash broke the JSON, and chfn's ",room,phone" subfields rode along
+    # into the native account's name.
+    heredoc=$(sed -n '/^    cat > "\$recipe" <<EOF$/,/^EOF$/p' "$GN" | sed '1d;$d')
+    [ -n "$heredoc" ]
+    gecos='Zoë "Zed" O'"'"'Brien-Åberg\ a1b2c3,Room 1,555,,'
+    run env HEREDOC="$heredoc" bash -c 'source "$1"
+        target=/dev/sdb filesystem=xfs img=ghcr.io/ublue-os/bluefin:stable
+        ghost=wootc-test gsettings="" gflatpakjson="[]"
+        guserjson=",
+  \"user\": $(phase2_user_json wootc "$2" "\$6\$salt\$hash")"
+        eval "cat <<EOF
+$HEREDOC
+EOF"' _ "$GN" "$gecos"
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.user.fullname' <<<"$output")" = 'Zoë "Zed" O'"'"'Brien-Åberg\ a1b2c3' ]
+    [ "$(jq -r '.user.password' <<<"$output")" = '$6$salt$hash' ]
+    # The E2E seed, as useradd stored it, comes back byte for byte.
+    run bash -c 'source "$1"; phase2_user_json wootc "$2" ""' _ "$GN" "Zoë O'Brien-Åberg 0a1b2c"
+    [ "$(jq -r '.fullname' <<<"$output")" = "Zoë O'Brien-Åberg 0a1b2c" ]
+    # A ':' or newline (useradd refuses both) never reaches the recipe.
+    run bash -c 'source "$1"; phase2_user_json wootc "$2" ""' _ "$GN" $'Ann:\nLee'
+    [ "$(jq -r '.fullname' <<<"$output")" = 'Ann Lee' ]
 }
 
 @test "Phase-3 installs the /run userdata probe for the confined guest agent" {

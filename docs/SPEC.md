@@ -461,6 +461,7 @@ Windows ACLs restricting read access to `SYSTEM` and `Administrators`:
 {
   "hostname": "tunaos",
   "username": "liveuser",
+  "full_name": "Zoë O'Brien-Åberg",
   "password_hash": "$y$j9T$RlhOWV...$v9zZ291aEF...",
   "timezone": "America/New_York",
   "locale": "en_US.UTF-8"
@@ -494,6 +495,7 @@ The deployer initramfs handles the vault in three steps:
   "hostname": "tunaos",
   "user": {
     "username": "liveuser",
+    "fullname": "Zoë O'Brien-Åberg",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   }
@@ -517,6 +519,37 @@ persists on the unencrypted NTFS partition.
 fisherman's post-install hooks write the hashed password into
 `/target/etc/shadow`, the username into `/target/etc/passwd`, and the
 hostname into `/target/etc/hostname`.
+
+The account's full name comes from Windows on every install, whether or
+not Windows-Style Mode is on. The installer reads the migrating account's
+full name: a local account's from the local account database
+(`NetUserGetInfo` level 10, `usri10_full_name`), a domain or Microsoft
+account's from `GetUserNameEx(NameDisplay)`. It writes it to the vault as
+`full_name`, an empty string when Windows has none. The deployer puts it in
+the recipe as `user.fullname`, and fisherman gives it to
+`useradd --comment`, so it becomes the GECOS full name (`getent passwd`
+field 5). useradd refuses a `:` or a newline in that field, and fisherman
+then stops the whole install. So the installer and the deployer both apply
+one rule to the name:
+
+- Every Unicode whitespace character becomes a space.
+- Control characters (Unicode Cc), invalid UTF-8, `:` and `,` are removed.
+  The comma separates GECOS subfields.
+- Runs of spaces become one space, and leading and trailing spaces are
+  removed.
+- The name is cut to 256 bytes, on a character boundary.
+
+Every other character, in any script, is kept byte for byte. This includes
+apostrophes, hyphens, periods, quotes and backslashes; jq builds the
+recipe, so quotes and backslashes cannot break it. The deployer logs
+`account full name from Windows: <name>`, or `account full name from
+Windows: none recorded`. When `wootc-identity apply` copies the Windows
+account picture at boot, it also writes this name as AccountsService
+`RealName`. It runs `chfn` only when Windows-Style Mode collected a
+different `fullName` into `slurp.json`, so it never clears this name.
+Phase 3 (`wootc-go-native`) takes the first comma subfield of the Phase-2
+account's GECOS field, applies the same rule and copies it to the native
+install's account.
 
 The installer also reads the Windows time zone, UI language and keyboard
 layout into `\wootc\install\slurp\slurp.json` (`timezone`, `language`,
@@ -584,6 +617,7 @@ Generated at deploy time from kernel cmdline args (and vault.json if provided):
   "flatpaks": [],
   "user": {
     "username": "liveuser",
+    "fullname": "Zoë O'Brien-Åberg",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   },
