@@ -245,7 +245,9 @@ VS Code, Telegram, Signal, Thunderbird and OBS file/profile imports also
 preserve existing destinations. They publish new files or complete new profiles
 exclusively as the target user. The helper does not recursively take ownership
 of unrelated native content. The helper creates metadata for Thunderbird only
-inside its new bundle.
+inside its new bundle. The one exception is a VS Code `settings.json` or
+`keybindings.json` that is identical to the image's `/etc/skel` copy. That file
+is a default from the image, not a Linux edit, so the Windows file replaces it.
 
 Read per-app copied, preserved and failed outcomes in `bridge-apps.json`;
 failed imports return nonzero. A copy of a messenger profile or a synthetic
