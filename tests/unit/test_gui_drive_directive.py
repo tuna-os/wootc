@@ -44,6 +44,27 @@ class GuiDriveDirectiveTests(unittest.TestCase):
                          (FIXTURES / 'directive-install.json').read_text())
         self.assertEqual(json.loads(module.install_directive('native', RUN, DIRECTIVE, IMAGE))['storageId'], 'C:')
 
+    def test_native_directive_migrates_like_a_person_and_records_it(self):
+        # Windows-Style Mode on and two of the three seeded apps kept: without
+        # them the look checks skip and the app install is never exercised.
+        value = json.loads(module.install_directive('native', RUN, DIRECTIVE, IMAGE))
+        self.assertIs(value['windowsLook'], True)
+        self.assertEqual(value['flatpaks'], ['org.audacityteam.Audacity', 'org.inkscape.Inkscape'])
+        result = subprocess.run(['python3', str(BUILDER), '--manifest', 'native'], text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), [
+            '#windowsLook=1',
+            '#flatpaksSelected=org.audacityteam.Audacity,org.inkscape.Inkscape',
+            '#flatpaksDeselected=org.gimp.GIMP'])
+        # The deselected app is one the seed makes Windows detect, never one
+        # the directive also keeps.
+        self.assertNotIn('org.gimp.GIMP', value['flatpaks'])
+        self.assertIn('"GIMP 2.10.36"', (ROOT / 'tests/e2e/oem/seed-profile.ps1').read_text())
+        wails = subprocess.run(['python3', str(BUILDER), '--manifest', 'wails'], text=True, capture_output=True)
+        self.assertEqual((wails.returncode, wails.stdout), (0, ''))
+        self.assertNotIn('flatpaks', module.install_directive('wails', RUN, DIRECTIVE, IMAGE))
+        self.assertIn('gui-drive-directive.py" --manifest "$GUI_FRONTEND" >> "$MIGRATION_EXPECTED"', RUNNER.read_text())
+
     def test_refuses_unknown_frontends_and_identities(self):
         for args in (('gtk', RUN, DIRECTIVE, IMAGE), ('native', '', DIRECTIVE, IMAGE),
                      ('wails', RUN, DIRECTIVE.upper(), IMAGE), ('native', RUN, DIRECTIVE, ''),

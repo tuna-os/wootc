@@ -127,14 +127,20 @@ def builtin_cat_office(user):
     return bool(items), items, "LibreOffice dictionary, templates, fonts, and format defaults"
 
 
+STEAM_GUIDANCE = ("Games play in place, no download: after Steam's first start, "
+                  "add the Windows library in Steam Settings > Storage > Add Library")
+
+
 def builtin_cat_games(_user):
+    # The bridge cannot register a library into metadata Linux Steam owns
+    # (docs/SPEC.md §4.1), so the chooser says what the user does once.
     items = []
     for base in ("Program Files (x86)", "Program Files"):
         vdf = os.path.join(HOST, base, "Steam", "steamapps", "libraryfolders.vdf")
         if os.path.exists(vdf):
-            items.append(_item(os.path.dirname(os.path.dirname(vdf)), "steam", "Steam", "libraries + saves"))
+            items.append(_item(os.path.dirname(os.path.dirname(vdf)), "steam", "Steam libraries", STEAM_GUIDANCE))
             break
-    return bool(items), items, "Steam"
+    return bool(items), items, "Steam libraries (add them once in Steam)"
 
 
 def builtin_cat_wifi(_user):

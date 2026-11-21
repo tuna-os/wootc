@@ -40,10 +40,12 @@ public sealed class E2EDriveLoopTests
         public FakeView(params ConfigurationStorage[] volumes)
         {
             Model = new ConsumerConfiguration("fixture-brand");
+            // The apps the engine detects from tests/e2e/oem/seed-profile.ps1,
+            // which the harness directive chooses between.
             Model.ApplyCatalogue(new ConfigurationCatalogue(1, "fixture-brand", "embedded", new string('a', 64),
                 new[] { new ConfigurationImage("yellowfin", "Yellowfin GNOME", Reference, "green", true, "", false, "", false) },
                 "alpha", false, new ConfigurationDefaults(40, "tpm2-luks", "auto", false, false),
-                volumes.Length == 0 ? new[] { Volume("observed-c", "C") } : volumes));
+                volumes.Length == 0 ? new[] { Volume("observed-c", "C") } : volumes, SeededApps));
         }
 
         public DriveObservation Observe() => Screen == DriveScreen.Launchpad
@@ -76,6 +78,12 @@ public sealed class E2EDriveLoopTests
 
     private static ConfigurationStorage Volume(string id, string letter) => new(id, letter,
         "11111111-1111-1111-1111-111111111111", Guid.NewGuid().ToString(), "0123456789abcdef", 256L * 1024 * 1024 * 1024, 200);
+
+    private static readonly ConfigurationApp[] SeededApps =
+    {
+        new("org.gimp.GIMP", "GIMP", "GIMP 2.10.36"), new("org.inkscape.Inkscape", "Inkscape", "Inkscape 1.4.2"),
+        new("org.audacityteam.Audacity", "Audacity", "Audacity 3.7.1"),
+    };
 
     // Native run 38902999307: the directive named no disk size, the form kept
     // the catalogue's 40 GB on a drive with 58 GB free, and the engine
@@ -356,29 +364,20 @@ public sealed class E2EDriveLoopTests
     }
 
     // The directive's flatpaks and windowsLook keys (contract item 4): the
-    // harness's golden directive plus the keys, through the real loop.
+    // harness's golden directive, edited, through the real loop.
     private static (FakeChannel Channel, FakeView View, E2EDriveLoop Loop) WithApps(Action<System.Text.Json.Nodes.JsonObject> edit)
     {
         var directive = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
         edit(directive);
         var channel = new FakeChannel { Directive = directive.ToJsonString() };
         var view = new FakeView();
-        view.Model.ApplyCatalogue(new ConfigurationCatalogue(1, "fixture-brand", "embedded", new string('a', 64),
-            new[] { new ConfigurationImage("yellowfin", "Yellowfin GNOME", Reference, "green", true, "", false, "", false) },
-            "alpha", false, new ConfigurationDefaults(40, "tpm2-luks", "auto", false, false), new[] { Volume("observed-c", "C") },
-            new ConfigurationApp[] { new("org.gimp.GIMP", "GIMP", "GIMP 2.10.36"), new("org.inkscape.Inkscape", "Inkscape", "Inkscape 1.4.2"),
-                new("org.audacityteam.Audacity", "Audacity", "Audacity 3.7.1") }));
         return (channel, view, new E2EDriveLoop(channel, view));
     }
 
     [Fact]
-    public async Task NamedAppsAndTheWindowsAppearanceReachThePlan()
+    public async Task TheGoldenDirectiveKeepsAudacityAndInkscapeWithTheWindowsAppearance()
     {
-        var (_, view, loop) = WithApps(directive =>
-        {
-            directive["windowsLook"] = true;
-            directive["flatpaks"] = new System.Text.Json.Nodes.JsonArray("org.audacityteam.Audacity", "org.inkscape.Inkscape");
-        });
+        var (_, view, loop) = WithApps(_ => { });
         await Tick(loop);
         await Tick(loop);
         Assert.Equal(1, view.Clicks);
@@ -388,9 +387,29 @@ public sealed class E2EDriveLoopTests
     }
 
     [Fact]
+    public async Task NamedAppsAndTheWindowsAppearanceReachThePlan()
+    {
+        var (_, view, loop) = WithApps(directive =>
+        {
+            directive["windowsLook"] = true;
+            directive["flatpaks"] = new System.Text.Json.Nodes.JsonArray("org.gimp.GIMP");
+        });
+        await Tick(loop);
+        await Tick(loop);
+        Assert.Equal(1, view.Clicks);
+        var plan = view.Model.CreateDraft();
+        Assert.Equal(new[] { "org.gimp.GIMP" }, plan.Flatpaks);
+        Assert.True(plan.WindowsLook);
+    }
+
+    [Fact]
     public async Task AbsentKeysInstallEveryDetectedAppWithTheDefaultAppearance()
     {
-        var (_, view, loop) = WithApps(_ => { });
+        var (_, view, loop) = WithApps(directive =>
+        {
+            directive.Remove("windowsLook");
+            directive.Remove("flatpaks");
+        });
         await Tick(loop);
         await Tick(loop);
         Assert.Equal(1, view.Clicks);

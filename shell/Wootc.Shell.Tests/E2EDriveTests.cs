@@ -19,10 +19,14 @@ public sealed class E2EDriveTests
     private static ConsumerConfiguration Model(string imageRef = Reference, params ConfigurationStorage[] volumes)
     {
         var model = new ConsumerConfiguration("fixture-brand");
+        // The apps the engine detects from tests/e2e/oem/seed-profile.ps1
+        // that the harness directive chooses between.
         model.ApplyCatalogue(new ConfigurationCatalogue(1, "fixture-brand", "embedded", new string('a', 64),
             new[] { new ConfigurationImage("yellowfin", "Yellowfin GNOME", imageRef, "green", true, "", false, "", false) },
             "alpha", false, new ConfigurationDefaults(40, "none", "auto", false, false),
-            volumes.Length == 0 ? new[] { Volume("only-volume", "C") } : volumes));
+            volumes.Length == 0 ? new[] { Volume("only-volume", "C") } : volumes,
+            new ConfigurationApp[] { new("org.gimp.GIMP", "GIMP", "GIMP 2.10.36"), new("org.inkscape.Inkscape", "Inkscape", "Inkscape 1.4.2"),
+                new("org.audacityteam.Audacity", "Audacity", "Audacity 3.7.1") }));
         return model;
     }
 
@@ -32,6 +36,10 @@ public sealed class E2EDriveTests
         var directive = E2EDriveDirective.Parse(Golden("directive-install.json"));
         Assert.Equal((1, Run, Id, "install", Reference), (directive.SchemaVersion, directive.RunId, directive.DirectiveId, directive.Action, directive.Image));
         Assert.Equal(("wootc", "wootc-test", "", "C:", 30), (directive.Username, directive.Hostname, directive.Encryption, directive.StorageId, directive.DiskSizeGb));
+        // The harness migrates the way a person would: Windows-Style Mode on,
+        // Audacity and Inkscape kept, the detected GIMP unchecked.
+        Assert.True(directive.WindowsLook);
+        Assert.Equal(new[] { "org.audacityteam.Audacity", "org.inkscape.Inkscape" }, directive.Flatpaks);
         Assert.DoesNotContain("wootc-e2e-pass", directive.ToString());
         var mapping = directive.ToInstallMapping();
         Assert.Equal("wootc-e2e-pass", mapping.Password);
@@ -76,11 +84,13 @@ public sealed class E2EDriveTests
     [Fact]
     public void ParsesTheOptionalAppearanceAndAppKeys()
     {
-        var absent = E2EDriveDirective.Parse(Golden("directive-install.json"));
+        var node = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
+        node.Remove("windowsLook");
+        node.Remove("flatpaks");
+        var absent = E2EDriveDirective.Parse(node.ToJsonString());
         Assert.Null(absent.WindowsLook);
         Assert.Null(absent.Flatpaks);
         Assert.Null(absent.ToInstallMapping().Flatpaks);
-        var node = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
         node["windowsLook"] = false;
         node["flatpaks"] = new System.Text.Json.Nodes.JsonArray("org.gimp.GIMP", "org.audacityteam.Audacity");
         var named = E2EDriveDirective.Parse(node.ToJsonString());
