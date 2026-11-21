@@ -39,7 +39,10 @@ setup() {
     # existing — and Phase 2 then found seed@host empty. The seed step must
     # read the canary FILE back after either branch, and the PASS grep must
     # match the canary's content format.
-    grep -q "seed-profile.ps1' -Username.*| Out-Null" "$E2E"
+    # The profile comes from the seed staged over QGA every run
+    # (lib/migration.sh), never a C:\OEM copy an old base image may carry.
+    grep -Fq 'if migration_seed "$drive" "$guser"; then' "$E2E"
+    grep -Fq "seed-profile.ps1' -Username '\$guser' -Drive '\$drive' -RunId '\$RUN_ID'" "$(dirname "$E2E")/lib/migration.sh"
     grep -q 'Get-Content' "$E2E"
     grep -Fq 'grep -q "wootc-e2e-userdata $RUN_ID"' "$E2E"
 }

@@ -997,6 +997,62 @@ WantedBy=multi-user.target
 UNIT
         ln -sf ../wootc-e2e-native-health.service \
             "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-health.service"
+        # The migration suite (tests/e2e/migration-check.py) reads user homes,
+        # NetworkManager keyfiles and Flatpak installs, none of which the
+        # confined agent may read. The harness stages the check and this
+        # run's manifest in /run during Phase 2; run them from init's context
+        # once the system is up and export the result to /run.
+        for staged in e2e-migration-check.py e2e-migration-expected.tsv; do
+            if [[ -f "/run/wootc-$staged" ]]; then
+                cp "/run/wootc-$staged" "$etcroot/wootc/$staged" \
+                    || log "WARN: could not copy the staged $staged into the native install"
+            fi
+        done
+        cat > "$etcroot/wootc/e2e-native-migration.sh" <<'MIGRATIONPROBE'
+#!/bin/bash
+# Runs from init's unconfined context; the agent reads only the /run export.
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-migration
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+read -r boot < /proc/sys/kernel/random/boot_id
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+# A login and a Flatpak launch are part of the check: let the boot settle.
+systemctl is-system-running --wait >/dev/null 2>&1 || true
+status=0
+check=/etc/wootc/e2e-migration-check.py
+if [[ -f "$check" ]]; then
+    output=$(/usr/bin/python3 "$check" native /etc/wootc/e2e-migration-expected.tsv 2>&1) || status=$?
+else
+    status=127
+    output="no migration check at $check: the harness did not stage it before graduation"
+fi
+temp=$(mktemp "${out}.XXXXXX")
+printf 'MIGRATION_SCHEMA=1\nMIGRATION_BOOT_ID=%s\nMIGRATION_STATUS=%s\n%s\n' \
+    "$boot" "$status" "$output" > "$temp"
+chmod 0644 "$temp"
+read -r current < /proc/sys/kernel/random/boot_id
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
+MIGRATIONPROBE
+        chmod +x "$etcroot/wootc/e2e-native-migration.sh"
+        cat > "$etcroot/systemd/system/wootc-e2e-native-migration.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export the migration check to /run
+After=local-fs.target NetworkManager.service
+
+[Service]
+Type=exec
+RuntimeMaxSec=1200
+ExecStart=/bin/bash /etc/wootc/e2e-native-migration.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-migration.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-migration.service"
     fi
     # Label everything graduation wrote with the target's own policy, as the
     # deployer does for Phase 2. fisherman's offline useradd rewrites passwd,

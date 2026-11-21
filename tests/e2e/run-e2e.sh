@@ -43,6 +43,8 @@ source "$SCRIPT_DIR/phase-ledger.sh"
 source "$SCRIPT_DIR/lib/diagnostics.sh"
 # shellcheck source=tests/e2e/lib/fixture-bitlocker.sh
 source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
+# shellcheck source=tests/e2e/lib/migration.sh
+source "$SCRIPT_DIR/lib/migration.sh"
 # shellcheck source=tests/e2e/lib/results.sh
 source "$SCRIPT_DIR/lib/results.sh"
 # shellcheck source=tests/e2e/lib/layer-evidence.sh
@@ -1158,27 +1160,25 @@ seed_user_data() {
     local guser; guser=$(guest_windows_user)
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
-        # Use seed-profile.ps1 if available in C:\OEM, otherwise seed directly via PowerShell
-        # The PASS below greps $RUN_ID: seed-profile.ps1 prints "(RunId: ...)"
-        # in its banner, so matching script chatter alone would pass without
-        # the canary existing (proxy status). Always read the canary FILE back
-        # after either branch; a silent script failure then fails honestly here
-        # instead of in Phase 2.
-        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' | Out-Null }; \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path 'C:\OEM\seed-profile.ps1')) { if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
-        # Match the canary's exact content format, not the bare RUN_ID:
-        # seed-profile.ps1 echoes "(RunId: ...)" in its banner, which the old
-        # grep accepted as proof without the file existing.
-        if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
-            pass "User data seeded: ${drive}\\Users\\${guser}\\Documents\\wootc-e2e-userdata.txt ($RUN_ID)"
-            return 0
+        # The full migration profile (tests/e2e/lib/migration.sh): staged over
+        # QGA every run, it writes the canary, the corpus and the manifest.
+        # The PASS below reads the canary FILE back, never script chatter
+        # (seed-profile.ps1 echoes "(RunId: ...)" in its banner).
+        if migration_seed "$drive" "$guser"; then
+            out=$(qga_powershell "Get-Content -LiteralPath '${seed_dir}\\wootc-e2e-userdata.txt'" 2>&1 || true)
+            if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
+                [ "${WOOTC_E2E_BITLOCKER:-off}" = on ] && migration_header documentsSubdir "From Windows"
+                pass "User data seeded: ${drive}\\Users\\${guser} — canary, migration corpus and manifest ($RUN_ID)"
+                return 0
+            fi
         fi
-        warn "Seeding attempt $attempt/3 did not confirm the marker; guest said: ${out:-<no output>}"
+        warn "Seeding attempt $attempt/3 did not confirm the migration profile; guest said: $(tail -5 "$ARTIFACT_DIR/seed-profile.log" 2>/dev/null | tr '\r\n' '  ' | cut -c1-400)"
         sleep 10
     done
     # Make the cause name itself rather than costing another run to find.
     qga_powershell "Get-ChildItem ${drive}\\Users -Force -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name" 2>&1 \
         | sed "s/^/    ${drive}\\Users entry: /" || true
-    fail "Could not seed user data in the Windows profile — data-persistence checks will be meaningless"
+    fail "Could not seed the migration profile in Windows — data-persistence checks will be meaningless"
     return 1
 }
 
@@ -1224,6 +1224,13 @@ snapshot_before_deployer() {
     # survived. Failure is recorded (the downstream checks then fail too, on
     # their own evidence) but must not wedge the barrier below.
     seed_user_data || true
+    # The installer has run its collectors; add what it cannot collect on a
+    # VM (saved Wi-Fi) and record what it collected.
+    _mig_root=$(guest_wootc_root || true)
+    if [ -n "$_mig_root" ]; then
+        migration_seed_wifi "$_mig_root" || warn "Migration Wi-Fi profiles were not staged"
+        migration_record_windows_handoff "$_mig_root"
+    fi
 
     if [ "$WOOTC_E2E_SNAPSHOT" != "1" ]; then
         info "Pre-deployer snapshot disabled (WOOTC_E2E_SNAPSHOT=1 to enable)"
@@ -1550,12 +1557,6 @@ if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$OEM_DIR/assert-recovery.ps1"
     printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
-fi
-if [ -f "$SCRIPT_DIR/seed-profile.ps1" ]; then
-    printf '\xEF\xBB\xBF' > "$OEM_DIR/seed-profile.ps1"
-    sed 's/$/\r/' "$SCRIPT_DIR/seed-profile.ps1" >> "$OEM_DIR/seed-profile.ps1"
-    printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/seed-profile.ps1"
-    sed 's/$/\r/' "$SCRIPT_DIR/seed-profile.ps1" >> "$SCRIPT_DIR/wootc-files/seed-profile.ps1"
 fi
 cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
@@ -3512,6 +3513,15 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         exit 1
     fi
 
+    # The installer has run its collectors; add what it cannot collect on a
+    # VM (saved Wi-Fi) and record what it collected, before the deployer
+    # consumes the handoff.
+    local mig_root
+    mig_root=$(guest_wootc_root || true)
+    [ -n "$mig_root" ] || mig_root="C:"
+    migration_seed_wifi "$mig_root" || warn "Migration Wi-Fi profiles were not staged"
+    migration_record_windows_handoff "$mig_root"
+
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
     local reboot_payload
@@ -4617,6 +4627,10 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         pass "Phase 2 has no failed units outside the known-failure list"
     fi
 
+    # Measure the Phase-2 migration BEFORE graduation changes anything, and
+    # leave the checker in /run for wootc-go-native to carry to the native disk.
+    migration_check_phase2 || true
+
     info "Phase 3: go-native status"
     # QGA starts commands with a minimal service-manager PATH that does not
     # include /usr/local/bin. Invoke the installed Phase-3 tool by its runtime
@@ -4960,6 +4974,10 @@ if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     fi
 fi
 
+# The rest of the migration (account, folders, apps, Wi-Fi, look...) against
+# the seeded manifest. A Phase-3 run already did this before graduating.
+migration_check_phase2 || true
+
 # ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
 # Everything above passes on the ABSENCE of error strings, and the reboot step
 # below sends ctrl-alt-delete — which an emergency shell obeys just as happily
@@ -5158,6 +5176,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         exit 1
     fi
     product_pass native-health "Phase 3 native system passed the generic post-boot health gate"
+    migration_check_native "$P3_NATIVE_BOOT_ID" || true
 
     # The point of it all: the file seeded in Windows before the deployer ever
     # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
@@ -5243,6 +5262,7 @@ else
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
     product_pass windows-return "One-shot Phase 2 boot consumed; Windows returned successfully"
+    migration_check_windows_intact
     # The product's own evidence of the Phase-2 boot, read back from the
     # Windows volume (#332). An extra assertion beside the North Star file:
     # the user-data proof above stays the harness's own observation.
