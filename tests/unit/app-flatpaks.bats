@@ -70,6 +70,8 @@ install_with() {
 export_env() {
     export LIB MAP VAR ETC NTFS CALLS LOG
     export WOOTC_FLATPAK_ATTEMPTS=2 WOOTC_FLATPAK_BACKOFF=0
+    # The deployer's disk-backed scratch that holds the flatpak /var/tmp.
+    export TMPDIR="$TMP/scratch"; mkdir -p "$TMPDIR"
 }
 
 receipt() { jq -c "$1" "$ETC/wootc/flatpak-install.json"; }
@@ -184,9 +186,74 @@ receipt() { jq -c "$1" "$ETC/wootc/flatpak-install.json"; }
     printf '#!/bin/bash\nshift; exec "$@"\n' >"$STUBDIR/timeout"
     chmod +x "$STUBDIR/podman" "$STUBDIR/timeout"
     run bash -c 'PATH="$2:$PATH"; source "$1"; FLATPAK_IMAGE=localhost/wootc-ntfs-injected FLATPAK_DIR=/mnt/verify/ostree/deploy/default/var/lib/flatpak
+        FLATPAK_TMP=/var/tmp/wootc-flatpak-tmp.abc
         flatpak_in_image flatpak info --system org.gimp.GIMP' _ "$LIB" "$STUBDIR"
     [ "$status" -eq 0 ]
-    grep -Fxq "run --rm --network=host --privileged --security-opt label=disable -v /mnt/verify/ostree/deploy/default/var/lib/flatpak:/var/lib/flatpak --entrypoint flatpak localhost/wootc-ntfs-injected info --system org.gimp.GIMP" "$CALLS"
+    grep -Fxq "run --rm --network=host --privileged --security-opt label=disable -v /mnt/verify/ostree/deploy/default/var/lib/flatpak:/var/lib/flatpak -v /var/tmp/wootc-flatpak-tmp.abc:/var/tmp --entrypoint flatpak localhost/wootc-ntfs-injected info --system org.gimp.GIMP" "$CALLS"
+}
+
+# Probe 44889931801 (bluefin:stable): both apps failed three times with
+#   Error: Failed to install org.gnome.Platform: While pulling
+#   runtime/org.gnome.Platform/x86_64/50 from remote flathub:
+#   open(O_TMPFILE): No such file or directory
+# The image's /var is empty, and libostree decompresses each LZMA delta part
+# into an O_TMPFILE in /var/tmp. The fake podman below is such an image: its
+# flatpak install fails exactly so unless the run gives it a writable /var/tmp.
+@test "an image with an empty /var still installs: the runner gives flatpak a /var/tmp from the deployer's scratch" {
+    export_env
+    cat >"$STUBDIR/podman" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$*" >>"$CALLS"
+[[ "$1" == image ]] && exit 0
+[[ "$1" == run ]] || exit 125
+shift
+fp="" vartmp=""
+while (( $# )); do
+    case "$1" in
+        -v) case "${2#*:}" in
+                /var/lib/flatpak) fp=${2%%:*} ;;
+                /var/tmp) vartmp=${2%%:*} ;;
+            esac
+            # podman refuses a bind source that does not exist.
+            [[ -e "${2%%:*}" ]] || { echo "Error: statfs ${2%%:*}: no such file or directory"; exit 125; }
+            shift 2 ;;
+        --entrypoint) prog=$2; shift 3; break ;;
+        *) shift ;;
+    esac
+done
+case "$prog $1" in
+    "flatpak remote-add") exit 0 ;;
+    "flatpak install")
+        if [[ -z "$vartmp" || ! -w "$vartmp" ]]; then
+            echo "Error: Failed to install org.gnome.Platform: While pulling runtime/org.gnome.Platform/x86_64/50 from remote flathub: open(O_TMPFILE): No such file or directory"
+            exit 1
+        fi
+        printf '%s\n' "$vartmp" >>"$CALLS.vartmp"
+        : >"$vartmp/delta-part"
+        mkdir -p "$fp/app/${!#}" ;;
+    "flatpak info") [[ -d "$fp/app/${!#}" ]] ;;
+    "sh -c") echo "system_u:object_r:var_lib_t:s0 /var/lib/flatpak/repo" ;;
+    *) exit 1 ;;
+esac
+STUB
+    printf '#!/bin/bash\nshift; exec "$@"\n' >"$STUBDIR/timeout"
+    chmod +x "$STUBDIR/podman" "$STUBDIR/timeout"
+    printf '%s\n' '{"schemaVersion":1,"remote":"flathub","remoteUrl":"https://dl.flathub.org/repo/flathub.flatpakrepo","flatpaks":["org.audacityteam.Audacity","org.inkscape.Inkscape"]}' >"$NTFS/apps.json"
+    run bash -c 'PATH="$1:$PATH"
+        log() { printf "%s\n" "$*" >>"$LOG"; }
+        err() { printf "%s\n" "$*" >>"$LOG"; }
+        source "$LIB"
+        install_selected_flatpaks "$NTFS/apps.json" "$MAP" localhost/image "$VAR" "$ETC" "$NTFS/flatpak-install.json"' _ "$STUBDIR"
+    cat "$LOG"
+    [ "$status" -eq 0 ]
+    [ "$(receipt .installed)" = '["org.audacityteam.Audacity","org.inkscape.Inkscape"]' ]
+    [ "$(receipt .failed)" = '[]' ]
+    # The /var/tmp lives in the deployer's scratch (TMPDIR), not in the
+    # target, and is gone once the install is done.
+    [ "$(sort -u "$CALLS.vartmp" | wc -l)" -eq 1 ]
+    [[ "$(head -1 "$CALLS.vartmp")" == "$TMPDIR"/wootc-flatpak-tmp.* ]]
+    [ -z "$(ls -A "$TMPDIR")" ]
+    [ ! -e "$VAR/tmp" ]
 }
 
 @test "deploy.sh installs the selection after the ESP staging, before the relabel, and fisherman copies none" {
