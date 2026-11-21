@@ -4595,12 +4595,21 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # Failed units in Phase 2 fail the run as they do on the native system:
     # only the reviewed known-failure list in phase3-health.sh is exempt.
     # Phase 2 is permissive, so the agent can query systemd here.
-    P3_P2_UNITS_STATUS=0
-    P3_P2_UNITS=$(WOOTC_QGA_CALL_TIMEOUT=240 qga_call exec /bin/sh -c \
-        "$P3_HEALTH_SCRIPT" wootc-phase3-health phase2-units 2>&1) || P3_P2_UNITS_STATUS=$?
+    # The check exits 3 while Phase 2 is still booting (bluefin:stable's
+    # bootc-unified-storage.service held its boot for 6+ minutes).
+    P3_P2_DEADLINE=$(deadline_in "${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}")
+    while :; do
+        P3_P2_UNITS_STATUS=0
+        P3_P2_UNITS=$(qga_call exec /bin/sh -c "$P3_HEALTH_SCRIPT" wootc-phase3-health phase2-units 2>&1) || P3_P2_UNITS_STATUS=$?
+        [ "$P3_P2_UNITS_STATUS" -eq 3 ] || break
+        past_deadline "$P3_P2_DEADLINE" && break
+        sleep 10
+    done
     printf '%s\n' "$P3_P2_UNITS" | tee "$ARTIFACT_DIR/phase2-units.log"
     if printf '%s\n' "$P3_P2_UNITS" | grep -q '^FAIL:'; then
         product_fail "Phase 2 has failed units outside the known-failure list"
+    elif [ "$P3_P2_UNITS_STATUS" -eq 3 ]; then
+        product_fail "Phase 2 did not finish booting within ${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}s"
     elif [ "$P3_P2_UNITS_STATUS" -ne 0 ]; then
         infra_fail "Phase 2 failed-unit check failed without a product finding"
         exit 1
