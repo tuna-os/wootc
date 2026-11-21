@@ -164,6 +164,69 @@ notes_root() {
         | grep -q 'check-notes.sh "\$RELEASE_TAG"'
 }
 
+# Run the post-publish verification step of release.yml with curl answering
+# from $1 (the "published" release) instead of github.com.
+run_published_set_check() {  # <published dir> <work dir with release-assets/ and signing/>
+    local script
+    script=$(awk '/- name: Verify the published boot-artifact set from its public URLs/{f=1; next}
+                  f && /^      - /{exit}
+                  f && /^        run: \|/{r=1; next}
+                  r && /^          /{sub(/^          /, ""); print}' "$RELEASE")
+    [ -n "$script" ]
+    mkdir -p "$2/bin"
+    printf '#!/usr/bin/env bash\nwhile [ "$#" -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\ncp "%s/${1##*/}" "$out"\n' "$1" > "$2/bin/curl"
+    chmod +x "$2/bin/curl"
+    ln -sfn "$PWD/app" "$2/app"
+    (cd "$2" && PATH="$2/bin:$PATH" RUNNER_TEMP="$2" GITHUB_REPOSITORY=o/r RELEASE_TAG=v9 \
+        WOOTC_SIGNING_DIR="$2/signing" bash -c "set -euo pipefail; $script")
+}
+
+# A signed release set as the publish job leaves it, plus its published copy.
+make_signed_release() {  # <work dir>
+    local work=$1
+    mkdir -p "$work/release-assets" "$work/signing" "$work/published"
+    echo kernel > "$work/release-assets/deployer-vmlinuz"
+    echo shim > "$work/release-assets/shimx64.efi"
+    (cd app && go run ./tools/signmanifest generate "$work/signing/seed" "$work/signing/public.hex")
+    (cd "$work/release-assets" && sha256sum -- * > SHA256SUMS)
+    (cd app && go run ./tools/signmanifest sign "$work/signing/seed" "$work/release-assets/SHA256SUMS" "$work/release-assets/SHA256SUMS.sig")
+    cp "$work/signing/public.hex" "$work/release-assets/artifact-public-key.hex"
+    cp "$work/release-assets/"* "$work/published/"
+}
+
+@test "the published boot-artifact set is verified from its URLs before the dispatches" {
+    publish=$(grep -n 'softprops/action-gh-release' "$RELEASE" | cut -d: -f1)
+    verify=$(grep -n -- '- name: Verify the published boot-artifact set from its public URLs' "$RELEASE" | cut -d: -f1)
+    dispatch=$(grep -n -- '- name: Dispatch native setup packaging' "$RELEASE" | cut -d: -f1)
+    [ "$publish" -lt "$verify" ] && [ "$verify" -lt "$dispatch" ]
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    rm -rf "$work"
+}
+
+@test "a published manifest signed with another key fails the publish job" {
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    other=$(mktemp -d)
+    (cd app && go run ./tools/signmanifest generate "$other/seed" "$other/public.hex")
+    (cd app && go run ./tools/signmanifest sign "$other/seed" "$work/published/SHA256SUMS" "$work/published/SHA256SUMS.sig")
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -ne 0 ]
+    rm -rf "$work" "$other"
+}
+
+@test "a published asset that does not match the manifest fails the publish job" {
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    echo other-kernel > "$work/published/deployer-vmlinuz"
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"deployer-vmlinuz: FAILED"* ]]
+    rm -rf "$work"
+}
+
 @test "release exes are signed after they are built and before the checksums (#230)" {
     # Authenticode rewrites the exe. A SHA256SUMS written before signing
     # describes bytes nobody downloads, and the installer's fail-closed

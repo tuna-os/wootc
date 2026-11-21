@@ -445,6 +445,30 @@ jobs:
           body_path: NOTES.md
           draft: false
 
+      - name: Verify the published boot-artifact set from its public URLs
+        # What an installer of this release fetches, fetched the same way:
+        # SHA256SUMS and SHA256SUMS.sig from the tag's download URLs must be
+        # the bytes signed above and verify with the key every installer
+        # embeds, and each listed asset must match its checksum. A partial
+        # upload or a mixed set fails here, before the setup packaging and
+        # winget dispatches below.
+        env:
+          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          live=$(mktemp -d "$RUNNER_TEMP/wootc-published.XXXXXX")
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
+          fetch() { curl -fsSL --retry 5 --retry-all-errors -o "$live/$1" "$base/$1"; }
+          fetch SHA256SUMS
+          fetch SHA256SUMS.sig
+          fetch artifact-public-key.hex
+          cmp release-assets/SHA256SUMS "$live/SHA256SUMS"
+          cmp release-assets/SHA256SUMS.sig "$live/SHA256SUMS.sig"
+          cmp "$WOOTC_SIGNING_DIR/public.hex" "$live/artifact-public-key.hex"
+          (cd app && go run ./tools/signmanifest verify "$WOOTC_SIGNING_DIR/public.hex" "$live/SHA256SUMS" "$live/SHA256SUMS.sig")
+          while read -r _ name; do fetch "$name"; done < "$live/SHA256SUMS"
+          (cd "$live" && sha256sum --strict -c SHA256SUMS)
+
       - name: Dispatch native setup packaging
         # The release has to exist before winui-preview.yml can fetch the
         # public half of artifact-public-key.hex. It builds and attaches the

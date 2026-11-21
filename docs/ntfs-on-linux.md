@@ -159,6 +159,26 @@ Each home has mode `0700`, so another user cannot read or write those files.
 The NTFS mount sets `umask=000` for `ntfs3`, `ntfs-3g`, and the legacy `ntfs`
 driver.
 
+Windows sets the read-only attribute on its shell folders, such as Documents
+and Pictures, and on each folder with a custom name or icon. Windows does not
+stop writes into a folder because of this attribute. The `ntfs3` driver
+removes all write permission from such a folder. Thus, on Linux, the user
+cannot save a file in it.
+
+Before it binds a folder, `wootc-mount-user-dirs` runs
+`wootc-folder-flags clear`. This command writes each directory that has the
+attribute to `<host>/wootc/folder-flags.json`. Then it removes the attribute
+from those directories. It does not change files, because Windows enforces
+the attribute on files. If it cannot write the record, it changes no
+directory. It does not change the unlocked BitLocker volume.
+
+At shutdown, `wootc-umount-user-dirs` runs `wootc-folder-flags restore`.
+This command sets the attribute again on each recorded directory and removes
+the record. If Linux stops without a clean shutdown, the record stays. The
+next Linux boot restores the attributes before it removes them again. Until
+then, Explorer can show such a folder without its custom name or icon.
+`tests/unit/bridged-folder-flags.bats` tests these steps.
+
 The installer rejects redirects to the volume root, state files, or another
 disk. The file manager shows the Windows path as read-only.
 This view still lets a Linux user read other Windows files. It does not copy
