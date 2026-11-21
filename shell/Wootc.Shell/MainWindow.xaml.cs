@@ -25,6 +25,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
+    // Why the last configuration read failed, for the window and the drive
+    // report; null while a read is pending or after one succeeded.
+    private string? configurationError;
     // The image and drive whose install space is being read, if any.
     private (string ImageRef, string Drive)? installSpaceRequested;
     private long configurationGeneration;
@@ -189,6 +192,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         long generation = ++configurationGeneration;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:pending");
         long flushedRequest = 0;
+        configurationError = null;
         try
         {
             var snapshot = await controller.ReadConfigurationAsync(read.Token, id =>
@@ -216,7 +220,17 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             ConfigurationObservation.Text = $"Catalogue: {snapshot.CatalogueSource}; channel: {snapshot.Policy.Channel}; storage: {snapshot.StorageStatus}; installation authorization: unavailable";
             ConfigurationPanel.Visibility = Visibility.Visible;
         }
-        catch { if (generation == configurationGeneration) { ClearConfiguration(); StartupObservations.Text = "Linux configuration observation is unavailable"; } }
+        // The reason is shown, not swallowed: probe 44863395935 stopped on
+        // this text with nothing to say which step of the read failed.
+        catch (Exception error)
+        {
+            if (generation == configurationGeneration)
+            {
+                ClearConfiguration();
+                configurationError = ConfigurationFailure(error);
+                StartupObservations.Text = configurationError;
+            }
+        }
         finally
         {
             if (ReferenceEquals(configurationRead, read)) configurationRead = null;
@@ -828,6 +842,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         var state = installGate?.State ?? InstallGateState.Idle;
         var progress = installGate?.Progress;
         string? error = state is InstallGateState.Refused or InstallGateState.Failed ? installGate!.Reason : progress?.Error;
+        // A failed configuration read leaves the form unread: the drive
+        // report says why instead of an endless loading screen.
+        if (error is null && configuration is null) error = configurationError;
         DriveScreen screen;
         if (controller.Connection != ConnectionState.Ready) screen = DriveScreen.Loading;
         else if (DonePanel.Visibility == Visibility.Visible) screen = DriveScreen.Done;
@@ -848,6 +865,15 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             : disabled == true ? (string.IsNullOrEmpty(error) ? InstallBlockedReason.Text : error) : "";
         return new(screen, disabled, hint, progress?.Step ?? "", screen == DriveScreen.Done ? null : error,
             configuration?.SelectedImage?.ImageRef ?? "", configuration?.ObservedStorage);
+    }
+
+    // The window's text for a failed configuration read: the exception type
+    // and message, bounded, without the quotes the drive report escapes.
+    private static string ConfigurationFailure(Exception error)
+    {
+        string detail = $"{error.GetType().Name}: {error.Message}".Replace("\"", "").Replace("'", "");
+        if (detail.Length > 300) detail = detail[..300];
+        return $"Linux configuration observation is unavailable ({detail})";
     }
 
     DriveMappingObservation IE2EDriveView.MapInstall(E2EDriveDirective directive)
