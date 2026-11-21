@@ -1541,6 +1541,106 @@ if [[ "$FILESYSTEM" == btrfs ]]; then
     fi
 fi
 
+# ── Windows time zone, language and keyboard → recipe ───────────────────────
+# fisherman_settings_members <timezone> <locale> <xkb layout> <xkb variant> <xkb model>
+# Print the recipe members fisherman writes into the installed system
+# (/etc/localtime, /etc/locale.conf, /etc/vconsole.conf and the X11 keyboard
+# file), one per line with a trailing comma, for the values that pass
+# fisherman's own recipe rules (fisherman internal/recipe/rules.go). fisherman
+# refuses a whole recipe for one bad value, so a value that would fail is
+# left out and named on stderr instead. Empty values print nothing.
+# wootc-go-native has the same function; settings-carry.bats keeps the two
+# identical.
+fisherman_settings_members() {
+    local tz=$1 locale=$2 layout=$3 variant=$4 model=$5
+    local tz_re='^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'
+    local locale_re='^([a-z]{2,3}(_[A-Z]{2,3})?|C|POSIX)(\.[A-Za-z0-9][A-Za-z0-9_-]*)?(@[A-Za-z0-9]+)?$'
+    local layout_re='^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$'
+    local variant_re='^[A-Za-z0-9_.+-]*(,[A-Za-z0-9_.+-]*)*$'
+    local model_re='^[A-Za-z0-9_.+-]+$'
+    if [[ -n "$tz" ]]; then
+        if (( ${#tz} <= 64 )) && [[ "$tz" =~ $tz_re ]]; then
+            printf '"timezone": "%s",\n' "$tz"
+        else
+            printf 'settings: time zone %q is not an IANA name; left out\n' "$tz" >&2
+        fi
+    fi
+    if [[ -n "$locale" ]]; then
+        if (( ${#locale} <= 64 )) && [[ "$locale" =~ $locale_re ]]; then
+            printf '"locale": "%s",\n' "$locale"
+        else
+            printf 'settings: locale %q is not a locale name; left out\n' "$locale" >&2
+        fi
+    fi
+    if [[ -n "$layout" ]]; then
+        if (( ${#layout} > 64 )) || [[ ! "$layout" =~ $layout_re ]]; then
+            printf 'settings: keyboard layout %q is not an XKB layout; keyboard left out\n' "$layout" >&2
+            return 0
+        fi
+        if (( ${#variant} > 64 )) || [[ ! "$variant" =~ $variant_re ]]; then
+            printf 'settings: keyboard variant %q is not an XKB variant; variant left out\n' "$variant" >&2
+            variant=""
+        fi
+        if [[ -n "$model" ]] && { (( ${#model} > 64 )) || [[ ! "$model" =~ $model_re ]]; }; then
+            printf 'settings: keyboard model %q is not an XKB model; model left out\n' "$model" >&2
+            model=""
+        fi
+        printf '"keyboard": {"layout": "%s"%s%s},\n' "$layout" \
+            "${variant:+, \"variant\": \"$variant\"}" "${model:+, \"model\": \"$model\"}"
+    fi
+}
+
+# locale_from_language_tag <BCP-47 tag> — the glibc locale for a Windows UI
+# language: en-US → en_US.UTF-8, zh-Hant-TW → zh_TW.UTF-8. A tag without a
+# region takes the language's main region (Windows reports "ja", "ko", and
+# such); a language not in that table gives nothing, and the image's
+# locale stays.
+locale_from_language_tag() {
+    local tag=$1 lang region="" part
+    local -a parts
+    IFS=- read -r -a parts <<<"$tag"
+    lang=${parts[0]:-}
+    lang=${lang,,}
+    [[ "$lang" =~ ^[a-z]{2,3}$ ]] || return 0
+    for part in "${parts[@]:1}"; do
+        if [[ "$part" =~ ^[A-Za-z]{2}$ ]]; then
+            region=${part^^}
+            break
+        fi
+        case "${lang}-${part,,}" in
+            zh-hant) region=TW ;;
+            zh-hans) region=CN ;;
+        esac
+    done
+    if [[ -z "$region" ]]; then
+        case "$lang" in
+            ar) region=SA ;; cs) region=CZ ;; da) region=DK ;; de) region=DE ;;
+            el) region=GR ;; en) region=US ;; es) region=ES ;; et) region=EE ;;
+            fi) region=FI ;; fr) region=FR ;; he) region=IL ;; hu) region=HU ;;
+            it) region=IT ;; ja) region=JP ;; ko) region=KR ;; lt) region=LT ;;
+            lv) region=LV ;; nb) region=NO ;; nl) region=NL ;; pl) region=PL ;;
+            pt) region=PT ;; ro) region=RO ;; ru) region=RU ;; sk) region=SK ;;
+            sl) region=SI ;; sv) region=SE ;; th) region=TH ;; tr) region=TR ;;
+            uk) region=UA ;; vi) region=VN ;; zh) region=CN ;;
+            *) return 0 ;;
+        esac
+    fi
+    printf '%s_%s.UTF-8\n' "$lang" "$region"
+}
+
+# slurp_recipe_settings <slurp.json> — the recipe members for the time zone,
+# language and keyboard layout the installer read from Windows (slurp.json:
+# timezone, language, keyboardLayout). Nothing when the file is absent: the
+# image's settings stay.
+slurp_recipe_settings() {
+    local slurp=$1 tz lang layout
+    [[ -f "$slurp" ]] || return 0
+    tz=$(jq -r '.timezone | strings' "$slurp" 2>/dev/null || true)
+    lang=$(jq -r '.language | strings' "$slurp" 2>/dev/null || true)
+    layout=$(jq -r '.keyboardLayout | strings' "$slurp" 2>/dev/null || true)
+    fisherman_settings_members "$tz" "$(locale_from_language_tag "$lang")" "$layout" "" ""
+}
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
 # Flatpaks, and kernel cmdline injection. We just point it at the loop device.
@@ -1580,6 +1680,16 @@ if [[ -d /mnt/ntfs/wootc/bundle/store && "$WOOTC_OFFLINE" != 1 ]]; then
     log "  [WARN] legacy image store cannot provide offline deployment; rebuild as OCI"
 fi
 
+# The Windows time zone, language and keyboard layout (SPEC §4.6, applied
+# automatically): fisherman writes them into the deployment's /etc, where
+# a composefs /usr is no obstacle.
+SETTINGS_ERR="${TMPDIR:-/tmp}/wootc-settings.err"
+SETTINGS_JSON=$(slurp_recipe_settings /mnt/ntfs/wootc/install/slurp/slurp.json 2>"$SETTINGS_ERR")
+while IFS= read -r _line; do err "  [WARN] $_line"; done <"$SETTINGS_ERR"
+if [[ -n "$SETTINGS_JSON" ]]; then
+    log "  settings from Windows: $(tr -d '\n' <<<"$SETTINGS_JSON")"
+fi
+
 RECIPE="/tmp/recipe.json"
 cat > "$RECIPE" << EOF
 {
@@ -1591,6 +1701,7 @@ cat > "$RECIPE" << EOF
   "unifiedStorage": false,
   "selinuxDisabled": false,
   ${LUKS_JSON},
+  ${SETTINGS_JSON}
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
   "flatpaks": ${FLATPAKS_JSON}${USER_JSON}${BUNDLE_JSON}
@@ -2596,8 +2707,8 @@ QGAEOF
     # files, and the landing bats pin both sides of that contract.
     mig_opt 755 wootc-welcome "$DEPLOY_ROOT/var/usrlocal/bin/wootc-welcome"
     mig_opt 644 wootc-welcome.desktop "$DEPLOY_ROOT/etc/xdg/autostart/wootc-welcome.desktop"
-    # Slurped Windows look (wallpaper/theme/timezone), if the installer
-    # collected it. Timezone applies system-wide right here.
+    # Slurped Windows look (wallpaper/theme), if the installer collected it.
+    # The time zone, language and keyboard went into the fisherman recipe.
     # Session envelopes remain encrypted on the NTFS source for the explicit
     # per-user unlock/import flow (#1). Never install them into /usr/share:
     # only non-secret look/identity data belongs in the immutable target.
@@ -2609,11 +2720,6 @@ QGAEOF
         # NTFS. An unlock or database rewrite is not verified authentication;
         # neither is authority to erase the source. Cleanup requires explicit
         # discard or a verified authenticated import, not deployment success.
-        SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
-        if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
-            ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
-            log "  Timezone set to $SLURP_TZ (from Windows)"
-        fi
     fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants" \
              "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"

@@ -514,9 +514,28 @@ persists on the unencrypted NTFS partition.
 #### Target Provisioning
 
 fisherman's post-install hooks write the hashed password into
-`/target/etc/shadow`, the username into `/target/etc/passwd`, the
-hostname into `/target/etc/hostname`, and the timezone/locale into
-`/target/etc/localtime` and `/target/etc/locale.conf`.
+`/target/etc/shadow`, the username into `/target/etc/passwd`, and the
+hostname into `/target/etc/hostname`.
+
+The installer also reads the Windows time zone, UI language and keyboard
+layout into `\wootc\install\slurp\slurp.json` (`timezone`, `language`,
+`keyboardLayout`). The deployer gives them to fisherman as the recipe
+fields `timezone`, `locale` and `keyboard`. It changes the BCP-47 language
+tag to a glibc locale: `en-US` becomes `en_US.UTF-8`, and a tag without a
+region gets the main region of its language (`ja` becomes `ja_JP.UTF-8`).
+fisherman writes `/etc/localtime`, `/etc/locale.conf`, `/etc/vconsole.conf`
+and the X11 keyboard file in the deployment's `/etc`. The deployer leaves
+out a value that fisherman's recipe rules refuse, and logs it, because one
+refused value stops the whole install. Without `slurp.json`, the image's
+settings stay.
+
+When the user moves to a native disk (Phase 3), `wootc-go-native` gives
+fisherman the settings of the Phase-2 system. These are its hostname
+(`/etc/hostname`), its time zone (`/etc/localtime`), its `LANG`
+(`/etc/locale.conf`) and its keyboard (the `XKB*` keys of
+`/etc/vconsole.conf`). It also sets `"copyNetworkProfiles": true`, so
+fisherman copies the Phase-2 NetworkManager profiles, which include the
+Wi-Fi networks from Windows.
 
 On first boot, the display manager presents a login prompt. The user
 types the same password they chose on Screen 1 — it matches the hash.
