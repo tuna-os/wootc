@@ -10,7 +10,6 @@
 #   wootc.hostname=myhost                          (optional, default: tunaos)
 #   wootc.debug                                     (optional, drops to shell)
 #   wootc.filesystem=xfs|btrfs|ext4                (optional, default: xfs for EL10, btrfs for Fedora)
-#   wootc.flatpaks=org.mozilla.firefox,...          (optional)
 #   wootc.luks=none|luks-passphrase|tpm2-luks       (optional)
 #   wootc.luks-passphrase=...                        (optional)
 #   wootc.bootloader=grub2|systemd                   (optional)
@@ -31,6 +30,8 @@ source "${WOOTC_PHASE2_OVERLAY_FILE:-/usr/libexec/wootc-phase2-overlay.sh}"
 source /usr/libexec/wootc-lifecycle.sh
 # shellcheck source=payload/deployer/migration-diagnostics.sh
 source /usr/libexec/wootc-migration-diagnostics.sh
+# shellcheck source=payload/deployer/flatpak-install.sh
+source "${WOOTC_FLATPAK_INSTALL_FILE:-/usr/libexec/wootc-flatpak-install.sh}"
 
 # Set once the Windows NTFS volume is mounted. Keep this log append-only so a
 # failed reboot or a later deployment attempt cannot erase the evidence from
@@ -282,7 +283,6 @@ IMAGE="$(read_cmdline wootc.image)"
 SOURCE_IMAGE="$IMAGE"
 FILESYSTEM="$(read_cmdline wootc.filesystem xfs)"
 HOSTNAME="$(read_cmdline wootc.hostname tunaos)"
-FLATPAKS="$(read_cmdline wootc.flatpaks)"
 LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
@@ -1643,12 +1643,12 @@ slurp_recipe_settings() {
 
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
-# Flatpaks, and kernel cmdline injection. We just point it at the loop device.
-
-FLATPAKS_JSON="[]"
-if [[ -n "$FLATPAKS" ]]; then
-    FLATPAKS_JSON="[$(echo "$FLATPAKS" | sed 's/,/","/g' | sed 's/^/"/;s/$/"/')]"
-fi
+# and kernel cmdline injection. We just point it at the loop device.
+#
+# "flatpaks": [] — fisherman's list is not a download list: it copies the
+# HOST's /var/lib/flatpak, and this initramfs has none. The apps the user
+# chose are installed into the target after verification mounts it
+# (install_selected_flatpaks, SPEC §4.3).
 
 # Build LUKS encryption JSON
 LUKS_JSON='"encryption": { "type": "none" }'
@@ -1704,7 +1704,7 @@ cat > "$RECIPE" << EOF
   ${SETTINGS_JSON}
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
-  "flatpaks": ${FLATPAKS_JSON}${USER_JSON}${BUNDLE_JSON}
+  "flatpaks": []${USER_JSON}${BUNDLE_JSON}
 }
 EOF
 
@@ -2690,6 +2690,10 @@ QGAEOF
 
     install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-detect-apps"
+    if ! install -D -m644 /usr/lib/wootc/migration/lib/app-flatpaks.json \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/app-flatpaks.json"; then
+        err "  [WARN] app-flatpaks.json not staged — wootc-detect-apps will not match Windows programs"
+    fi
     install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-office-bridge"
     # Windows-Style Mode: per-user look apply on first login.
@@ -3319,6 +3323,17 @@ GRUBEOF
             err "  [WARN] Could not mount ESP ${ESP_DEV}; Phase-2 boot will fail"
         fi
     fi
+
+    # The Linux equivalents of the Windows apps the user kept selected (SPEC
+    # §4.3). After the ESP staging, so a slow download cannot hold back the
+    # part that makes Phase 2 boot; before the relabel below, which then
+    # labels /etc/wootc with the receipt in it. Fails soft per app.
+    log "  verify: installing the selected Windows apps' Flatpaks"
+    install_selected_flatpaks /mnt/ntfs/wootc/install/apps.json \
+        /usr/lib/wootc/migration/lib/app-flatpaks.json "$IMAGE" \
+        "$(flatpak_target_var /mnt/verify "$DEPLOY_ROOT")" "$DEPLOY_ROOT/etc" \
+        /mnt/ntfs/wootc/install/flatpak-install.json
+    vstage "flatpaks-done"
 
     # Files written by this initramfs do not automatically inherit the target
     # deployment's SELinux labels. Mode 0755 is not enough: on enforcing

@@ -58,6 +58,7 @@ COPY payload/deployer/initramfs-lib.sh /usr/libexec/wootc-initramfs-lib.sh
 COPY payload/deployer/phase2-overlay.sh /usr/libexec/wootc-phase2-overlay.sh
 COPY payload/deployer/lifecycle.sh /usr/libexec/wootc-lifecycle.sh
 COPY payload/deployer/migration-diagnostics.sh /usr/libexec/wootc-migration-diagnostics.sh
+COPY payload/deployer/flatpak-install.sh /usr/libexec/wootc-flatpak-install.sh
 COPY payload/deployer/deploy.sh /usr/bin/wootc-deploy
 RUN chmod +x /usr/bin/wootc-deploy
 
@@ -68,6 +69,9 @@ COPY payload/deployer/deploy-hook.sh /usr/lib/dracut/modules.d/99wootc/deploy-ho
 COPY payload/deployer/early-splash.sh /usr/lib/dracut/modules.d/99wootc/early-splash.sh
 COPY platform/dracut/99wootc-boot /usr/lib/wootc/99wootc-boot
 COPY payload/migration /usr/lib/wootc/migration
+# One Windows-app → Flatpak table for the Windows engine, the deployer's
+# Flatpak install and wootc-detect-apps (SPEC §4.3).
+COPY app/data/app-flatpaks.json /usr/lib/wootc/migration/lib/app-flatpaks.json
 RUN chmod +x /usr/lib/dracut/modules.d/99wootc/module-setup.sh /usr/lib/dracut/modules.d/99wootc/deploy-hook.sh /usr/lib/dracut/modules.d/99wootc/early-splash.sh
 
 # ── Build the initramfs ─────────────────────────────────────────────────────
@@ -115,7 +119,7 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         lsinitrd /out/deployer-initramfs.img | grep -q "bin/${bin}$" || \
             { echo "FATAL: ${bin} missing from initramfs"; exit 1; }; \
     done && \
-    for module in wootc-initramfs-lib.sh wootc-phase2-overlay.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh; do \
+    for module in wootc-initramfs-lib.sh wootc-phase2-overlay.sh wootc-lifecycle.sh wootc-migration-diagnostics.sh wootc-flatpak-install.sh; do \
         lsinitrd /out/deployer-initramfs.img | grep -q "usr/libexec/${module}$" || \
             { echo "FATAL: deployer module ${module} missing from initramfs"; exit 1; }; \
     done && \
@@ -143,6 +147,8 @@ RUN for bin in wootc-json-check wootc-ntfs-state-write conmon crun podman skopeo
         { echo "FATAL: first-boot evidence collector missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/wootc_import_safety.py" || \
         { echo "FATAL: import safety helper missing from initramfs"; exit 1; } && \
+    lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/lib/app-flatpaks.json" || \
+        { echo "FATAL: Windows-app Flatpak map missing from initramfs (no selected app could be installed)"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/wootc/migration/wootc-cfs-boot" || \
         { echo "FATAL: composefs boot-entry helper missing from initramfs"; exit 1; } && \
     lsinitrd /out/deployer-initramfs.img | grep -q "usr/lib/systemd/systemd-cryptsetup" || \

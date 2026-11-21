@@ -13,11 +13,13 @@
 #                   verified target import. Source exports.json cannot prove
 #                   that Linux is signed in, even if it says "imported".
 #
-# The APP DATABASE below is the extension point: one entry per app —
-# detect path, flatpak id, portable copy function (optional), session
-# note. Output: ~/.config/wootc/bridge-apps.json for the dashboard, and
-# /run/wootc-detected-flatpaks (newline list) for the deployer to merge
-# into the fisherman recipe when run at deploy time.
+# The APP DATABASE below is the extension point for AppData scans: one entry
+# per app — detect path, flatpak id, portable copy function (optional),
+# session note. Registry DisplayNames are matched against the shared map
+# app-flatpaks.json (SPEC §4.3), the same table the Windows installer offers
+# and the deployer installs from. Output: ~/.config/wootc/bridge-apps.json for
+# the dashboard; each app's `installed` says whether `flatpak info --system`
+# finds its Flatpak on this system.
 
 set -Eeuo pipefail
 HOST="${WOOTC_HOST:-/run/wootc/host}"
@@ -38,7 +40,7 @@ if "$read_only"; then
 fi
 
 entries=()
-flatpaks=()
+entry_flatpaks=()
 
 # add <app> <flatpak> <session:portable|staged|signin|relink|none> <copied:true|false> <note>
 add() {
@@ -47,7 +49,7 @@ import json, sys
 app, flatpak, session, copied, note = sys.argv[1:]
 print(json.dumps(dict(app=app, flatpak=flatpak, session=session, copied=copied == "true", note=note), separators=(",", ":")))
 ' "$@")")
-    [[ -n "$2" ]] && flatpaks+=("$2")
+    entry_flatpaks+=("$2")
 }
 
 # Source exports describe staging only, never successful target authentication.
@@ -174,7 +176,7 @@ IFS=: read -r _ _ target_uid target_gid _ home _ <<< "$passwd_record"
 browser_json=$(detect_browsers)
 while IFS=$'\t' read -r flatpak entry; do
     entries+=("$entry")
-    flatpaks+=("$flatpak")
+    entry_flatpaks+=("$flatpak")
 done < <(python3 -c '
 import json, sys
 for item in json.load(sys.stdin)["items"]:
@@ -292,113 +294,90 @@ fi
 # wootc.exe (Phase 1) writes C:\wootc\install\programs.json from the
 # Windows uninstall registry keys. Merge it here so the dashboard reflects
 # the complete installed-program inventory, not just what happens to have
-# an AppData footprint. Registry-discovered apps get "signin" portability:
-# they exist on the machine and get a Flatpak, but we make no claim about
-# portable data unless the AppData scan already handled them.
+# an AppData footprint.
+#
+# DisplayNames are matched against app-flatpaks.json: a DisplayName matches
+# an app when, lowercased, it contains one of the app's `match` strings; the
+# first app in file order wins. The map's `session`/`note` describe the app.
+base="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+APP_MAP=""
+for candidate in "${WOOTC_APP_FLATPAKS:-}" \
+    "$base/lib/app-flatpaks.json" \
+    "$base/../lib/wootc/app-flatpaks.json" \
+    /usr/lib/wootc/migration/lib/app-flatpaks.json \
+    "$base/../../app/data/app-flatpaks.json"; do
+    if [[ -n "$candidate" && -f "$candidate" ]]; then
+        APP_MAP="$candidate"
+        break
+    fi
+done
 
-# nameFromRegistry maps a registry DisplayName to our app key. The
-# matching is case-insensitive substring: the DisplayName is lowercased
-# and we search for the substring. The table is wootc's own, grown against
-# the field (public Flathub IDs), not lifted from any AGPL code.
-declare -A DISPLAYNAME_TO_APP=(
-    # Other browsers; Firefox/Chrome/Edge registry detection is shared above.
-    ["brave"]="brave|com.brave.Browser|signin|false|Installed on Windows. Sign in to Brave Sync."
-    ["vivaldi"]="vivaldi|com.vivaldi.Vivaldi|signin|false|Installed on Windows. Sign in to Vivaldi to sync."
-    ["opera"]="opera|com.opera.Opera|signin|false|Installed on Windows. Sign in to Opera to sync."
-
-    # Creative / media
-    ["gimp"]="gimp|org.gimp.GIMP|portable|false|Installed on Windows. Brushes and settings can be copied from AppData."
-    ["krita"]="krita|org.kde.krita|portable|false|Installed on Windows. Brushes and configs are plain files."
-    ["inkscape"]="inkscape|org.inkscape.Inkscape|portable|false|Installed on Windows. Preferences are plain files."
-    ["blender"]="blender|org.blender.Blender|portable|false|Installed on Windows. Config folder copies straight over."
-    ["audacity"]="audacity|org.audacityteam.Audacity|portable|false|Installed on Windows. Settings are plain files."
-    ["vlc media player"]="vlc|org.videolan.VLC|portable|false|Installed on Windows. Playlists and settings can be copied."
-    ["handbrake"]="handbrake|fr.handbrake.ghb|portable|false|Installed on Windows. Presets can be exported."
-    ["obs studio"]="obs|com.obsproject.Studio|portable|false|Installed on Windows. Scenes and profiles can be copied."
-    ["qbittorrent"]="qbittorrent|org.qbittorrent.qBittorrent|portable|false|Installed on Windows. Settings are plain files."
-
-    # Comms
-    ["discord"]="discord|com.discordapp.Discord|signin|false|Servers and messages live in your account."
-    ["slack"]="slack|com.slack.Slack|signin|false|Workspaces return on sign-in."
-    ["spotify"]="spotify|com.spotify.Client|signin|false|Playlists and library are in your account."
-    ["telegram desktop"]="telegram|org.telegram.desktop|portable|false|Installed on Windows. Session data can be copied."
-    ["signal"]="signal|org.signal.Signal|signin|false|Installed on Windows. Re-link with your phone."
-    ["zoom"]="zoom|us.zoom.Zoom|signin|false|Meetings and settings are account-side."
-    ["element"]="element|im.riot.Riot|signin|false|Installed on Windows. Sign in and rooms are back."
-    ["teams"]="teams|com.microsoft.Teams|signin|false|Installed on Windows. Sign in once."
-    ["bitwarden"]="bitwarden|com.bitwarden.desktop|signin|false|Vault is server-side."
-
-    # Dev
-    ["visual studio code"]="vscode|com.visualstudio.code|portable|false|Installed on Windows. Settings and keybindings can be copied."
-    ["notepad++"]="notepad++|com.notepadqq.Notepadqq|none|false|Notepad++ has no native Linux port; Notepadqq is the closest equivalent."
-    ["sublime text"]="sublime|com.sublimetext.three|portable|false|Installed on Windows. Settings are plain files."
-    ["git"]="git|org.gnome.gitg|none|false|git is built into Linux; Gitg is a graphical client."
-
-    # Gaming
-    ["steam"]="steam|com.valvesoftware.Steam|signin|false|Game files are bridged — sign in once."
-    ["epic games launcher"]="epic|com.heroicgameslauncher.hgl|signin|false|Use Heroic Games Launcher to access your Epic library on Linux."
-    ["minecraft"]="minecraft|com.mojang.Minecraft|signin|false|Sign in and your Minecraft account is back."
-
-    # Office / productivity
-    ["mozilla thunderbird"]="thunderbird|org.mozilla.Thunderbird|portable|false|Installed on Windows. Mail accounts can be copied."
-    ["libreoffice"]="libreoffice|org.libreoffice.LibreOffice|portable|false|Installed on Windows. Documents are plain files."
-    ["adobe acrobat"]="acrobat|org.gnome.Evince|none|false|Adobe Acrobat has no Linux version. Evince opens PDFs."
-    ["adobe reader"]="acrobat|org.gnome.Evince|none|false|Adobe Reader has no Linux version. Evince opens PDFs."
-    ["7-zip"]="7zip|org.gnome.FileRoller|none|false|Built into Linux; File Roller handles archives."
-    ["winrar"]="7zip|org.gnome.FileRoller|none|false|Built into Linux; File Roller handles archives."
-    ["putty"]="putty|org.gnome.Ptyxis|none|false|Linux terminals are built in; Ptyxis is a modern graphical terminal."
-)
-
-# Read the Phase-1 registry manifest, if present.
 REGJSON="$HOST/wootc/install/programs.json"
-if [[ -f "$REGJSON" ]]; then
-    # Track which apps we already found via AppData so we don't double-add.
-    # We parse the app key out of each JSON entry with a simple sed cut.
+if [[ -f "$REGJSON" && -z "$APP_MAP" ]]; then
+    log "WARNING: app-flatpaks.json is not installed; Windows programs from the registry are not matched"
+elif [[ -f "$REGJSON" ]]; then
+    # Apps the AppData scan already found are not added twice.
     declare -A already_have
     for entry in "${entries[@]}"; do
         app_name=$(echo "$entry" | sed -n 's/.*"app":"\([^"]*\)".*/\1/p')
         [[ -n "$app_name" ]] && already_have["$app_name"]=1
     done
 
-    # Parse DisplayName values from programs.json and match against our table.
-    # We use python3 to parse JSON (more reliable than sed/jq guessing);
-    # python3 is available on the deployed system (wootc-import also uses it).
-    while IFS= read -r display_name; do
-        [[ -z "$display_name" ]] && continue
-        dnorm=$(echo "$display_name" | tr '[:upper:]' '[:lower:]')
-
-        matched=""
-        for key in "${!DISPLAYNAME_TO_APP[@]}"; do
-            if [[ "$dnorm" == *"$key"* ]]; then
-                matched="$key"
-                break
-            fi
-        done
-
-        if [[ -n "$matched" ]]; then
-            IFS='|' read -r app_key flatpak session copied note <<< "${DISPLAYNAME_TO_APP[$matched]}"
-            if [[ -z "${already_have[$app_key]:-}" ]]; then
-                add "$app_key" "$flatpak" "$session" "$copied" "$note"
-                already_have["$app_key"]=1
-                log "registry: $display_name → $app_key ($flatpak)"
-            fi
+    while IFS=$'\t' read -r app_key flatpak session note display_name; do
+        if [[ -z "${already_have[$app_key]:-}" ]]; then
+            add "$app_key" "$flatpak" "$session" false "$note"
+            already_have["$app_key"]=1
+            log "registry: $display_name → $app_key ($flatpak)"
         fi
-    done < <(python3 -c "
-import json, sys
+    done < <(python3 - "$REGJSON" "$APP_MAP" <<'PY'
+import json
+import sys
+
 try:
-    with open(sys.argv[1], encoding='utf-8') as f:
-        data = json.load(f)
-    for app in data.get('apps', []):
-        name = app.get('displayName', '').strip()
-        if name:
-            print(name)
-except Exception:
-    pass
-" "$REGJSON" 2>/dev/null)
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        programs = json.load(stream).get("apps", [])
+except (OSError, ValueError, AttributeError):
+    programs = []
+with open(sys.argv[2], encoding="utf-8") as stream:
+    apps = json.load(stream)["apps"]
+for program in programs if isinstance(programs, list) else []:
+    name = program.get("displayName", "") if isinstance(program, dict) else ""
+    if not isinstance(name, str):
+        continue
+    name = " ".join(name.split())
+    lower = name.lower()
+    if not lower:
+        continue
+    for app in apps:
+        if any(match in lower for match in app["match"]):
+            print("\t".join((app["key"], app["flatpak"], app.get("session", "signin"),
+                             " ".join(app.get("note", "Installed on Windows.").split()), name)))
+            break
+PY
+)
 fi
 
+# ── Flatpak state ───────────────────────────────────────────────────────────
+# `installed` is what this system's Flatpak installation says, checked per
+# app — not whether the installer was asked for it.
+declare -A flatpak_state=()
+for i in "${!entries[@]}"; do
+    id=${entry_flatpaks[$i]}
+    state=false
+    if [[ -n "$id" ]]; then
+        if [[ -z "${flatpak_state[$id]:-}" ]]; then
+            if command -v flatpak >/dev/null 2>&1 && flatpak info --system "$id" >/dev/null 2>&1; then
+                flatpak_state[$id]=true
+            else
+                flatpak_state[$id]=false
+            fi
+        fi
+        state=${flatpak_state[$id]}
+    fi
+    entries[i]="${entries[$i]%\}},\"installed\":${state}}"
+done
+
 # ── Exclusive app-data publication and outcome ──────────────────────────────
-base="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 library=""
 for candidate in "$base/lib/wootc_import_safety.py" \
     "$base/../lib/wootc/wootc_import_safety.py" \
@@ -677,7 +656,5 @@ finally:
         home.close()
 sys.exit(1 if result["failed"] else 0)
 PY
-
-printf '%s\n' "${flatpaks[@]}" | sort -u > /run/wootc-detected-flatpaks 2>/dev/null || true
 log "detected ${#entries[@]} apps for $name"
 exit "$copy_status"

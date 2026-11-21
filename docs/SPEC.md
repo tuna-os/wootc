@@ -398,7 +398,6 @@ populate root.disk with the chosen bootc image.
      wootc.image=ghcr.io/tuna-os/yellowfin:gnome   (required)
      wootc.hostname=tunaos                           (optional)
      wootc.filesystem=xfs|btrfs|ext4                 (optional, per-distro default)
-     wootc.flatpaks=org.mozilla.firefox,...          (optional)
      wootc.luks=none|tpm2-luks|luks-passphrase       (optional)
      wootc.luks-passphrase=...                        (optional)
      wootc.vault=/wootc/install/vault.json          (optional, secure credentials)
@@ -408,8 +407,10 @@ populate root.disk with the chosen bootc image.
 8. losetup -fP /mnt/ntfs/wootc/disks/root.disk
 9. Write fisherman recipe JSON → /tmp/recipe.json
 10. Run: fisherman /tmp/recipe.json
-11. losetup -d, umount
-12. reboot
+11. If /wootc/install/apps.json lists Flatpaks: install them into the
+    target (§4.3)
+12. losetup -d, umount
+13. reboot
 ```
 
 ### 2.3 Secure Credential Handoff (vault.json)
@@ -580,7 +581,7 @@ Generated at deploy time from kernel cmdline args (and vault.json if provided):
   },
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
   "hostname": "tunaos",
-  "flatpaks": ["org.mozilla.firefox"],
+  "flatpaks": [],
   "user": {
     "username": "liveuser",
     "password": "$y$j9T$RlhOWV...",
@@ -596,6 +597,11 @@ handles:
 - **Pull**: `podman pull` to containers-storage
 - **Install**: `podman run --privileged <image> bootc install to-filesystem /target`
 - **Post**: flatpak copy, hostname write, Plymouth args, LUKS args, Bluetooth/WiFi sync, audio config, cache warm, fstrim/remount-ro/fsfreeze finalize
+
+The `flatpaks` list does not download apps. A non-empty list makes
+fisherman copy the host's whole `/var/lib/flatpak`, and `[]` copies
+nothing. The deployer initramfs has no Flatpaks, so the deployer sets
+`[]` and installs the selected apps itself (§4.3).
 
 ### 2.6 LUKS Encryption
 
@@ -1288,8 +1294,43 @@ file for each install, with an empty list when the person keeps no app:
 {"schemaVersion":1,"remote":"flathub","remoteUrl":"https://dl.flathub.org/repo/flathub.flatpakrepo","flatpaks":["org.audacityteam.Audacity","org.inkscape.Inkscape"]}
 ```
 
-The deployer reads this file and installs each Flatpak into the target
-system. A failed app does not stop the install.
+After fisherman, the deployer installs each listed app into the target's
+system Flatpak installation (`payload/deployer/flatpak-install.sh`). It
+runs the `flatpak` of the installed image in a container, with the
+target's `/var/lib/flatpak` mounted. The deployer:
+
+- Installs only IDs that are in `app-flatpaks.json`.
+- Adds the remote from `remoteUrl` if the image does not have it.
+- Tries each app up to three times. An app that fails does not stop the
+  other apps or the install.
+- Counts an app as installed only when `flatpak info --system <id>` finds
+  it in the target after the install.
+- Applies the image's SELinux file contexts to the installed files. If
+  SELinux enforces its policy on the target, an app without labels counts
+  as failed.
+
+The deployer writes the requested IDs to `/etc/wootc/flatpaks.list`. It
+writes this receipt to `/etc/wootc/flatpak-install.json` in the target and
+to `\wootc\install\flatpak-install.json` on Windows:
+
+```json
+{"schemaVersion":1,"requested":["…"],"installed":["…"],
+ "failed":[{"id":"…","error":"…"}]}
+```
+
+Each app also gives one serial line: `wootc: flatpak installed: <id>` or
+`wootc: flatpak FAILED: <id>: <reason>`.
+
+On Linux, `wootc-detect-apps` uses the same map for the dashboard. Its
+`bridge-apps.json` gives each app an `installed` value, which is true only
+when `flatpak info --system <id>` finds the app on the Linux system.
+
+When the user moves to a native disk (Phase 3), `wootc-go-native` gives
+fisherman the apps of the Phase-2 system's Flatpak installation. Thus
+fisherman copies that installation, with its runtimes, to the native disk.
+After the install, `wootc-go-native` logs each app as
+`wootc: native flatpak present: <id>` or
+`wootc: native flatpak MISSING: <id>`.
 
 ### 4.4 Windows-Style Mode
 
