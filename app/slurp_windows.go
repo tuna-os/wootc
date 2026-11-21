@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/tuna-os/wootc/slurp"
@@ -79,8 +78,8 @@ func collectLook() error {
 
 	// Accent: DWM ColorizationColor is ARGB.
 	if v, err := runPowerShellOutput(`(Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\DWM' -ErrorAction SilentlyContinue).ColorizationColor`); err == nil {
-		if n, err := strconv.ParseUint(strings.TrimSpace(v), 10, 64); err == nil {
-			look.AccentColor = fmt.Sprintf("#%02X%02X%02X", (n>>16)&0xFF, (n>>8)&0xFF, n&0xFF)
+		if accent, ok := accentFromColorization(v); ok {
+			look.AccentColor = accent
 		}
 	}
 
