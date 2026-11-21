@@ -290,7 +290,6 @@ class Look(unittest.TestCase):
         self.assertEqual(self.verdict(self.rendered)[0], "FAIL")
         self.assertEqual(self.verdict("")[2], "no wallpaper was collected")
 
-
 class SuLogin(unittest.TestCase):
     """The PAM login runs su on a guest seeded in German (probe 44889931801)."""
 
