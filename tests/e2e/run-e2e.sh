@@ -644,6 +644,8 @@ source "$SCRIPT_DIR/lib/gui-session.sh"
 source "$SCRIPT_DIR/lib/mok.sh"
 # shellcheck source=tests/e2e/lib/phase2-second-boot.sh
 source "$SCRIPT_DIR/lib/phase2-second-boot.sh"
+# shellcheck source=tests/e2e/lib/phase2-units.sh
+source "$SCRIPT_DIR/lib/phase2-units.sh"
 
 # Run by phase2_second_boot_check while the BitLocker cell's second Phase-2
 # boot is up: the edit the ordinary user saved to the Documents copy on the
@@ -4627,16 +4629,17 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         sleep 10
     done
     printf '%s\n' "$P3_P2_UNITS" | tee "$ARTIFACT_DIR/phase2-units.log"
-    if printf '%s\n' "$P3_P2_UNITS" | grep -q '^FAIL:'; then
-        product_fail "Phase 2 has failed units outside the known-failure list"
-    elif [ "$P3_P2_UNITS_STATUS" -eq 3 ]; then
-        product_fail "Phase 2 did not finish booting within ${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}s"
-    elif [ "$P3_P2_UNITS_STATUS" -ne 0 ]; then
-        infra_fail "Phase 2 failed-unit check failed without a product finding"
-        exit 1
-    else
-        pass "Phase 2 has no failed units outside the known-failure list"
-    fi
+    case "$(phase2_units_verdict "$P3_P2_UNITS_STATUS" "$P3_P2_UNITS")" in
+        failed-units)
+            product_fail "Phase 2 has failed units outside the known-failure list" ;;
+        still-booting)
+            product_fail "Phase 2 did not finish booting within ${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}s" ;;
+        check-error)
+            infra_fail "Phase 2 failed-unit check failed without a product finding"
+            exit 1 ;;
+        *)
+            pass "Phase 2 has no failed units outside the known-failure list" ;;
+    esac
 
     # Measure the Phase-2 migration BEFORE graduation changes anything, and
     # leave the checker in /run for wootc-go-native to carry to the native disk.
