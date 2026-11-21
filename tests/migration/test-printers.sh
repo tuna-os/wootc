@@ -37,9 +37,11 @@ ok()   { echo "[PASS] $*"; PASS=$((PASS+1)); }
 bad()  { echo "[FAIL] $*"; FAIL=$((FAIL+1)); }
 check(){ if eval "$1"; then ok "$2"; else bad "$2"; fi; }
 
+# A failed install is a failure, not a skip: CI runs this on plain Fedora, and
+# a test that skips there proves nothing.
 if ! command -v lpadmin >/dev/null 2>&1; then
     dnf install -y -q cups cups-filters python3 >/dev/null 2>&1 \
-        || { echo "SKIP: cannot install cups in this image"; exit 0; }
+        || { echo "[FAIL] cannot install cups + cups-filters in this image"; exit 1; }
 fi
 # A booted system has these from tmpfiles and a sticky /tmp; a container has
 # neither, and CUPS then fails to write its PPD and filter temp files.

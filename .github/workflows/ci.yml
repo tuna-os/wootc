@@ -303,6 +303,10 @@ jobs:
       - uses: $/.github/actions/podman-runtime
       - name: Run containerized bridge suite
         run: bash tests/migration/test-bridge.sh
+      # Printer migration against a real cupsd and the E2E's IPP Everywhere
+      # responder: queue created, `lp` delivers, waiting retried, rerun inert.
+      - name: Run printer migration against real CUPS
+        run: bash tests/migration/test-printers.sh
 
   gui-shots:
     name: GUI screenshots render
