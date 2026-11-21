@@ -504,6 +504,22 @@ NTFSINFO
     [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
 }
 
+@test "Phase-3 labels the native /etc and /var with the target policy before the boot is scheduled" {
+    # Probe 44843263310: on the enforcing native system 5943 paths under /etc
+    # and /var/home kept the labels of offline useradd and of the /home copy
+    # (passwd as etc_t, /var/home/linuxbrew as home_root_t).
+    grep -qF 'setfiles -F -r "$dep" "$fc" "$dep/etc"' "$GN"
+    grep -qF 'setfiles -F -r "$stateroot" "$fc" "$stateroot/var"' "$GN"
+    local label boot rsync
+    label=$(grep -nF 'setfiles -F -r "$dep"' "$GN" | head -1 | cut -d: -f1)
+    rsync=$(grep -nF 'rsync -aHAX /home/ "$dest/"' "$GN" | head -1 | cut -d: -f1)
+    boot=$(grep -n 'BootNext' "$GN" | awk -F: -v l="$label" '$1 > l { print $1; exit }')
+    [ "$rsync" -lt "$label" ]
+    [ -n "$boot" ]
+    # A failed relabel stops before the native boot is scheduled.
+    grep -q 'die "could not apply the native system.s SELinux labels' "$GN"
+}
+
 @test "Phase-3 runs the post-boot health check from a boot unit that does not hold the boot" {
     # Probe 44833993709: run through the confined agent on the native system,
     # every systemctl call answered "Access denied". The check runs from

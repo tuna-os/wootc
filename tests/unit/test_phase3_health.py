@@ -104,6 +104,20 @@ esac
         self.assertIn("stub status for status", result.stdout)
         self.assertIn("every user and group", result.stdout)
 
+    def test_unit_that_already_failed_in_phase2_is_reported_not_counted(self):
+        self.capture_baseline(HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertIn("FAILED_UNIT=fisherman-boot-receipt.service", self.baseline)
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("already failed in Phase 2 (not counted): fisherman-boot-receipt.service", result.stdout)
+        self.assertIn("no unexpected failed units", result.stdout)
+
+    def test_unit_that_failed_only_after_graduation_still_fails(self):
+        self.capture_baseline(HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="gdm.service")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAIL: unit failed: gdm.service", result.stdout)
+
     def test_display_manager_lost_during_graduation_fails(self):
         self.capture_baseline()
         result = self.run_probe("check", HEALTH_DM="")

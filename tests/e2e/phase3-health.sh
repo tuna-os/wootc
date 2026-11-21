@@ -38,8 +38,19 @@ capture_baseline() {
             | sort -u > "$_health_tmp/label-baseline" || return 1
     fi
 
+    # Units that already fail in Phase 2, on the same VM and image, are not
+    # caused by graduation. Probe 44843263310: fisherman-boot-receipt.service
+    # (bootc status ran past its 120 s limit) failed on the native system and,
+    # in the same run, in Phase 2. Wait for the boot first, as the check does.
+    timeout 150 systemctl is-system-running --wait >/dev/null 2>&1 || :
+    if ! systemctl list-units --state=failed --no-legend --plain > "$_health_tmp/failed" 2>/dev/null; then
+        echo "could not capture the Phase-2 failed units" >&2
+        return 1
+    fi
+
     printf 'SCHEMA=1\nDISPLAY_MANAGER=%s\nSELINUX=%s\n' "$_health_dm" "$_health_selinux"
     sed 's/^/LABEL=/' "$_health_tmp/label-baseline"
+    awk '{print "FAILED_UNIT=" $1}' "$_health_tmp/failed"
 }
 
 case "${1:-check}" in
@@ -66,16 +77,18 @@ printf '%s\n' "$baseline_payload" > "$work/baseline"
 if [ "$(grep -c '^SCHEMA=1$' "$work/baseline")" -ne 1 ] \
     || [ "$(grep -c '^DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*$' "$work/baseline")" -ne 1 ] \
     || [ "$(grep -Ec '^SELINUX=(enforcing|not-enforcing)$' "$work/baseline")" -ne 1 ] \
-    || grep -Ev '^(SCHEMA=1|DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*|SELINUX=(enforcing|not-enforcing)|LABEL=/[^[:cntrl:]]*)$' \
+    || grep -Ev '^(SCHEMA=1|DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*|SELINUX=(enforcing|not-enforcing)|LABEL=/[^[:cntrl:]]*|FAILED_UNIT=[^[:space:][:cntrl:]]+)$' \
         "$work/baseline" >/dev/null; then
     bad "the pre-graduation health baseline is unavailable or invalid"
     expected_dm=
     baseline_selinux=unknown
     : > "$work/label-baseline"
+    : > "$work/failed-baseline"
 else
     expected_dm=$(sed -n 's/^DISPLAY_MANAGER=//p' "$work/baseline")
     baseline_selinux=$(sed -n 's/^SELINUX=//p' "$work/baseline")
     sed -n 's/^LABEL=//p' "$work/baseline" | sort -u > "$work/label-baseline"
+    sed -n 's/^FAILED_UNIT=//p' "$work/baseline" | sort -u > "$work/failed-baseline"
 fi
 
 # Units that fail in the CI VM for reasons unrelated to graduation. Every
@@ -120,6 +133,9 @@ for unit in $failed_units; do
     set +f
     if [ "$permitted" = 1 ]; then
         echo "  failed unit on the allowlist: $unit"
+    elif grep -qxF "$unit" "$work/failed-baseline"; then
+        echo "  failed unit that already failed in Phase 2 (not counted): $unit"
+        systemctl status --no-pager --lines 5 "$unit" 2>&1 | sed 's/^/    /'
     else
         unexpected=1
         bad "unit failed: $unit"
