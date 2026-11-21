@@ -9,18 +9,20 @@
 #   Wi-Fi (Windows, after install)  netsh-format exports at the collector's
 #                                   output boundary (QEMU has no WLAN device,
 #                                   so `netsh wlan export` has nothing to read).
-#   Phase 2                         runs the on-demand capabilities a user
-#                                   would (browser import, folder conversion),
-#                                   then tests/e2e/migration-check.py through
-#                                   the agent; stages the checker for Phase 3.
+#   Phase 2                         runs the on-demand capability a user
+#                                   would (folder conversion), stages the
+#                                   IPP Everywhere responder the printer
+#                                   check answers on, then runs tests/e2e/
+#                                   migration-check.py through the agent;
+#                                   stages the checker for Phase 3.
 #   Phase 3                         reads the export of the same checker, run
 #                                   at boot by wootc-e2e-native-migration
 #                                   .service (wootc-go-native, E2E-only).
 #   Windows return                  re-hashes the seeded files on Windows.
 #
 # Every verdict goes through product_pass/product_fail as
-# migration-<phase>-<category>; GAP lines (claimed, not implemented) are kept
-# in migration-gaps.txt. Caller supplies the QGA wrappers, DOCKER,
+# migration-<phase>-<category>; SKIPs (an observation this cell cannot make)
+# are logged with their reason. Caller supplies the QGA wrappers, DOCKER,
 # CONTAINER_NAME, ARTIFACT_DIR, SCRIPT_DIR, RUN_ID and the result helpers.
 
 MIGRATION_GUEST_DIR='C:\ProgramData\wootc-e2e'
@@ -164,8 +166,6 @@ migration_record() { # <phase label> <checker output>
         case "$verdict" in
             PASS) product_pass "migration-$label-$category" "Migration ($label) $category: $message" ;;
             FAIL) product_fail "Migration ($label) $category: $message" ;;
-            GAP) info "Migration ($label) GAP $category: $message"
-                 printf '%s\t%s\t%s\n' "$label" "$category" "$message" >> "$ARTIFACT_DIR/migration-gaps.txt" ;;
             SKIP) info "Migration ($label) skipped $category: $message" ;;
         esac
     done < <(printf '%s\n' "$output" | grep $'^RESULT\t')
@@ -187,27 +187,31 @@ migration_check_phase2() {
         infra_fail "Migration (phase2): no seed manifest for this run; nothing to check against"
         return 1
     fi
-    local winuser out
-    winuser=$(sed -n 's/^#windowsUser=//p' "$MIGRATION_EXPECTED" | tail -1)
-    # Wait for the boot-time bridges a first login would find finished.
+    local out
+    # Wait for the boot-time bridges a first login would find finished
+    # (they include the browser import, which runs at boot).
     # shellcheck disable=SC2016
     WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
         'for i in $(seq 1 16); do s=$(systemctl show -p ActiveState --value wootc-passthrough.service); [ "$s" = active ] || [ "$s" = failed ] && break; sleep 3; done; true' >/dev/null 2>&1 || true
-    # Browser import is on demand (SPEC §4.2 stage 3): the user picks it.
-    out=$(WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
-        "WOOTC_HOST=/run/wootc/host timeout 50 /var/usrlocal/bin/wootc-import-browser '$winuser' '$MIGRATION_LINUX_USER' 2>&1; echo rc=\$?" 2>&1 || true)
-    printf '%s\n' "$out" > "$ARTIFACT_DIR/migration-browser-import.log"
-    info "Migration: browser import: $(printf '%s' "$out" | tail -3 | tr '\n' ' ' | cut -c1-240)"
-    migration_header browserImport 1
     # Stage 4: convert one bridged folder to native storage.
     out=$(WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
         "o=\$(timeout 50 /var/usrlocal/bin/wootc-convert-dir '$MIGRATION_LINUX_USER' '$MIGRATION_CONVERT_FOLDER' 2>&1); rc=\$?; printf '%s\n' \"\$o\" | grep -v '^PROGRESS' | tail -5; echo rc=\$rc" 2>&1 || true)
     printf '%s\n' "$out" > "$ARTIFACT_DIR/migration-convert.log"
     info "Migration: convert ~/$MIGRATION_CONVERT_FOLDER: $(printf '%s' "$out" | tail -3 | tr '\n' ' ' | cut -c1-240)"
     migration_header convertedFolder "$MIGRATION_CONVERT_FOLDER"
-    if ! migration_put "$SCRIPT_DIR/migration-check.py" /run/wootc-e2e-migration-check.py \
-        || ! migration_put "$MIGRATION_EXPECTED" /run/wootc-e2e-migration-expected.tsv; then
+    if ! migration_put "$SCRIPT_DIR/migration-check.py" /run/wootc-e2e-migration-check.py; then
         infra_fail "Migration (phase2): could not stage the check in the guest"
+        return 1
+    fi
+    # Without the responder the printer check fails by name; every other
+    # check still runs.
+    if migration_put "$SCRIPT_DIR/ipp-everywhere-responder.py" /run/wootc-e2e-ipp-responder.py; then
+        migration_header ippResponder /run/wootc-e2e-ipp-responder.py
+    else
+        warn "Migration (phase2): could not stage the IPP Everywhere responder"
+    fi
+    if ! migration_put "$MIGRATION_EXPECTED" /run/wootc-e2e-migration-expected.tsv; then
+        infra_fail "Migration (phase2): could not stage the manifest in the guest"
         return 1
     fi
     # Detached (a login, Flatpak launches and ~80 MiB of hashing outlast the

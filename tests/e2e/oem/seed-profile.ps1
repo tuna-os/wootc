@@ -6,13 +6,16 @@
 #   2. Browser profiles & preferences (Google Chrome, Microsoft Edge, Mozilla Firefox)
 #   3. MS Office / Productivity components (Custom dictionary, templates, fonts, autocorrect)
 #   4. Developer & productivity applications (VS Code settings/keybindings/snippets/extensions,
-#      Discord, Spotify, Telegram Desktop, VLC, GIMP, OBS Studio, Steam library, Git config)
+#      Discord, Spotify, Telegram Desktop, VLC, GIMP, OBS Studio, Steam library), the
+#      Windows OpenSSH key pair, ssh config, known_hosts and a git config
+#   4b. Printers: network (reachable and not), parallel-port, virtual; the user's default
 #   5. Windows Registry entries (Installed apps in Uninstall keys, URL associations, Run startup keys, Theme/Accent color)
 #   6. Canary marker wootc-e2e-userdata.txt for E2E persistence assertions
 #   7. Migration corpus (nested, unicode-named, empty to 64 MiB files with fixed
 #      timestamps in every known folder), a real font, account picture and
-#      wallpaper, Windows time zone and languages, and the expected-state
-#      manifest the Linux side is checked against (tests/e2e/migration-check.py)
+#      wallpaper, Windows time zone and languages, the account's full name, and
+#      the expected-state manifest the Linux side is checked against
+#      (tests/e2e/migration-check.py)
 
 param(
     [string]$Username = "wootc",
@@ -35,6 +38,17 @@ $appDataRoaming = "$userProfile\AppData\Roaming"
 $appDataLocal = "$userProfile\AppData\Local"
 
 Write-Host "[seed-profile] Seeding pre-filled Windows profile for '$Username' at '$userProfile' (RunId: $RunId)..."
+
+# A per-run tag for names a person chooses (printers, the full name): the same
+# six hex digits the harness derives (sha256sum of RunId) for Wi-Fi SSIDs.
+$runHash = [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($RunId))).Replace("-", "").ToLowerInvariant()
+$suffix = $runHash.Substring(0, 6)
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
+# Full name (vault full_name -> GECOS): unicode and an apostrophe, both of
+# which a recipe built by string interpolation would mangle.
+$fullName = "Zo$([char]0x00EB) O'Brien-$([char]0x00C5)berg $suffix"
+Set-LocalUser -Name $Username -FullName $fullName
 
 function Ensure-Directory([string]$Path) {
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -286,8 +300,26 @@ Write-TextFile "$appDataRoaming\inkscape\preferences.xml" "<inkscape version=`"1
 Ensure-Directory "$appDataRoaming\obs-studio\basic\scenes"
 Write-TextFile "$appDataRoaming\obs-studio\basic\scenes\default.json" '{"name":"Default Scene"}'
 
-# Git config
-Write-TextFile "$userProfile\.gitconfig" "[user]`n`tname = $Username`n`temail = ${Username}@example.com`n"
+# Developer setup (SPEC section 4.6): the Windows OpenSSH client's key pair,
+# ssh config and known_hosts, and a git config mixing the identity with
+# Windows-only settings. Only public material and the identity may migrate.
+$sshDir = "$userProfile\.ssh"
+if (Test-Path -LiteralPath $sshDir) { Remove-Item -LiteralPath $sshDir -Recurse -Force }
+Ensure-Directory $sshDir
+$keygen = "$env:WINDIR\System32\OpenSSH\ssh-keygen.exe"
+if (-not (Test-Path -LiteralPath $keygen)) { throw "ssh-keygen.exe (the Windows OpenSSH client) is missing; cannot seed the developer setup" }
+# One argument string: PowerShell 5.1 drops an empty-string argument (-N "").
+$keygenRun = Start-Process -FilePath $keygen -ArgumentList "-q -t ed25519 -N `"`" -C wootc-e2e-$RunId -f `"$sshDir\id_ed25519`"" -Wait -NoNewWindow -PassThru
+if ($keygenRun.ExitCode -ne 0 -or -not (Test-Path -LiteralPath "$sshDir\id_ed25519.pub")) { throw "ssh-keygen.exe failed (exit $($keygenRun.ExitCode))" }
+$keyBlob = ([System.IO.File]::ReadAllText("$sshDir\id_ed25519.pub")).Split(" ")[1]
+$sshHostAlias = "wootc-e2e-git"
+$sshHostName = "git.example.org"
+[System.IO.File]::WriteAllText("$sshDir\config", "Host $sshHostAlias`n  HostName $sshHostName`n  User git`n  IdentityFile ~/.ssh/id_ed25519`n", $utf8NoBom)
+[System.IO.File]::WriteAllText("$sshDir\known_hosts", "$sshHostName ssh-ed25519 $keyBlob`n", $utf8NoBom)
+$gitName = $fullName
+$gitEmail = "zoe.obrien+$suffix@example.org"
+[System.IO.File]::WriteAllText("$userProfile\.gitconfig",
+    "[user]`n`tname = $gitName`n`temail = $gitEmail`n[core]`n`tautocrlf = true`n[credential]`n`thelper = manager`n[init]`n`tdefaultBranch = main`n", $utf8NoBom)
 
 # Steam default library & extra library
 $steamProgramFiles = "$Drive\Program Files (x86)\Steam"
@@ -309,6 +341,35 @@ Write-TextFile "$steamProgramFiles\steamapps\libraryfolders.vdf" $steamLibraryVd
 Ensure-Directory "$Drive\Games\SteamLibrary\steamapps\common\Portal9"
 Write-TextFile "$steamProgramFiles\steamapps\common\HL3\hl3.exe" "MOCK_STEAM_GAME_EXE" "ASCII"
 Write-TextFile "$Drive\Games\SteamLibrary\steamapps\common\Portal9\portal9.exe" "MOCK_STEAM_GAME_EXE" "ASCII"
+
+# ── 4b. Printers ─────────────────────────────────────────────────────────────
+# A network printer at an address the Linux side can answer driverless IPP
+# on (the check runs an IPP Everywhere responder at 127.0.0.2:631), one on an
+# unreachable network address, one on a parallel cable, and the stock
+# virtual PDF printer. No port is contacted when it is created.
+foreach ($stale in @(Get-Printer -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^(Office Laser|Lab Printer|Label Printer) [0-9a-f]{6}$' })) {
+    Remove-Printer -Name $stale.Name
+}
+$printerDriver = ""
+try {
+    Add-PrinterDriver -Name "Microsoft IPP Class Driver" -ErrorAction Stop
+    $printerDriver = "Microsoft IPP Class Driver"
+} catch {
+    $printerDriver = (Get-PrinterDriver | Where-Object { $_.Name -like "Microsoft*" } | Select-Object -First 1).Name
+}
+if (-not $printerDriver) { throw "no printer driver available to seed the printers" }
+foreach ($port in @(@{ Name = "IP_127.0.0.2"; Address = "127.0.0.2" }, @{ Name = "IP_192.0.2.44"; Address = "192.0.2.44" })) {
+    if (-not (Get-PrinterPort -Name $port.Name -ErrorAction SilentlyContinue)) {
+        Add-PrinterPort -Name $port.Name -PrinterHostAddress $port.Address -PortNumber 9100
+    }
+}
+$officePrinter = "Office Laser $suffix"
+$labPrinter = "Lab Printer $suffix"
+$labelPrinter = "Label Printer $suffix"
+Add-Printer -Name $officePrinter -DriverName $printerDriver -PortName "IP_127.0.0.2"
+Add-Printer -Name $labPrinter -DriverName $printerDriver -PortName "IP_192.0.2.44"
+Add-Printer -Name $labelPrinter -DriverName $printerDriver -PortName "LPT1:"
+$virtualPrinter = (Get-Printer -Name "Microsoft Print to PDF" -ErrorAction SilentlyContinue).Name
 
 # ── 5. Windows Registry Entries (Installed Apps, Associations, Theme) ────────
 # QGA runs this script as SYSTEM, so "HKCU:" is SYSTEM's own hive. Everything
@@ -388,6 +449,11 @@ if ($IncludeRegistry) {
         Set-RegValue "$hkcu\Control Panel\Desktop" "WallPaper" "$userProfile\Pictures\wootc-e2e-wallpaper.jpg"
         Set-RegValue "$hkcu\Control Panel\International\User Profile" "Languages" ([string[]]@("de-DE", "en-US")) "MultiString"
         Set-RegValue "$hkcu\Control Panel\International\User Profile\de-DE" "0407:00000407" 1 "DWord"
+        # The user's default printer (per-user; Windows would otherwise pick
+        # the last one used): the office laser.
+        $printerKey = "$hkcu\Software\Microsoft\Windows NT\CurrentVersion\Windows"
+        Set-RegValue $printerKey "LegacyDefaultPrinterMode" 1 "DWord"
+        Set-RegValue $printerKey "Device" "$officePrinter,winspool,IP_127.0.0.2"
     } finally {
         if ($hive.Loaded) {
             [gc]::Collect()
@@ -527,19 +593,32 @@ Add-Row "chrome" "$chromeUserData\History"
 Add-Row "edge" "$edgeUserData\Bookmarks"
 foreach ($f in @("places.sqlite", "logins.json", "prefs.js", "extensions.json")) { Add-Row "firefox" "$firefoxProfileDir\$f" }
 Add-Row "wallpaper" $transcoded
+Add-Row "ssh-pub" "$sshDir\id_ed25519.pub"
+Add-Row "ssh-config" "$sshDir\config"
+Add-Row "ssh-known-hosts" "$sshDir\known_hosts"
 $header = @(
     "#schema=1",
     "#runId=$RunId",
     "#windowsUser=$Username",
     "#profileRoot=$userProfile",
+    "#fullName=$fullName",
     "#dictionary=Kubernetes,wootc,TunaOS,containerd,MicroOS",
     "#vscodeExtensions=golang.go,ms-python.python",
     "#timezone=Asia/Tokyo",
     "#language=de-DE",
     "#darkMode=true",
     "#accentColor=#E62D42",
-    "#steamLibraries=Program Files (x86)/Steam/steamapps,Games/SteamLibrary/steamapps"
+    "#steamLibraries=Program Files (x86)/Steam/steamapps,Games/SteamLibrary/steamapps",
+    "#sshPrivate=.ssh/id_ed25519",
+    "#sshHostAlias=$sshHostAlias",
+    "#sshHostName=$sshHostName",
+    "#gitName=$gitName",
+    "#gitEmail=$gitEmail",
+    "#printerOffice=$officePrinter",
+    "#printerLab=$labPrinter",
+    "#printerLabel=$labelPrinter"
 )
+if ($virtualPrinter) { $header += "#printerVirtual=$virtualPrinter" }
 Ensure-Directory (Split-Path -Parent $ManifestPath)
 [System.IO.File]::WriteAllText($ManifestPath, (($header + $rows) -join "`n") + "`n", (New-Object System.Text.UTF8Encoding $false))
 Write-Host "[seed-profile] Manifest: $($rows.Count) expected items in $ManifestPath"

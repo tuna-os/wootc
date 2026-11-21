@@ -140,7 +140,9 @@ The helpers cover these categories:
   stores and login tokens have separate consent, keyring and service-specific
   limits; see [session migration](session-migration.md). A copied or rewritten
   database is not proof that the browser opens signed in.
-- **Steam:** a library bridge can use games in place, without another download.
+- **Steam:** your Windows games play in place, without another download. After
+  Linux Steam's first start, add each Windows library once in Steam
+  **Settings → Storage → Add Library**; the migration chooser shows the step.
 - **Office:** the helper copies your selected styles, dictionaries, and preferences for LibreOffice.
 - **Apps:** the Windows installer lists your Windows programs that have a
   Linux Flatpak. The installer installs the apps that you keep selected
@@ -297,8 +299,9 @@ Native graduation and Windows removal are different operations.
 The current execution path can graduate Linux onto a separate disk that the harness verifies as blank in the test harness.
 It retains Windows and the original `root.disk`.
 This proof does not establish an install onto free space on the same disk.
-The native disk keeps the name, time zone, language, keyboard layout and
-saved Wi-Fi networks of the Linux system that you graduate.
+The native disk keeps the name, time zone, language, keyboard layout,
+saved Wi-Fi networks and the system Flatpak apps (including the Windows apps
+the installer brought over) of the Linux system that you graduate.
 
 The helper also prints plans for an in-place move and Windows removal.
 The app cannot execute those plans for normal use.

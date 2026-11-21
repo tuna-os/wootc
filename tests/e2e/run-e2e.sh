@@ -1168,6 +1168,10 @@ seed_user_data() {
             out=$(qga_powershell "Get-Content -LiteralPath '${seed_dir}\\wootc-e2e-userdata.txt'" 2>&1 || true)
             if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
                 [ "${WOOTC_E2E_BITLOCKER:-off}" = on ] && migration_header documentsSubdir "From Windows"
+                # The GUI path seeds before the installer runs, so what the
+                # installer collects (full name, printers, apps) can be held
+                # to the seed; the OEM path seeds after it.
+                [ "${1:-storage-ready}" = before-storage ] && migration_header seededBeforeInstall 1
                 pass "User data seeded: ${drive}\\Users\\${guser} — canary, migration corpus and manifest ($RUN_ID)"
                 return 0
             fi

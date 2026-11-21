@@ -128,6 +128,130 @@ class WiFi(unittest.TestCase):
     def test_missing_network_fails(self):
         self.assertEqual(self.verdict()[0], "FAIL")
 
+def account_for(home, gecos=""):
+    me = pwd.getpwuid(os.getuid())
+    return pwd.struct_passwd((me.pw_name, "x", me.pw_uid, me.pw_gid, gecos, home, "/bin/sh"))
+
+
+class FullName(unittest.TestCase):
+    header = {"fullName": "Zo\u00eb O'Brien-\u00c5berg 1a2b3c", "seededBeforeInstall": "1"}
+
+    def verdict(self, gecos, header=None):
+        return results(check.check_fullname, header or self.header, account_for("/nonexistent", gecos))[0]
+
+    def test_windows_full_name_is_the_gecos_name(self):
+        self.assertEqual(self.verdict("Zo\u00eb O'Brien-\u00c5berg 1a2b3c,,,")[0], "PASS")
+
+    def test_missing_or_mangled_name_fails(self):
+        for gecos in ("", "Zo O'Brien-berg 1a2b3c", "Zo\u00eb O\\'Brien-\u00c5berg 1a2b3c"):
+            self.assertEqual(self.verdict(gecos)[0], "FAIL", gecos)
+
+    def test_oem_cell_skips(self):
+        self.assertEqual(self.verdict("", {"fullName": "x"})[0], "SKIP")
+
+
+class Developer(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.account = account_for(self.home)
+        ssh = Path(self.home, ".ssh")
+        ssh.mkdir(mode=0o700)
+        files = {"ssh-pub": (".ssh/id_ed25519.pub", b"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA wootc-e2e\n", 0o644),
+                 "ssh-config": (".ssh/config", b"Host wootc-e2e-git\n  HostName git.example.org\n  User git\n", 0o600),
+                 "ssh-known-hosts": (".ssh/known_hosts", b"git.example.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA\n", 0o644)}
+        self.rows = []
+        for category, (relative, data, mode) in files.items():
+            path = Path(self.home, relative)
+            path.write_bytes(data)
+            path.chmod(mode)
+            self.rows.append({"category": category, "path": relative, "size": len(data),
+                              "sha256": check.sha256(path), "mtime": 0})
+        Path(self.home, ".gitconfig").write_text("[user]\n\tname = Zo\u00eb\n\temail = z@example.org\n", encoding="utf-8")
+        Path(self.home, ".config/wootc").mkdir(parents=True)
+        Path(self.home, ".config/wootc/bridge-developer.json").write_text(
+            json.dumps({"status": "success", "leftOnWindows": [{"path": ".ssh/id_ed25519", "reason": "private key"}]}))
+        self.header = {"sshPrivate": ".ssh/id_ed25519", "sshHostAlias": "wootc-e2e-git",
+                       "sshHostName": "git.example.org", "gitName": "Zo\u00eb", "gitEmail": "z@example.org"}
+        # Real ssh finds ~/.ssh/config through the passwd home, which a test
+        # cannot point at a temp tree; this stand-in reads $HOME (set by
+        # as_user) and refuses a group/world-writable config as ssh does.
+        bin_dir = Path(self.home, "bin")
+        bin_dir.mkdir()
+        fake = bin_dir / "ssh"
+        fake.write_text("#!/bin/sh\n[ \"$1\" = -G ] || exit 2\ncfg=\"$HOME/.ssh/config\"\n"
+                        "[ -r \"$cfg\" ] || exit 255\n"
+                        "case $(stat -c %a \"$cfg\") in *[2367]?|*[2367]) echo \"Bad owner or permissions on $cfg\" >&2; exit 255;; esac\n"
+                        "awk -v h=\"$2\" '$1==\"Host\"{m=($2==h)} m&&$1==\"HostName\"{print \"hostname \"$2}' \"$cfg\"\n")
+        fake.chmod(0o755)
+        path = os.environ["PATH"]
+        os.environ["PATH"] = f"{bin_dir}{os.pathsep}{path}"
+        self.addCleanup(os.environ.__setitem__, "PATH", path)
+
+    def verdicts(self):
+        found = results(check.check_developer, self.header, self.rows, self.account)
+        return {category: verdict for verdict, category, _ in found}
+
+    def test_public_material_and_identity_pass(self):
+        self.assertEqual(self.verdicts(), {"dev-ssh-files": "PASS", "dev-ssh": "PASS", "dev-git": "PASS"})
+
+    def test_copied_private_key_fails(self):
+        Path(self.home, ".ssh/id_ed25519").write_bytes(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")
+        self.assertEqual(self.verdicts()["dev-ssh"], "FAIL")
+
+    def test_ntfs_modes_fail(self):
+        # A copy that kept NTFS's permissive modes: ssh refuses the config.
+        Path(self.home, ".ssh/config").chmod(0o666)
+        self.assertEqual(self.verdicts()["dev-ssh"], "FAIL")
+        Path(self.home, ".ssh/config").chmod(0o600)
+        Path(self.home, ".ssh").chmod(0o755)
+        self.assertEqual(self.verdicts()["dev-ssh"], "FAIL")
+
+    def test_windows_only_git_settings_fail(self):
+        Path(self.home, ".gitconfig").write_text(
+            "[user]\n\tname = Zo\u00eb\n\temail = z@example.org\n[credential]\n\thelper = manager\n", encoding="utf-8")
+        self.assertEqual(self.verdicts()["dev-git"], "FAIL")
+        Path(self.home, ".gitconfig").unlink()
+        self.assertEqual(self.verdicts()["dev-git"], "FAIL")
+
+
+class Printers(unittest.TestCase):
+    header = {"printerOffice": "Office Laser 1a2b3c", "printerLab": "Lab Printer 1a2b3c",
+              "printerLabel": "Label Printer 1a2b3c", "printerVirtual": "Microsoft Print to PDF"}
+
+    def report(self, **changes):
+        entries = {
+            "Office Laser 1a2b3c": {"status": "added", "queue": "Office_Laser_1a2b3c", "uri": "ipp://127.0.0.2:631/ipp/print"},
+            "Lab Printer 1a2b3c": {"status": "waiting", "reason": "no driverless printer answered at 192.0.2.44"},
+            "Label Printer 1a2b3c": {"status": "not-migrated", "reason": "connected by cable"},
+            "Microsoft Print to PDF": {"status": "not-migrated", "reason": "Windows-only virtual printer"},
+        }
+        for name, entry in changes.items():
+            entries[name.replace("_", " ")] = entry
+        return entries
+
+    def test_expected_statuses_pass(self):
+        problems, office = check.judge_printers(self.header, self.report())
+        self.assertEqual(problems, [])
+        self.assertEqual(office["queue"], "Office_Laser_1a2b3c")
+
+    def test_unmigrated_network_printer_fails(self):
+        problems, _ = check.judge_printers(self.header, self.report(
+            Office_Laser_1a2b3c={"status": "waiting", "reason": "unreachable"}))
+        self.assertTrue(problems)
+
+    def test_silent_or_dropped_printers_fail(self):
+        entries = self.report(Label_Printer_1a2b3c={"status": "not-migrated"})
+        self.assertTrue(check.judge_printers(self.header, entries)[0])
+        entries = self.report()
+        del entries["Microsoft Print to PDF"]
+        self.assertTrue(check.judge_printers(self.header, entries)[0])
+
+    def test_wrong_address_fails(self):
+        problems, _ = check.judge_printers(self.header, self.report(
+            Office_Laser_1a2b3c={"status": "added", "queue": "q", "uri": "ipp://192.0.2.1:631/ipp/print"}))
+        self.assertTrue(problems)
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1204,15 +1204,21 @@ The user sees their Windows files immediately inside their Linux home
 directory. No copy. No import wizard. Files are writable from Linux
 (via the rw NTFS mount).
 
-**Steam libraries** are detected and reused in-place:
+**Steam libraries** are detected and reused in-place, without a
+re-download:
 
 ```
-/host/Program Files (x86)/Steam/steamapps/  →  detected by Steam Linux
+/host/Program Files (x86)/Steam/steamapps/  →  found by the Steam bridge
 ```
 
-The system writes a `libraryfolders.vdf` that points to the Windows
-Steam library. Games appear immediately — no re-download. Proton handles
-compatibility automatically.
+The bridge registers a library itself only while Linux Steam has a
+`steamapps/` directory without its own `libraryfolders.vdf`; Steam's first
+start writes that file, and the bridge never rewrites Steam's metadata. In
+practice, then, the bridge records each Windows library's path and tells the
+user to add it once in Steam **Settings > Storage > Add Library**; the games
+are then playable in place. (An earlier version of this section said games
+appear immediately: no deployed code did that, and the E2E now holds the
+bridge to the guidance instead.) Proton handles compatibility.
 
 **Browser profiles** are detected and offered for import:
 

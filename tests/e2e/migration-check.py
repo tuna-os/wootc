@@ -12,17 +12,19 @@ them" are one observation.
 The manifest is written on Windows by tests/e2e/oem/seed-profile.ps1
 ("#key=value" header, then category<TAB>profile path<TAB>size<TAB>sha256<TAB>
 mtime rows); the harness appends the keys only it knows (linuxUser, password,
-hostname, wifi, flatpaks, windowsLook, slurp, actions it ran).
+hostname, wifi, flatpaksSelected/Deselected, windowsLook, slurp,
+seededBeforeInstall, ippResponder, actions it ran).
 
 Output, one line per observation:
-    RESULT<TAB>PASS|FAIL|GAP|SKIP<TAB><category><TAB><message>
-GAP is a capability the product claims but does not implement: reported,
-never a pass. The last line is "MIGRATION_CHECK_DONE"; its absence means the
-check did not run to completion. Exit status is 0 when it completed,
-whatever it found.
+    RESULT<TAB>PASS|FAIL|SKIP<TAB><category><TAB><message>
+SKIP is an observation this cell cannot make (named in the message), never a
+pass. The last line is "MIGRATION_CHECK_DONE"; its absence means the check
+did not run to completion. Exit status is 0 when it completed, whatever it
+found.
 """
 import base64
 import configparser
+import contextlib
 import ctypes
 import ctypes.util
 import grp
@@ -34,6 +36,7 @@ import pwd
 import re
 import select
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -264,7 +267,21 @@ def check_account(header, account):
                 actual = stream.read().strip()
         emit("PASS" if actual == wanted else "FAIL", "hostname",
              f"static hostname {actual!r}" + ("" if actual == wanted else f", chosen on Windows {wanted!r}"))
-    emit("GAP", "account-fullname", "the Windows account's full name is never collected (slurp.Look has no fullName); chfn is never reached")
+    check_fullname(header, account)
+
+
+def check_fullname(header, account):
+    """The Windows account's full name is the Linux account's GECOS name."""
+    wanted = header.get("fullName", "")
+    if header.get("seededBeforeInstall") != "1":
+        emit("SKIP", "account-fullname", "this cell seeds after the installer collected the account (OEM path)")
+        return
+    if not wanted:
+        emit("FAIL", "account-fullname", "the seed recorded no Windows full name")
+        return
+    actual = account.pw_gecos.split(",", 1)[0]
+    emit("PASS" if actual == wanted else "FAIL", "account-fullname",
+         f"GECOS name {actual!r}" + ("" if actual == wanted else f", Windows full name {wanted!r}"))
 
 
 # ── known folders ───────────────────────────────────────────────────────────
@@ -422,8 +439,8 @@ def check_flatpaks(header, account):
     selected = [x for x in header.get("flatpaksSelected", "").split(",") if x]
     deselected = [x for x in header.get("flatpaksDeselected", "").split(",") if x]
     if not selected and not deselected:
-        emit("GAP", "apps-flatpak-install",
-             "detected Windows apps are never installed: nothing consumes the Flatpak mapping (SPEC §4.3 claims pre-install)")
+        emit("SKIP", "apps-flatpak-install",
+             "this cell chose no apps on Windows (only the native GUI directive keeps and unchecks detected apps)")
         return
     if not shutil.which("flatpak"):
         emit("FAIL", "apps-flatpak-install", "flatpak is not installed in the image")
@@ -497,16 +514,37 @@ def check_steam(header, account):
         emit("FAIL", "steam", f"Steam libraries not found on the Windows drive: {missing} (saw {paths})")
     else:
         emit("PASS", "steam", f"both Windows Steam libraries found; registered={report.get('registered')}")
-    if not report.get("registered"):
-        emit("GAP", "steam-registered", "libraries are only registered once Linux Steam has been initialised; "
-             "SPEC §4.1 says games appear immediately: " + json.dumps(report.get("failed", []))[:200])
+    # Registration needs Linux Steam's own metadata, which exists only after
+    # Steam's first start (and then is never rewritten): the bridge record
+    # and the chooser the user sees must say how to add each library instead
+    # of claiming the games appear (docs/SPEC.md §4.1).
+    if report.get("registered"):
+        return
+    problems = []
+    failed = report.get("failed", [])
+    if not failed or any("Settings > Storage" not in json.dumps(f) for f in failed):
+        problems.append("unregistered libraries without Add Library guidance in bridge-steam.json: " + json.dumps(failed)[:200])
+    if PHASE == "phase2":
+        def chooser():
+            result = subprocess.run(["/var/usrlocal/bin/wootc-manifest", "scan", "--all"], capture_output=True,
+                                    text=True, timeout=120, env=dict(os.environ, WOOTC_HOST=HOST_VIEW))
+            return result.stdout
+        try:
+            catalog = json.loads(as_user(account, chooser))
+            games = [i for u in catalog.get("users", []) for c in u.get("categories", [])
+                     if c.get("id") == "games" for i in c.get("items", [])]
+            if not any("Settings > Storage" in i.get("detail", "") for i in games):
+                problems.append(f"the migration chooser's Steam entry gives no Add Library step: {json.dumps(games)[:200]}")
+        except (RuntimeError, ValueError) as error:
+            problems.append(f"migration chooser unreadable: {error}")
+    emit("FAIL" if problems else "PASS", "steam-guidance",
+         "; ".join(problems) or f"Steam not initialised yet: the bridge record and the migration chooser tell the user "
+         f"to add the {len(failed)} Windows libraries in Steam Settings > Storage")
 
 
 # ── browsers ────────────────────────────────────────────────────────────────
 def check_browsers(header, rows, account):
-    if header.get("browserImport") != "1":
-        emit("SKIP", "browsers", "browser import was not run in this phase")
-        return
+    # The Phase-2 boot bridge imports browsers once per user (no harness step).
     home = account.pw_dir
     chromium = [os.path.join(home, ".config/google-chrome/Default"),
                 os.path.join(home, ".var/app/com.google.Chrome/config/google-chrome/Default")]
@@ -672,6 +710,210 @@ def check_apply_look(header, rows, account, slurp):
          else "first-login autostart applied the Windows wallpaper, dark mode and keyboard layout")
 
 
+# ── developer setup (SSH, git) ──────────────────────────────────────────────
+def gitconfig(text):
+    """git-config(1) sections → {"section.key": value}, enough to read a
+    migrated identity without git (bluefin ships no git package)."""
+    values, section = {}, ""
+    for line in text.lstrip("\ufeff").splitlines():
+        line = line.strip()
+        if not line or line[0] in "#;":
+            continue
+        if line.startswith("["):
+            section = line.strip("[]").split()[0].lower()
+            continue
+        key, _, value = line.partition("=")
+        values[f"{section}.{key.strip().lower()}"] = value.strip()
+    return values
+
+
+def judge_git(text, header):
+    """Problems with a migrated ~/.gitconfig: the Windows identity must be
+    there, the Windows-only settings must not."""
+    if text is None:
+        return ["no ~/.gitconfig"]
+    values = gitconfig(text)
+    problems = []
+    for key, want in (("user.name", header.get("gitName", "")), ("user.email", header.get("gitEmail", ""))):
+        if values.get(key) != want:
+            problems.append(f"{key} {values.get(key)!r} != {want!r}")
+    carried = [k for k in ("credential.helper", "core.autocrlf") if k in values]
+    if carried:
+        problems.append(f"Windows-only settings carried: {carried}")
+    return problems
+
+
+def check_developer(header, rows, account):
+    home = account.pw_dir
+    ssh_rows = [r for r in rows if r["category"] in ("ssh-pub", "ssh-config", "ssh-known-hosts")]
+    if not ssh_rows:
+        emit("SKIP", "dev-ssh", "no SSH files were seeded")
+        return
+    ssh = os.path.join(home, ".ssh")
+
+    def observe(paths, private):
+        seen = {p: os.stat(p).st_mode & 0o777 for p in paths if os.path.exists(p)}
+        seen["private-present"] = os.path.exists(private)
+        alias = header.get("sshHostAlias", "")
+        result = subprocess.run(["ssh", "-G", alias], capture_output=True, text=True, timeout=60)
+        seen["ssh-G"] = [result.returncode, result.stdout, result.stderr[-300:]]
+        try:
+            with open(os.path.join(home, ".gitconfig"), encoding="utf-8") as stream:
+                seen["gitconfig"] = stream.read()
+        except FileNotFoundError:
+            seen["gitconfig"] = None
+        return seen
+    destinations = [os.path.join(home, r["path"]) for r in ssh_rows]
+    private = os.path.join(home, header.get("sshPrivate", ".ssh/id_ed25519"))
+    problems = []
+    # Bytes, as the user (a file the user cannot open is not migrated).
+    check_rows("dev-ssh-files", ssh_rows, account, lambda r: os.path.join(home, r["path"]),
+               check_mtime=False, owner=account.pw_uid)
+    try:
+        seen = as_user(account, observe, [ssh] + destinations, private)
+    except RuntimeError as error:
+        emit("FAIL", "dev-ssh", str(error))
+        emit("FAIL", "dev-git", str(error))
+        return
+    if os.stat(ssh).st_uid != account.pw_uid or seen.get(ssh, 0o777) & 0o077:
+        problems.append(f"~/.ssh is mode {oct(seen.get(ssh, 0))}, not private to the user")
+    for row, path in zip(ssh_rows, destinations):
+        mode = seen.get(path)
+        limit = 0o077 if row["category"] == "ssh-config" else 0o022
+        if mode is not None and mode & limit:
+            problems.append(f"{row['path']} is mode {oct(mode)}")
+    if seen["private-present"]:
+        problems.append(f"the private key {header.get('sshPrivate')} was copied (SPEC §4.6: never)")
+    code, out, err = seen["ssh-G"]
+    wanted = header.get("sshHostName", "")
+    if code != 0 or f"hostname {wanted}" not in out.splitlines():
+        problems.append(f"`ssh -G {header.get('sshHostAlias')}` as the user does not resolve {wanted} (rc {code}: {err.strip()})")
+    if os.path.exists("/sys/fs/selinux/enforce"):
+        try:
+            label = os.getxattr(ssh, "security.selinux").decode(errors="replace").rstrip("\0")
+        except OSError as error:
+            label = f"unreadable ({error})"
+        if ":ssh_home_t:" not in label:
+            problems.append(f"~/.ssh SELinux label {label}, not ssh_home_t")
+    try:
+        with open(os.path.join(home, ".config/wootc/bridge-developer.json"), encoding="utf-8") as stream:
+            record = json.load(stream)
+        left = json.dumps(record.get("leftOnWindows", []))
+        if os.path.basename(private) not in left:
+            problems.append(f"bridge-developer.json does not report the private key left on Windows ({left[:160]})")
+    except (OSError, ValueError) as error:
+        problems.append(f"no developer bridge record: {error}")
+    emit("FAIL" if problems else "PASS", "dev-ssh",
+         "; ".join(problems) or "public key, ssh config and known_hosts in ~/.ssh with private modes, ssh resolves the "
+         "Windows host alias, the private key stayed on Windows and is reported")
+    problems = judge_git(seen["gitconfig"], header)
+    emit("FAIL" if problems else "PASS", "dev-git",
+         "; ".join(problems) or "~/.gitconfig carries the Windows git identity and none of the Windows-only settings")
+
+
+# ── printers ────────────────────────────────────────────────────────────────
+PRINTER_REPORT = "/var/lib/wootc/printers.json"
+IPP_LISTEN = ("127.0.0.2", 631)
+
+
+def printer_report():
+    with open(PRINTER_REPORT, encoding="utf-8") as stream:
+        return {p.get("name"): p for p in json.load(stream).get("printers", [])}
+
+
+def judge_printers(header, report):
+    """The importer's per-printer verdicts against what Windows had."""
+    expected = {header.get("printerOffice"): "added", header.get("printerLab"): "waiting",
+                header.get("printerLabel"): "not-migrated", header.get("printerVirtual"): "not-migrated"}
+    problems = []
+    for name, status in expected.items():
+        if not name:
+            continue
+        got = report.get(name)
+        if not got:
+            problems.append(f"{name!r} missing from {PRINTER_REPORT}")
+        elif got.get("status") != status:
+            problems.append(f"{name!r} is {got.get('status')} ({got.get('reason', '')}), expected {status}")
+        elif status != "added" and not got.get("reason"):
+            problems.append(f"{name!r} is {status} without a reason the user can read")
+    office = report.get(header.get("printerOffice"), {})
+    uri = f"ipp://{IPP_LISTEN[0]}:{IPP_LISTEN[1]}/ipp/print"
+    if office.get("status") == "added" and office.get("uri") != uri:
+        problems.append(f"office printer uri {office.get('uri')!r} != {uri}")
+    return problems, office
+
+
+def check_printer_queue(office):
+    problems = []
+    queue = office.get("queue", "")
+    devices = run(["lpstat", "-v"]).stdout
+    if not queue or f"{queue}: ipp://{IPP_LISTEN[0]}:{IPP_LISTEN[1]}/ipp/print" not in devices.replace("device for ", ""):
+        problems.append(f"CUPS has no queue {queue!r} at the printer's IPP address: {' '.join(devices.split())[:200]}")
+    default = run(["lpstat", "-d"]).stdout.strip()
+    if not default.endswith(": " + queue):
+        problems.append(f"Windows default printer is not the CUPS default ({default})")
+    return problems
+
+
+def check_printers(header):
+    if header.get("seededBeforeInstall") != "1":
+        emit("SKIP", "printers", "this cell seeds after the installer collected the printers (OEM path)")
+        return
+    if not header.get("printerOffice"):
+        emit("FAIL", "printers", "the seed recorded no Windows printers")
+        return
+    responder = None
+    spool = "/run/wootc-e2e-ipp-spool"
+    try:
+        if PHASE == "phase2" and not header.get("ippResponder"):
+            emit("FAIL", "printers", "the harness staged no IPP Everywhere responder; the retry cannot be exercised")
+            return
+        if PHASE == "phase2":
+            # A driverless printer at the address Windows used: the boot run
+            # found nothing there, so this exercises the importer's retry.
+            os.makedirs(spool, exist_ok=True)
+            for name in os.listdir(spool):
+                os.unlink(os.path.join(spool, name))
+            responder = subprocess.Popen([sys.executable, header.get("ippResponder", ""), "--listen",
+                                          f"{IPP_LISTEN[0]}:{IPP_LISTEN[1]}", "--spool", spool],
+                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            for _ in range(30):
+                with contextlib.suppress(OSError), socket.create_connection(IPP_LISTEN, timeout=1):
+                    break
+                time.sleep(1)
+            retry = run(["systemctl", "start", "wootc-printer-import.service"], timeout=600)
+            if retry.returncode != 0:
+                emit("FAIL", "printers", f"wootc-printer-import.service failed: {retry.stderr.strip()[-200:]}")
+        try:
+            report = printer_report()
+        except (OSError, ValueError) as error:
+            emit("FAIL", "printers", f"no printer report: {error}")
+            return
+        problems, office = judge_printers(header, report)
+        emit("FAIL" if problems else "PASS", "printers",
+             "; ".join(problems) or "the network printer became a driverless CUPS queue; the unreachable one waits for a retry, "
+             "the cable and virtual printers are reported as not migrated with reasons")
+        problems = check_printer_queue(office)
+        emit("FAIL" if problems else "PASS", "printers-queue",
+             "; ".join(problems) or f"CUPS queue {office.get('queue')} at {office.get('uri')} is the default printer, as on Windows")
+        if PHASE == "phase2" and office.get("queue"):
+            job = run(["lp", "-d", office["queue"], "-t", "wootc-e2e", "/etc/os-release"], timeout=60)
+            delivered = False
+            for _ in range(90):
+                if os.listdir(spool):
+                    delivered = True
+                    break
+                time.sleep(2)
+            emit("PASS" if delivered else "FAIL", "printers-print",
+                 "a print job reached the printer through the migrated queue" if delivered
+                 else f"no document reached the printer ({job.stdout.strip()} {job.stderr.strip()}; "
+                      f"{' '.join(run(['lpstat', '-o', '-l']).stdout.split())[:200]})")
+    finally:
+        if responder is not None:
+            responder.kill()
+            responder.wait()
+
+
 def main():
     if PHASE not in ("phase2", "native") or not MANIFEST:
         print(__doc__, file=sys.stderr)
@@ -686,13 +928,13 @@ def main():
                         ("steam", lambda: check_steam(header, account)),
                         ("browsers", lambda: check_browsers(header, rows, account)),
                         ("wifi", lambda: check_wifi(header, raw_header)),
-                        ("look", lambda: check_look(header, rows, account))):
+                        ("look", lambda: check_look(header, rows, account)),
+                        ("developer", lambda: check_developer(header, rows, account)),
+                        ("printers", lambda: check_printers(header))):
         try:
             check()
         except Exception:  # one broken check must not hide the others
             emit("FAIL", name, "check crashed: " + traceback.format_exc().strip().splitlines()[-1])
-    emit("GAP", "printers", "printers are not migrated (SPEC §4.6 lists them); no code exists")
-    emit("GAP", "dev-ssh-git", "Windows-native %USERPROFILE%\\.ssh and .gitconfig are not migrated; only the on-demand WSL bridge copies them")
     print("MIGRATION_CHECK_DONE", flush=True)
     return 0
 
