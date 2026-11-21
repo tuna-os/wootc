@@ -58,10 +58,32 @@ migration_seed() { # <drive> <windows user>
     { printf '\xEF\xBB\xBF'; sed 's/$/\r/' "$SCRIPT_DIR/oem/seed-profile.ps1"; } > "$staged" || return 1
     qga_powershell "New-Item -ItemType Directory -Force -Path '$MIGRATION_GUEST_DIR' | Out-Null" >/dev/null || return 1
     migration_put "$staged" "$MIGRATION_GUEST_DIR\\seed-profile.ps1" || { warn "Migration seed: could not stage seed-profile.ps1"; return 1; }
-    out=$(WOOTC_QGA_CALL_TIMEOUT=900 qga_powershell "\$ErrorActionPreference='Stop'; try { & '$MIGRATION_GUEST_DIR\\seed-profile.ps1' -Username '$guser' -Drive '$drive' -RunId '$RUN_ID' -ManifestPath '$MIGRATION_GUEST_DIR\\migration-expected.tsv' *>&1 | Out-String } catch { 'SEED-FAILED: ' + \$_.Exception.Message + ' at ' + \$_.InvocationInfo.PositionMessage }" 2>&1) || true
-    printf '%s\n' "$out" > "$ARTIFACT_DIR/seed-profile.log"
-    if printf '%s' "$out" | grep -q 'SEED-FAILED'; then
-        printf '%s\n' "$out" | tail -8 | sed 's/^/    seed: /'
+    # The QGA client stops any guest command at 60 s, and the corpus (64 MiB
+    # written and hashed) can take longer: run the seed detached and poll.
+    local wrapper="$ARTIFACT_DIR/seed-run.ps1" done_file="$MIGRATION_GUEST_DIR\\seed.done" deadline
+    {
+        printf '\xEF\xBB\xBF'
+        printf '%s\r\n' "\$ErrorActionPreference = 'Stop'" \
+            "Remove-Item -LiteralPath '$done_file' -Force -ErrorAction SilentlyContinue" \
+            "try {" \
+            "    & '$MIGRATION_GUEST_DIR\\seed-profile.ps1' -Username '$guser' -Drive '$drive' -RunId '$RUN_ID' -ManifestPath '$MIGRATION_GUEST_DIR\\migration-expected.tsv' *>&1 | Out-File -Encoding utf8 '$MIGRATION_GUEST_DIR\\seed.log'" \
+            "    'SEED-OK $RUN_ID' | Set-Content -LiteralPath '$done_file'" \
+            "} catch {" \
+            "    ('SEED-FAILED: ' + \$_.Exception.Message + ' at ' + \$_.InvocationInfo.PositionMessage) | Set-Content -LiteralPath '$done_file'" \
+            "}"
+    } > "$wrapper" || return 1
+    migration_put "$wrapper" "$MIGRATION_GUEST_DIR\\seed-run.ps1" || return 1
+    qga_powershell "Start-Process -FilePath powershell.exe -WindowStyle Hidden -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File','$MIGRATION_GUEST_DIR\\seed-run.ps1')" >/dev/null || return 1
+    deadline=$(deadline_in 900)
+    out=""
+    until printf '%s' "$out" | grep -q "SEED-OK $RUN_ID\|SEED-FAILED"; do
+        past_deadline "$deadline" && break
+        sleep 10
+        out=$(qga_read "$done_file" 2>/dev/null || true)
+    done
+    { qga_read "$MIGRATION_GUEST_DIR\\seed.log" 2>/dev/null || true; printf '%s\n' "$out"; } > "$ARTIFACT_DIR/seed-profile.log"
+    if ! printf '%s' "$out" | grep -q "SEED-OK $RUN_ID"; then
+        printf '%s\n' "${out:-seed did not finish within 900 s}" | tail -8 | sed 's/^/    seed: /'
         return 1
     fi
     qga_read "$MIGRATION_GUEST_DIR\\migration-expected.tsv" > "$MIGRATION_EXPECTED" 2>/dev/null || return 1
@@ -169,17 +191,17 @@ migration_check_phase2() {
     winuser=$(sed -n 's/^#windowsUser=//p' "$MIGRATION_EXPECTED" | tail -1)
     # Wait for the boot-time bridges a first login would find finished.
     # shellcheck disable=SC2016
-    WOOTC_QGA_CALL_TIMEOUT=200 qga_call exec /bin/sh -c \
-        'for i in $(seq 1 60); do s=$(systemctl show -p ActiveState --value wootc-passthrough.service); [ "$s" = active ] || [ "$s" = failed ] && break; sleep 3; done; systemctl is-active wootc-wifi-import.service >/dev/null 2>&1; true' >/dev/null 2>&1 || true
+    WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
+        'for i in $(seq 1 16); do s=$(systemctl show -p ActiveState --value wootc-passthrough.service); [ "$s" = active ] || [ "$s" = failed ] && break; sleep 3; done; true' >/dev/null 2>&1 || true
     # Browser import is on demand (SPEC §4.2 stage 3): the user picks it.
-    out=$(WOOTC_QGA_CALL_TIMEOUT=300 qga_call exec /bin/sh -c \
-        "WOOTC_HOST=/run/wootc/host /var/usrlocal/bin/wootc-import-browser '$winuser' '$MIGRATION_LINUX_USER' 2>&1; echo rc=\$?" 2>&1 || true)
+    out=$(WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
+        "WOOTC_HOST=/run/wootc/host timeout 50 /var/usrlocal/bin/wootc-import-browser '$winuser' '$MIGRATION_LINUX_USER' 2>&1; echo rc=\$?" 2>&1 || true)
     printf '%s\n' "$out" > "$ARTIFACT_DIR/migration-browser-import.log"
     info "Migration: browser import: $(printf '%s' "$out" | tail -3 | tr '\n' ' ' | cut -c1-240)"
     migration_header browserImport 1
     # Stage 4: convert one bridged folder to native storage.
-    out=$(WOOTC_QGA_CALL_TIMEOUT=600 qga_call exec /bin/sh -c \
-        "o=\$(/var/usrlocal/bin/wootc-convert-dir '$MIGRATION_LINUX_USER' '$MIGRATION_CONVERT_FOLDER' 2>&1); rc=\$?; printf '%s\n' \"\$o\" | grep -v '^PROGRESS' | tail -5; echo rc=\$rc" 2>&1 || true)
+    out=$(WOOTC_QGA_CALL_TIMEOUT=55 qga_call exec /bin/sh -c \
+        "o=\$(timeout 50 /var/usrlocal/bin/wootc-convert-dir '$MIGRATION_LINUX_USER' '$MIGRATION_CONVERT_FOLDER' 2>&1); rc=\$?; printf '%s\n' \"\$o\" | grep -v '^PROGRESS' | tail -5; echo rc=\$rc" 2>&1 || true)
     printf '%s\n' "$out" > "$ARTIFACT_DIR/migration-convert.log"
     info "Migration: convert ~/$MIGRATION_CONVERT_FOLDER: $(printf '%s' "$out" | tail -3 | tr '\n' ' ' | cut -c1-240)"
     migration_header convertedFolder "$MIGRATION_CONVERT_FOLDER"
@@ -188,8 +210,18 @@ migration_check_phase2() {
         infra_fail "Migration (phase2): could not stage the check in the guest"
         return 1
     fi
-    out=$(WOOTC_QGA_CALL_TIMEOUT=1200 qga_call exec /usr/bin/python3 /run/wootc-e2e-migration-check.py \
-        phase2 /run/wootc-e2e-migration-expected.tsv 2>&1 || true)
+    # Detached (a login, Flatpak launches and ~80 MiB of hashing outlast the
+    # agent's 60 s command limit); poll its output file for the done line.
+    local deadline result=/run/wootc-e2e-migration-phase2.out
+    WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        "rm -f $result; setsid nohup /usr/bin/python3 /run/wootc-e2e-migration-check.py phase2 /run/wootc-e2e-migration-expected.tsv > $result 2>&1 < /dev/null &" >/dev/null 2>&1 || true
+    deadline=$(deadline_in 1200)
+    out=""
+    until printf '%s\n' "$out" | grep -qx 'MIGRATION_CHECK_DONE'; do
+        past_deadline "$deadline" && break
+        sleep 10
+        out=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/cat "$result" 2>/dev/null || true)
+    done
     migration_record phase2 "$out"
 }
 
