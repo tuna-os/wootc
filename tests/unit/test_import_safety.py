@@ -6,12 +6,15 @@ The wrapper fixtures replace mount/account observations only. Copying, journal
 recovery, filesystem collisions, /proc Steam detection and result consumers run
 production code against actual temporary files. No mounted-volume proof is implied.
 """
+import contextlib
+import io
 import runpy
 import importlib.util
 import json
 import os
 from pathlib import Path
 import shlex
+import shutil
 import stat
 import subprocess
 import sys
@@ -407,6 +410,101 @@ class ImportSafety(unittest.TestCase):
         engine_script.write_text('#!/bin/sh\nprintf \'%s\\n\' ' + shlex.quote(json.dumps(record)) + '\nexit 0\n')
         with self.assertRaisesRegex(RuntimeError, 'preserved'):
             engine.do_import('/source', 'Alice', 'fixture', ['office'])
+
+    def private_host(self, mount=False):
+        """Phase 2's layout: the host mount below a directory only source
+        authority can enter (wootc-attach-loop.sh makes /run/initramfs 0700)."""
+        private = self.base / 'initramfs'
+        host = private / 'wootc-host'
+        host.mkdir(parents=True)
+        if mount:
+            subprocess.run(['mount', '-t', 'tmpfs', 'wootc-test', str(host)], check=True)
+            self.addCleanup(subprocess.run, ['umount', str(host)], check=False)
+        profile = host / 'Users/Alice'
+        self.put(profile / 'AppData/Roaming/Microsoft/Templates/Report.dotx', b'Windows template')
+        self.put(profile / 'AppData/Local/Microsoft/Windows/Fonts/Calibri.ttf', b'Windows font')
+        self.put(profile / '.ssh/id_ed25519.pub', b'ssh-ed25519 AAAA public\n')
+        (host / 'Program Files (x86)/Steam/steamapps').mkdir(parents=True)
+        private.chmod(0o700)
+        return private, host
+
+    def assert_bridges_import(self, host, account):
+        """Run the office, developer and steam bridges as wootc-mount-user-dirs does."""
+        home = Path(account.pw_dir)
+        results = {}
+        for category in ('office', 'developer', 'steam'):
+            out = io.StringIO()
+            with patch.dict(os.environ, {'WOOTC_HOST': str(host)}), \
+                    patch.object(safety.pwd, 'getpwnam', lambda name: account), \
+                    patch.object(sys, 'argv', ['wootc_import_safety.py', category, 'Alice', account.pw_name]), \
+                    contextlib.redirect_stdout(out):
+                safety.main()
+            results[category] = json.loads(out.getvalue())
+            self.assertNotIn('not mounted', out.getvalue(), category)
+        self.assertEqual(results['office']['status'], 'success', results['office'])
+        self.assertEqual(results['developer']['status'], 'success', results['developer'])
+        self.assertEqual(results['steam']['libraries'],
+                         [{'path': str(host / 'Program Files (x86)/Steam/steamapps')}])
+        for relative, content in (('.config/libreoffice/4/user/template/Report.dotx', b'Windows template'),
+                                  ('.local/share/fonts/Calibri.ttf', b'Windows font'),
+                                  ('.ssh/id_ed25519.pub', b'ssh-ed25519 AAAA public\n')):
+            self.assertEqual((home / relative).read_bytes(), content)
+            self.assertEqual((home / relative).stat().st_uid, account.pw_uid)
+
+    @unittest.skipIf(os.geteuid() == 0, 'root ignores the mode that models the root-only parent')
+    def test_bridges_observe_host_below_root_only_directory_with_source_authority(self):
+        private, host = self.private_host()
+        bins = self.base / 'bin'
+        bins.mkdir()
+        # Like mountpoint(1), this must stat the path; EACCES means "not mounted".
+        (bins / 'mountpoint').write_text('#!/bin/sh\nfor last; do :; done\ntest -d "$last"\n')
+        (bins / 'mountpoint').chmod(0o755)
+        private.chmod(0)
+        self.addCleanup(private.chmod, 0o700)
+        depth = 0
+
+        @contextlib.contextmanager
+        def authority():
+            # Stands in for seteuid(0): the private parent opens only inside it.
+            nonlocal depth
+            if depth == 0:
+                private.chmod(0o700)
+            depth += 1
+            try:
+                yield
+            finally:
+                depth -= 1
+                if depth == 0:
+                    private.chmod(0)
+
+        item, record = safety.item, safety.Home.record
+
+        def user_item(result, destination, operation):
+            self.assertEqual(depth, 0, 'published with source authority: ' + destination)
+            return item(result, destination, operation)
+
+        def user_record(home, relative, value):
+            self.assertEqual(depth, 0, 'recorded with source authority: ' + relative)
+            return record(home, relative, value)
+
+        with patch.object(safety, 'source_authority', authority), \
+                patch.object(safety, 'item', user_item), \
+                patch.object(safety.Home, 'record', user_record), \
+                patch.dict(os.environ, {'PATH': str(bins) + ':' + os.environ['PATH']}):
+            self.assert_bridges_import(host, self.account)
+        self.assertEqual(stat.S_IMODE(private.stat().st_mode), 0)
+
+    @unittest.skipUnless(os.geteuid() == 0 and shutil.which('mount') and shutil.which('mountpoint'),
+                         'requires root to mount below a root-only directory')
+    def test_root_bridges_see_real_mount_below_root_only_directory(self):
+        self.base.chmod(0o755)
+        _, host = self.private_host(mount=True)
+        home = self.base / 'user-home'
+        home.mkdir()
+        os.chown(home, 65534, 65534)
+        account = SimpleNamespace(pw_dir=str(home), pw_uid=65534, pw_gid=65534, pw_name='nobody')
+        self.assert_bridges_import(host, account)
+        self.assertEqual((os.geteuid(), os.getegid()), (0, 0))
 
 
 

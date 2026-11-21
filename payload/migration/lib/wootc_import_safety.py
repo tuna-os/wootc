@@ -44,6 +44,13 @@ def source_authority():
             os.seteuid(original)
 
 
+def source_mounted(host):
+    """The writable host mount sits below root-only /run/initramfs (0700), so a
+    mount check run as the target user sees EACCES and reports it unmounted."""
+    with source_authority():
+        return subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode == 0
+
+
 @contextlib.contextmanager
 def source_file(path):
     """Reject symlinks in the entire source path, not just its final component."""
@@ -385,21 +392,38 @@ DEFAULTS = b'''<?xml version="1.0" encoding="UTF-8"?>
 
 def office(home, host, winuser):
     source = host / 'Users' / winuser
-    if not source.is_dir() or source.is_symlink():
-        raise Refusal('missing or symlinked Windows profile')
     lo = '.config/libreoffice/4/user'
     microsoft = source / 'AppData/Roaming/Microsoft'
     result = outcome()
-    words = []
-    for path in sorted((microsoft / 'UProof').glob('*')) + sorted((microsoft / 'Spelling').glob('*/default.dic')):
-        if path.suffix.lower() != '.dic':
-            continue
-        try:
-            raw = source_bytes(path)
-            encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
-            words.extend(raw.decode(encoding).splitlines())
-        except (OSError, ValueError) as error:
-            result['failed'].append({'path': str(path), 'error': str(error)})
+    words, copies, autocorrect = [], [], None
+    # Listing and reading the source need its authority; publishing below runs
+    # without it, as the target user.
+    with source_authority():
+        if not source.is_dir() or source.is_symlink():
+            raise Refusal('missing or symlinked Windows profile')
+        for path in sorted((microsoft / 'UProof').glob('*')) + sorted((microsoft / 'Spelling').glob('*/default.dic')):
+            if path.suffix.lower() != '.dic':
+                continue
+            try:
+                raw = source_bytes(path)
+                encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
+                words.extend(raw.decode(encoding).splitlines())
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': str(path), 'error': str(error)})
+        for directory, extensions, destination in (
+                (microsoft / 'Templates', {'.dotx', '.dotm', '.xltx', '.potx'}, lo + '/template'),
+                (source / 'AppData/Local/Microsoft/Windows/Fonts', {'.ttf', '.otf', '.ttc'}, '.local/share/fonts')):
+            copies += [(path, destination + '/' + path.name) for path in sorted(directory.glob('*'))
+                       if path.suffix.lower() in extensions]
+        for acl in sorted((microsoft / 'Office').glob('*.acl'))[:1]:
+            try:
+                strings = re.findall(rb'(?:[\x20-\x7e]\x00){2,40}', source_bytes(acl))
+                pairs = [value.decode('utf-16le') for value in strings]
+                if len(pairs) >= 2:
+                    autocorrect = '# AutoCorrect entries recovered from MS Office (review/import):\n'
+                    autocorrect += ''.join(f'{pairs[i]}\t=>\t{pairs[i+1]}\n' for i in range(0, len(pairs)-1, 2))
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': str(acl), 'error': str(error)})
     pending_raw = home.read('.config/wootc/office-dictionary-pending.json')
     pending = json.loads(pending_raw) if pending_raw is not None else {}
     if not isinstance(pending, dict):
@@ -407,24 +431,11 @@ def office(home, host, winuser):
     if words or pending.get('active'):
         destination = lo + '/wordbook/standard.dic'
         item(result, destination, lambda: dictionary(home, destination, words))
-    for directory, extensions, destination in (
-            (microsoft / 'Templates', {'.dotx', '.dotm', '.xltx', '.potx'}, lo + '/template'),
-            (source / 'AppData/Local/Microsoft/Windows/Fonts', {'.ttf', '.otf', '.ttc'}, '.local/share/fonts')):
-        for path in sorted(directory.glob('*')):
-            if path.suffix.lower() in extensions:
-                relative = destination + '/' + path.name
-                item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
-    for acl in sorted((microsoft / 'Office').glob('*.acl'))[:1]:
-        try:
-            strings = re.findall(rb'(?:[\x20-\x7e]\x00){2,40}', source_bytes(acl))
-            pairs = [value.decode('utf-16le') for value in strings]
-            if len(pairs) >= 2:
-                text = '# AutoCorrect entries recovered from MS Office (review/import):\n'
-                text += ''.join(f'{pairs[i]}\t=>\t{pairs[i+1]}\n' for i in range(0, len(pairs)-1, 2))
-                relative = lo + '/wootc-office-autocorrect.txt'
-                item(result, relative, lambda: home.publish(relative, data=text.encode('utf-8')))
-        except (OSError, ValueError) as error:
-            result['failed'].append({'path': str(acl), 'error': str(error)})
+    for path, relative in copies:
+        item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
+    if autocorrect is not None:
+        relative = lo + '/wootc-office-autocorrect.txt'
+        item(result, relative, lambda: home.publish(relative, data=autocorrect.encode('utf-8')))
     relative = lo + '/registrymodifications.xcu'
     # An existing native setting is a deliberate choice, not an imported setting.
     try:
@@ -496,17 +507,18 @@ def vdf_paths(raw):
 
 
 def steam_libraries(host):
-    default = host / 'Program Files (x86)/Steam'
-    libraries = {str(default)} if (default / 'steamapps').is_dir() else set()
-    vdf = default / 'steamapps/libraryfolders.vdf'
-    if vdf.exists() or vdf.is_symlink():
-        for path in vdf_paths(source_bytes(vdf)):
-            if re.match(r'^[cC]:[\\/]', path):
-                relative = path[3:].replace('\\', '/')
-                parts(relative)
-                library = host / relative
-                if (library / 'steamapps').is_dir():
-                    libraries.add(str(library))
+    with source_authority():
+        default = host / 'Program Files (x86)/Steam'
+        libraries = {str(default)} if (default / 'steamapps').is_dir() else set()
+        vdf = default / 'steamapps/libraryfolders.vdf'
+        if vdf.exists() or vdf.is_symlink():
+            for path in vdf_paths(source_bytes(vdf)):
+                if re.match(r'^[cC]:[\\/]', path):
+                    relative = path[3:].replace('\\', '/')
+                    parts(relative)
+                    library = host / relative
+                    if (library / 'steamapps').is_dir():
+                        libraries.add(str(library))
     return sorted(libraries)
 
 
@@ -571,33 +583,40 @@ def steam(home, libraries):
 
 def files(home, host, winuser):
     result = outcome()
-    for folder in ('Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'):
-        source = host / 'Users' / winuser / folder
-        if not source.exists() and not source.is_symlink():
-            continue
-        if source.is_symlink() or not source.is_dir():
-            result['failed'].append({'path': str(source), 'error': 'source folder must be a real directory'})
-            continue
-        def walk_error(error):
-            result['failed'].append({'path': str(source), 'error': str(error)})
-        for root, directories, names in os.walk(source, followlinks=False, onerror=walk_error):
-            relative_dir = str(Path(folder) / Path(root).relative_to(source))
-            try:
-                with home.directory(relative_dir):
-                    pass
-            except (OSError, ValueError) as error:
-                result['failed'].append({'path': relative_dir, 'error': str(error)})
-                directories[:] = []
+    # Walk the source with its authority first; directories and copies are
+    # then created without it, as the target user.
+    tree = []
+    with source_authority():
+        for folder in ('Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'):
+            source = host / 'Users' / winuser / folder
+            if not source.exists() and not source.is_symlink():
                 continue
-            for name in directories[:]:
-                path = Path(root) / name
-                if path.is_symlink():
-                    result['failed'].append({'path': str(path), 'error': 'source symlink refused'})
-                    directories.remove(name)
-            for name in names:
-                source_file_path = Path(root) / name
-                relative = str(Path(relative_dir) / name)
-                item(result, relative, lambda p=source_file_path, r=relative: home.publish(r, source=p))
+            if source.is_symlink() or not source.is_dir():
+                result['failed'].append({'path': str(source), 'error': 'source folder must be a real directory'})
+                continue
+            def walk_error(error, source=source):
+                result['failed'].append({'path': str(source), 'error': str(error)})
+            for root, directories, names in os.walk(source, followlinks=False, onerror=walk_error):
+                for name in directories[:]:
+                    path = Path(root) / name
+                    if path.is_symlink():
+                        result['failed'].append({'path': str(path), 'error': 'source symlink refused'})
+                        directories.remove(name)
+                tree.append((Path(folder) / Path(root).relative_to(source), [Path(root) / name for name in names]))
+    refused = []
+    for relative_dir, paths in tree:
+        if any(relative_dir.is_relative_to(parent) for parent in refused):
+            continue
+        try:
+            with home.directory(str(relative_dir)):
+                pass
+        except (OSError, ValueError) as error:
+            result['failed'].append({'path': str(relative_dir), 'error': str(error)})
+            refused.append(relative_dir)
+            continue
+        for path in paths:
+            relative = str(relative_dir / path.name)
+            item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
     return finish(home, '.config/wootc/import-files.json', result)
 
 
@@ -870,7 +889,7 @@ def external_categories(account, winuser, target, categories):
     with target_home(account) as home:
         home.record('.config/wootc/import-result.json', result)
     host = Path(os.environ.get('WOOTC_HOST', '/run/wootc/host'))
-    if subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode != 0:
+    if not source_mounted(host):
         result['status'] = 'failed'
         result['failed'] = list(categories)
         result['categories'] = {category: {'status': 'failed', 'migrated': [],
@@ -979,7 +998,7 @@ def main():
                 home.record(record, {**outcome(), 'status': 'partial',
                                      'note': 'Import started; no completed result yet.'})
                 try:
-                    if args.category != 'wsl' and subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode != 0:
+                    if args.category != 'wsl' and not source_mounted(host):
                         raise Refusal('Windows source is not mounted')
                     if args.category == 'office':
                         result = office(home, host, args.winuser)
