@@ -5,7 +5,8 @@
 # f05f92d110b64228939defe45c772961d592ff8a. Keep it POSIX-sh compatible.
 #
 # `baseline` runs read-only in Phase 2 before graduation, through QGA, and
-# prints a strict record for the host runner to retain. `check` receives that
+# prints a strict record for the host runner to retain. `phase2-units` runs
+# the failed-unit check in Phase 2, also through QGA. `check` receives the
 # record after the native boot. It runs there from
 # wootc-e2e-native-health.service (wootc-go-native), not through QGA: the
 # confined agent on the enforcing native system cannot query systemd.
@@ -17,95 +18,28 @@ LC_ALL=C
 export LC_ALL
 
 capture_baseline() {
-    _health_tmp=$(mktemp -d) || return 1
-    trap 'rm -rf "$_health_tmp"' EXIT HUP INT TERM
-
     if ! _health_dm=$(systemctl show -p Id --value display-manager.service 2>/dev/null); then
         echo "could not capture the Phase-2 display manager" >&2
         return 1
     fi
-
     _health_selinux=not-enforcing
-    : > "$_health_tmp/label-baseline"
     if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" = Enforcing ]; then
         _health_selinux=enforcing
-        if ! restorecon -Rnv /etc /var/home > "$_health_tmp/restorecon" 2> "$_health_tmp/restorecon.err"; then
-            cat "$_health_tmp/restorecon.err" >&2
-            echo "could not capture the Phase-2 SELinux label baseline" >&2
-            return 1
-        fi
-        sed -n 's/^Would relabel \([^ ]*\) from.*/\1/p' "$_health_tmp/restorecon" \
-            | sort -u > "$_health_tmp/label-baseline" || return 1
     fi
-
-    # Units that already fail in Phase 2, on the same VM and image, are not
-    # caused by graduation. Probe 44843263310: fisherman-boot-receipt.service
-    # (bootc status ran past its 120 s limit) failed on the native system and,
-    # in the same run, in Phase 2. Wait for the boot first, as the check does.
-    timeout 150 systemctl is-system-running --wait >/dev/null 2>&1 || :
-    if ! systemctl list-units --state=failed --no-legend --plain > "$_health_tmp/failed" 2>/dev/null; then
-        echo "could not capture the Phase-2 failed units" >&2
-        return 1
-    fi
-
     printf 'SCHEMA=1\nDISPLAY_MANAGER=%s\nSELINUX=%s\n' "$_health_dm" "$_health_selinux"
-    sed 's/^/LABEL=/' "$_health_tmp/label-baseline"
-    awk '{print "FAILED_UNIT=" $1}' "$_health_tmp/failed"
 }
-
-case "${1:-check}" in
-    baseline)
-        capture_baseline
-        exit $?
-        ;;
-    check) ;;
-    *)
-        echo "usage: phase3-health.sh [baseline|check]" >&2
-        exit 2
-        ;;
-esac
 
 fail=0
 bad() { echo "FAIL: $*"; fail=1; }
 ok() { echo "OK: $*"; }
 
-work=$(mktemp -d) || exit 1
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+# Known failures: a reviewed list of exact unit names, never patterns. Each
+# entry is "<unit> <issue URL> <when to remove it>". Any failed unit that is
+# not on the list fails the check, in Phase 2 and on the native system.
+KNOWN_FAILED_UNITS='
+fisherman-boot-receipt.service https://github.com/tuna-os/fisherman/issues/508 remove-when-the-fisherman-submodule-includes-tuna-os/fisherman#509
+'
 
-baseline_payload=${2:-}
-printf '%s\n' "$baseline_payload" > "$work/baseline"
-if [ "$(grep -c '^SCHEMA=1$' "$work/baseline")" -ne 1 ] \
-    || [ "$(grep -c '^DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*$' "$work/baseline")" -ne 1 ] \
-    || [ "$(grep -Ec '^SELINUX=(enforcing|not-enforcing)$' "$work/baseline")" -ne 1 ] \
-    || grep -Ev '^(SCHEMA=1|DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*|SELINUX=(enforcing|not-enforcing)|LABEL=/[^[:cntrl:]]*|FAILED_UNIT=[^[:space:][:cntrl:]]+)$' \
-        "$work/baseline" >/dev/null; then
-    bad "the pre-graduation health baseline is unavailable or invalid"
-    expected_dm=
-    baseline_selinux=unknown
-    : > "$work/label-baseline"
-    : > "$work/failed-baseline"
-else
-    expected_dm=$(sed -n 's/^DISPLAY_MANAGER=//p' "$work/baseline")
-    baseline_selinux=$(sed -n 's/^SELINUX=//p' "$work/baseline")
-    sed -n 's/^LABEL=//p' "$work/baseline" | sort -u > "$work/label-baseline"
-    sed -n 's/^FAILED_UNIT=//p' "$work/baseline" | sort -u > "$work/failed-baseline"
-fi
-
-# Units that fail in the CI VM for reasons unrelated to graduation. Every
-# future entry needs a reason beside it; there are intentionally none today.
-DEFAULT_ALLOWED_FAILED_UNITS=""
-allowed="$DEFAULT_ALLOWED_FAILED_UNITS"
-
-# ---- 1. Boot completed ------------------------------------------------------
-state=$(timeout 300 systemctl is-system-running --wait 2>/dev/null)
-echo "  system state: ${state:-<none>}"
-case "$state" in
-    running) ok "boot completed (running)" ;;
-    degraded) echo "  boot completed degraded; failed units are checked below" ;;
-    *) bad "boot did not complete (systemctl is-system-running: ${state:-<none>})" ;;
-esac
-
-# ---- 2. Failed units ---------------------------------------------------------
 describe_failed_unit() {
     _health_unit=$1
     echo "    --- journal of $_health_unit (this boot)"
@@ -121,29 +55,70 @@ describe_failed_unit() {
     fi
 }
 
-failed_units=$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}')
-unexpected=0
-for unit in $failed_units; do
-    permitted=0
-    set -f
-    for pattern in $allowed; do
-        # shellcheck disable=SC2254 # patterns are globs on purpose
-        case "$unit" in $pattern) permitted=1 ;; esac
+check_failed_units() {
+    _health_failed=$(systemctl list-units --state=failed --no-legend --plain 2>/dev/null | awk '{print $1}')
+    _health_unexpected=0
+    for _health_unit_name in $_health_failed; do
+        _health_known=$(printf '%s\n' "$KNOWN_FAILED_UNITS" | awk -v u="$_health_unit_name" '$1 == u { print $2; exit }')
+        if [ -n "$_health_known" ]; then
+            echo "  failed unit on the known-failure list: $_health_unit_name ($_health_known)"
+            systemctl status --no-pager --lines 5 "$_health_unit_name" 2>&1 | sed 's/^/    /'
+        else
+            _health_unexpected=1
+            bad "unit failed: $_health_unit_name"
+            systemctl status --no-pager --lines 15 "$_health_unit_name" 2>&1 | sed 's/^/    /'
+            describe_failed_unit "$_health_unit_name"
+        fi
     done
-    set +f
-    if [ "$permitted" = 1 ]; then
-        echo "  failed unit on the allowlist: $unit"
-    elif grep -qxF "$unit" "$work/failed-baseline"; then
-        echo "  failed unit that already failed in Phase 2 (not counted): $unit"
-        systemctl status --no-pager --lines 5 "$unit" 2>&1 | sed 's/^/    /'
-    else
-        unexpected=1
-        bad "unit failed: $unit"
-        systemctl status --no-pager --lines 15 "$unit" 2>&1 | sed 's/^/    /'
-        describe_failed_unit "$unit"
-    fi
-done
-[ "$unexpected" = 0 ] && ok "no unexpected failed units"
+    [ "$_health_unexpected" = 0 ] && ok "no failed units outside the known-failure list"
+}
+
+case "${1:-check}" in
+    baseline)
+        capture_baseline
+        exit $?
+        ;;
+    phase2-units)
+        timeout 150 systemctl is-system-running --wait >/dev/null 2>&1 || :
+        check_failed_units
+        exit "$fail"
+        ;;
+    check) ;;
+    *)
+        echo "usage: phase3-health.sh [baseline|phase2-units|check]" >&2
+        exit 2
+        ;;
+esac
+
+work=$(mktemp -d) || exit 1
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+baseline_payload=${2:-}
+printf '%s\n' "$baseline_payload" > "$work/baseline"
+if [ "$(grep -c '^SCHEMA=1$' "$work/baseline")" -ne 1 ] \
+    || [ "$(grep -c '^DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*$' "$work/baseline")" -ne 1 ] \
+    || [ "$(grep -Ec '^SELINUX=(enforcing|not-enforcing)$' "$work/baseline")" -ne 1 ] \
+    || grep -Ev '^(SCHEMA=1|DISPLAY_MANAGER=[A-Za-z0-9_.@:-]*|SELINUX=(enforcing|not-enforcing))$' \
+        "$work/baseline" >/dev/null; then
+    bad "the pre-graduation health baseline is unavailable or invalid"
+    expected_dm=
+    baseline_selinux=unknown
+else
+    expected_dm=$(sed -n 's/^DISPLAY_MANAGER=//p' "$work/baseline")
+    baseline_selinux=$(sed -n 's/^SELINUX=//p' "$work/baseline")
+fi
+
+# ---- 1. Boot completed ------------------------------------------------------
+state=$(timeout 300 systemctl is-system-running --wait 2>/dev/null)
+echo "  system state: ${state:-<none>}"
+case "$state" in
+    running) ok "boot completed (running)" ;;
+    degraded) echo "  boot completed degraded; failed units are checked below" ;;
+    *) bad "boot did not complete (systemctl is-system-running: ${state:-<none>})" ;;
+esac
+
+# ---- 2. Failed units ---------------------------------------------------------
+check_failed_units
 
 # ---- 3. System bus and logind ----------------------------------------------
 if systemctl is-active --quiet dbus.service || systemctl is-active --quiet dbus-broker.service; then
@@ -237,27 +212,20 @@ if [ "$current_selinux" = enforcing ]; then
         ok "no SELinux denials against unlabeled files"
     fi
 
+    # Graduation applies the target policy to /etc and /var (wootc-go-native
+    # runs setfiles), so the native system must have no mislabeled path there
+    # at all. Probe 44843263310, before that step: 5943.
     if ! restorecon -Rnv /etc /var/home > "$work/restorecon" 2> "$work/restorecon.err"; then
         sed 's/^/    /' "$work/restorecon.err"
         bad "could not inspect SELinux labels under /etc and /var/home"
-        : > "$work/mislabeled"
     else
-        sed -n 's/^Would relabel \([^ ]*\) from.*/\1/p' "$work/restorecon" \
-            | sort -u > "$work/mislabeled"
-    fi
-    comm -23 "$work/mislabeled" "$work/label-baseline" > "$work/new-mislabeled"
-    old_count=$(comm -12 "$work/mislabeled" "$work/label-baseline" | wc -l)
-    echo "  $old_count mislabeled path(s) were already present in Phase 2 (not counted)"
-
-
-    if [ -s "$work/new-mislabeled" ]; then
-        new_count=$(wc -l < "$work/new-mislabeled")
-        bad "$new_count path(s) under /etc or /var/home gained incorrect SELinux labels during graduation"
-        head -20 "$work/new-mislabeled" | while IFS= read -r path; do
-            grep -F "$path from" "$work/restorecon" | head -1 | sed 's/^/    /'
-        done
-    else
-        ok "graduation introduced no SELinux mislabels under /etc or /var/home"
+        mislabeled=$(grep -c '^Would relabel ' "$work/restorecon")
+        if [ "$mislabeled" -gt 0 ]; then
+            bad "$mislabeled path(s) under /etc or /var/home have incorrect SELinux labels"
+            grep '^Would relabel ' "$work/restorecon" | head -20 | sed 's/^/    /'
+        else
+            ok "0 mislabeled paths under /etc and /var/home"
+        fi
     fi
 else
     echo "  SELinux: not enforcing; label checks skipped"

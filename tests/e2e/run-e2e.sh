@@ -4592,6 +4592,21 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         infra_fail "Could not stage the Phase 3 health check for the native system"
         exit 1
     fi
+    # Failed units in Phase 2 fail the run as they do on the native system:
+    # only the reviewed known-failure list in phase3-health.sh is exempt.
+    # Phase 2 is permissive, so the agent can query systemd here.
+    P3_P2_UNITS_STATUS=0
+    P3_P2_UNITS=$(WOOTC_QGA_CALL_TIMEOUT=240 qga_call exec /bin/sh -c \
+        "$P3_HEALTH_SCRIPT" wootc-phase3-health phase2-units 2>&1) || P3_P2_UNITS_STATUS=$?
+    printf '%s\n' "$P3_P2_UNITS" | tee "$ARTIFACT_DIR/phase2-units.log"
+    if printf '%s\n' "$P3_P2_UNITS" | grep -q '^FAIL:'; then
+        product_fail "Phase 2 has failed units outside the known-failure list"
+    elif [ "$P3_P2_UNITS_STATUS" -ne 0 ]; then
+        infra_fail "Phase 2 failed-unit check failed without a product finding"
+        exit 1
+    else
+        pass "Phase 2 has no failed units outside the known-failure list"
+    fi
 
     info "Phase 3: go-native status"
     # QGA starts commands with a minimal service-manager PATH that does not

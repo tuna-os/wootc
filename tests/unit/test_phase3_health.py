@@ -88,7 +88,7 @@ esac
         self.assertNotIn("FAIL:", result.stdout)
         for observation in [
             "boot completed (running)",
-            "no unexpected failed units",
+            "no failed units outside the known-failure list",
             "system D-Bus is active",
             "logind answers over the bus",
             "display manager gdm.service is active",
@@ -104,19 +104,38 @@ esac
         self.assertIn("stub status for status", result.stdout)
         self.assertIn("every user and group", result.stdout)
 
-    def test_unit_that_already_failed_in_phase2_is_reported_not_counted(self):
-        self.capture_baseline(HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
-        self.assertIn("FAILED_UNIT=fisherman-boot-receipt.service", self.baseline)
+    def test_known_failure_is_reported_with_its_issue_not_counted(self):
+        self.capture_baseline()
         result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
         self.assertEqual(result.returncode, 0, result.stdout)
-        self.assertIn("already failed in Phase 2 (not counted): fisherman-boot-receipt.service", result.stdout)
-        self.assertIn("no unexpected failed units", result.stdout)
+        self.assertIn(
+            "known-failure list: fisherman-boot-receipt.service "
+            "(https://github.com/tuna-os/fisherman/issues/508)",
+            result.stdout,
+        )
+        self.assertIn("no failed units outside the known-failure list", result.stdout)
 
-    def test_unit_that_failed_only_after_graduation_still_fails(self):
-        self.capture_baseline(HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
-        result = self.run_probe("check", HEALTH_FAILED_UNIT="gdm.service")
+    def test_known_failure_list_matches_names_exactly(self):
+        self.capture_baseline()
+        result = self.run_probe("check", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service.d")
         self.assertEqual(result.returncode, 1)
-        self.assertIn("FAIL: unit failed: gdm.service", result.stdout)
+        self.assertIn("FAIL: unit failed: fisherman-boot-receipt.service.d", result.stdout)
+
+    def test_phase2_failed_unit_outside_the_list_fails(self):
+        result = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="wootc-host-bind.service")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("FAIL: unit failed: wootc-host-bind.service", result.stdout)
+        clean = self.run_probe("phase2-units", HEALTH_FAILED_UNIT="fisherman-boot-receipt.service")
+        self.assertEqual(clean.returncode, 0, clean.stdout)
+
+    def test_every_known_failure_names_an_issue_and_a_removal_condition(self):
+        source = HEALTH.read_text()
+        block = source.split("KNOWN_FAILED_UNITS='", 1)[1].split("'", 1)[0]
+        entries = [line.split() for line in block.strip().splitlines()]
+        self.assertEqual([e[0] for e in entries], ["fisherman-boot-receipt.service"])
+        for unit, issue, removal in entries:
+            self.assertRegex(issue, r"^https://github\.com/tuna-os/[a-z-]+/issues/[0-9]+$")
+            self.assertTrue(removal.startswith("remove-when-"), removal)
 
     def test_display_manager_lost_during_graduation_fails(self):
         self.capture_baseline()
@@ -130,7 +149,7 @@ esac
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: the pre-graduation health baseline is unavailable or invalid", result.stdout)
 
-    def test_new_selinux_mislabel_and_unlabeled_denial_fail(self):
+    def test_any_selinux_mislabel_and_unlabeled_denial_fail(self):
         self.capture_baseline(HEALTH_SELINUX="Enforcing")
         result = self.run_probe(
             "check",
@@ -143,7 +162,13 @@ esac
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL: SELinux denied access to unlabeled files", result.stdout)
-        self.assertIn("FAIL: 1 path(s) under /etc or /var/home", result.stdout)
+        self.assertIn("FAIL: 1 path(s) under /etc or /var/home have incorrect SELinux labels", result.stdout)
+
+    def test_clean_labels_are_asserted_as_zero(self):
+        self.capture_baseline(HEALTH_SELINUX="Enforcing")
+        result = self.run_probe("check", HEALTH_SELINUX="Enforcing")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("OK: 0 mislabeled paths under /etc and /var/home", result.stdout)
 
 
 class RunnerHealthVerdictTests(unittest.TestCase):

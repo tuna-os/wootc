@@ -220,11 +220,17 @@ refuses its queries. In probe 44833993709, every `systemctl` call returned
 
 The check covers:
 
-- systemd state, and failed units that did not also fail in Phase 2;
+- systemd state and failed units;
 - the system bus and logind;
 - the display manager;
 - users and groups from `sysusers.d`;
-- SELinux denials and new labels under `/etc` and `/var/home`.
+- SELinux denials against unlabeled files, and labels under `/etc` and
+  `/var/home`. The count of wrong labels must be 0.
+
+Before graduation, the runner also checks the failed units in Phase 2.
+A failed unit fails the run in Phase 2 and on the native system. The only
+exceptions are in `KNOWN_FAILED_UNITS` in `phase3-health.sh`. Each entry
+gives one unit, the issue for it, and the condition for its removal.
 
 The runner writes all output to `phase3-health.log`. A `FAIL:` line fails the
 product check. A missing export, an export from another boot, or a non-zero
