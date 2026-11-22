@@ -50,7 +50,7 @@ for the work to restore the intended first experience.
 
 **In flight**: RC acceptance and setup for signatures remain incomplete. Phase A of the WinUI migration (#340) added `wootc.exe serve` JSON-RPC. Phases B (#343) and C (#344) contain substantial native implementation and component checks. Their open acceptance trackers do not establish a complete VM journey on Windows.
 
-Phase D (#345) closed on 2026-10-31 after the merge of the native package cutover. The latest full release is still `v0.1.0-alpha.1`; it does not contain native setup assets. The post-cutover Secure Boot authority and publisher-policy defects in #688 block release acceptance. Phase E (#346) must retain the legacy fallback until a clean native release and its audit exist.
+Phase D (#345) closed on 2026-10-31 after the merge of the native package cutover. The latest full release, `v0.1.0-alpha.2` (2026-11-21), is the first with native setup assets. The post-cutover Secure Boot authority and publisher-policy defects in #688 block release acceptance. Phase E (#346) must retain the legacy fallback until a clean native release and its audit exist.
 
 **Open verification**: #596 retains the VM-first requirement for RC, which the maintainer reaffirmed on 2026-10-30. Closure of #178 does not supply desktop, persistence, or same-system promotion evidence. Dakota's historical hang tracker #209 and the earlier epic for GUI reliability #399 have closed. Their red rows in the old matrix remain historical, not proof of a new pass. Session migration remains open under #1 and its target-side import issues.
 

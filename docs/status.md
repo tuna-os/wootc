@@ -6,17 +6,21 @@ The [ROADMAP](../ROADMAP.md) says where the project is going; this page says
 what the evidence supports today. The verification ladder itself is defined
 in [milestones.md](milestones.md).
 
-## Current release and acceptance boundary — 2026-11-02
+## Current release and acceptance boundary — 2026-11-02, release updated 2026-11-22
 
 The latest full release is
-[`v0.1.0-alpha.1`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.1),
-published on 2026-08-22. Its assets are the Wails `wootc.exe` and branded
-`*-Installer.exe` executables; it has no native `*-Installer-Setup.exe`,
-`wootc-legacy.exe`, or `native-SHA256SUMS`.
+[`v0.1.0-alpha.2`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.2),
+published on 2026-11-21. Its primary downloads are the native
+`*-Installer-Setup.exe` setups and `native-SHA256SUMS`. `wootc-legacy.exe` is
+the Wails build for this release only. Its gate run
+([44935879205](https://github.com/tuna-os/wootc/actions/runs/44935879205))
+installed the build from its GUI in a Windows 11 VM. The VM then booted Linux
+from `root.disk` and then the graduated native disk. The earlier
+`v0.1.0-alpha.1` (2026-08-22) has only the Wails executables.
 
-The native package cutover (#345) merged and closed on 2026-10-31. That
-implementation does not prove a released native artifact or its GUI, setup,
-accessibility, hardware, and full-cycle gates. Issue #688 tracks the post-cutover
+The native package cutover (#345) merged and closed on 2026-10-31. The
+`v0.1.0-alpha.2` gate does not prove the accessibility, hardware, offline,
+soak and full-cycle gates. Issue #688 tracks the post-cutover
 defects in authority and publisher policy.
 
 The maintainer reaffirmed VM-first as an RC requirement on 2026-10-30 in
