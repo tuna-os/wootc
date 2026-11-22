@@ -75,8 +75,8 @@ The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
 WinUI default change before 1.0. Phases B and C contain native packaging,
 consumer and VM implementation, but their open trackers still require actual
 acceptance evidence. Phase D's packaging cutover merged on 2026-10-31 and
-prepares native setups plus one `wootc-legacy.exe` fallback. It has not changed
-the assets of the latest full release, `v0.1.0-alpha.1`. Phase E follows a clean
+prepares native setups plus one `wootc-legacy.exe` fallback. `v0.1.0-alpha.2`
+(2026-11-21) is the first full release with these assets. Phase E follows a clean
 native release and the docs audit; do not remove the fallback before that gate.
 
 A release cannot use old Wails passes as native UI or setup proof. Carry only
@@ -165,7 +165,7 @@ Its file-copy fallback does not prove setup installation.
 ### Artifact set
 
 The current workflows prepare the following **native artifact set**. This
-describes a future release that passes its gates, not the published `v0.1.0-alpha.1`.
+is the asset set of `v0.1.0-alpha.2`, the first release to ship it.
 Its primary GUI downloads are one Inno setup per eligible
 brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and
