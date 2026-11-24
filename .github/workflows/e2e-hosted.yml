@@ -370,7 +370,7 @@ jobs:
           node-version: '26'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@v7.1.0
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
