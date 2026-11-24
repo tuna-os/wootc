@@ -124,6 +124,75 @@ XML
     grep -q "OLD-PASS" "$DST/HomeNet.nmconnection"
 }
 
+# Give the profile written as $SRC/$1.xml the SSID $2: an SSID is not a file
+# name, so write_profile cannot spell these.
+rename_ssid() {
+    SSID_FROM="$1" SSID_TO="$2" python3 - "$SRC/$1.xml" <<'PY'
+import os, sys
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+old, new = os.environ["SSID_FROM"], os.environ["SSID_TO"]
+open(path, "w", encoding="utf-8").write(text.replace(f"<name>{old}</name>", f"<name>{new}</name>"))
+PY
+}
+
+@test "an SSID with a slash imports under one file name and stops nothing" {
+    write_profile "Slash" WPA2PSK "slash-pass"
+    rename_ssid "Slash" "Home 2.4/5G"
+    write_profile "Office" WPA2PSK "office-pass"
+    ORIGIN="$BATS_TEST_TMPDIR/ntfs-wifi"; mkdir -p "$ORIGIN"; cp "$SRC"/*.xml "$ORIGIN/"
+    WOOTC_WIFI_ORIGIN="$ORIGIN" run bash "$WB"
+    [ "$status" -eq 0 ]
+    [ -f "$DST/Home 2.4_5G.nmconnection" ]
+    grep -qx "ssid=Home 2.4/5G" "$DST/Home 2.4_5G.nmconnection"
+    grep -qx "id=Home 2.4/5G" "$DST/Home 2.4_5G.nmconnection"
+    grep -q "psk=slash-pass" "$DST/Home 2.4_5G.nmconnection"
+    [ -f "$DST/Office.nmconnection" ]
+    [ -z "$(ls -A "$SRC" 2>/dev/null)" ]
+    [ -z "$(ls -A "$ORIGIN" 2>/dev/null)" ]
+}
+
+@test "an SSID with parent-directory segments stays inside the NM directory" {
+    write_profile "Dots" WPA2PSK "dots-pass"
+    rename_ssid "Dots" "../../outside"
+    write_profile "Hidden" WPA2PSK "hidden-pass"
+    rename_ssid "Hidden" ".."
+    run bash "$WB"
+    [ "$status" -eq 0 ]
+    [ -f "$DST/_.._outside.nmconnection" ]
+    grep -qx "ssid=../../outside" "$DST/_.._outside.nmconnection"
+    # ".." leaves no usable name: the connection UUID names the file.
+    grep -lx "ssid=\.\." "$DST"/*.nmconnection
+    # Nothing was written anywhere but DST.
+    [ "$(find "$BATS_TEST_TMPDIR" -name '*.nmconnection' ! -path "$DST/*" | wc -l)" -eq 0 ]
+    [ "$(find "$DST" -mindepth 1 | wc -l)" -eq 2 ]
+}
+
+@test "a connection that cannot be written is skipped; the others import and the export goes" {
+    write_profile "Blocked" WPA2PSK "blocked-pass"
+    write_profile "Office" WPA2PSK "office-pass"
+    # -e is false for a dangling link, and the write through it fails.
+    mkdir -p "$DST"; ln -s "$BATS_TEST_TMPDIR/no-such-dir/x" "$DST/Blocked.nmconnection"
+    run bash "$WB"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"could not write the connection, skipped: Blocked"* ]]
+    [ ! -L "$DST/Blocked.nmconnection" ]
+    [ ! -e "$DST/Blocked.nmconnection" ]
+    grep -q "psk=office-pass" "$DST/Office.nmconnection"
+    [ -z "$(ls -A "$SRC" 2>/dev/null)" ]
+}
+
+@test "a bridge that stops early still destroys both cleartext exports" {
+    write_profile "HomeNet" WPA2PSK "s3cret-pass"
+    ORIGIN="$BATS_TEST_TMPDIR/ntfs-wifi"; mkdir -p "$ORIGIN"; cp "$SRC/HomeNet.xml" "$ORIGIN/"
+    # The state directory cannot be created, so the bridge stops before import.
+    : > "$STATE"
+    WOOTC_WIFI_ORIGIN="$ORIGIN" run bash "$WB"
+    [ "$status" -ne 0 ]
+    [ ! -e "$SRC/HomeNet.xml" ]
+    [ ! -e "$ORIGIN/HomeNet.xml" ]
+}
+
 @test "empty export dir is a clean no-op" {
     run bash "$WB"
     [ "$status" -eq 0 ]

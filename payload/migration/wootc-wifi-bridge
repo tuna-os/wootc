@@ -33,6 +33,22 @@ destroy_export() {
         || rm -f "$1"/*.xml 2>/dev/null || true
     rmdir "$1" 2>/dev/null || true
 }
+# Both exports go when this script ends, however it ends: a profile that
+# stops the import must not leave every passphrase behind in clear.
+trap 'destroy_export "$SRC"; destroy_export "$ORIGIN"' EXIT
+
+# keyfile_name <ssid> — the file name of the connection. An SSID is up to 32
+# bytes chosen by whoever ran the access point, and the file name is the one
+# place it is used as a path: '/' and control characters become '_' and
+# leading dots go, so the name stays one visible component of DST. The id=
+# and ssid= lines in the file keep the SSID as it is. Prints nothing when no
+# usable character is left.
+keyfile_name() {
+    local name="${1//\//_}"
+    name="${name//[[:cntrl:]]/_}"
+    while [[ "$name" == .* ]]; do name="${name#.}"; done
+    printf '%s' "$name"
+}
 DST="${WOOTC_WIFI_DST:-/etc/NetworkManager/system-connections}"
 STATE_DIR="${WOOTC_WIFI_STATE:-/var/lib/wootc}"
 
@@ -112,24 +128,33 @@ PYEOF
 	fi
 
     # Write the NetworkManager keyfile connection.
-    dst="$DST/${ssid}.nmconnection"
-    if [[ -e "$dst" ]]; then log "exists, skipping: $ssid"; continue; fi
     uuid=$(cat /proc/sys/kernel/random/uuid 2>/dev/null || python3 -c 'import uuid;print(uuid.uuid4())')
-    {
+    name=$(keyfile_name "$ssid")
+    dst="$DST/${name:-$uuid}.nmconnection"
+    if [[ -e "$dst" ]]; then log "exists, skipping: $ssid"; continue; fi
+    # No `if ! { … } > file`: bash does not negate a group whose redirection
+    # failed, so the failure branch is the else.
+    if {
         printf '[connection]\nid=%s\nuuid=%s\ntype=wifi\n\n' "$ssid" "$uuid"
         printf '[wifi]\nmode=infrastructure\nssid=%s\n\n' "$ssid"
         if [[ "$keymgmt" != "none" ]]; then
             printf '[wifi-security]\nkey-mgmt=%s\npsk=%s\n\n' "$keymgmt" "$key"
         fi
         printf '[ipv4]\nmethod=auto\n\n[ipv6]\nmethod=auto\n'
-    } > "$dst"
-    chmod 600 "$dst"; chown root:root "$dst" 2>/dev/null || true
-    imported+=("$ssid")
-    log "imported: $ssid ($keymgmt)"
+    } > "$dst"; then
+        chmod 600 "$dst"; chown root:root "$dst" 2>/dev/null || true
+        imported+=("$ssid")
+        log "imported: $ssid ($keymgmt)"
+    else
+        # One network that cannot be written must not cost the others.
+        rm -f "$dst"
+        skipped+=("$ssid"); log "could not write the connection, skipped: $ssid"
+    fi
 done
 
 # Securely destroy the transient cleartext export, and the Windows-side copy
-# it was staged from: both hold every passphrase in clear.
+# it was staged from: both hold every passphrase in clear. Here, not only in
+# the EXIT trap, so the keys are gone before NetworkManager is asked to reload.
 destroy_export "$SRC"
 destroy_export "$ORIGIN"
 
