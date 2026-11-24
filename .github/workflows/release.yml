@@ -54,7 +54,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with: { submodules: recursive, persist-credentials: false }
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with: { go-version: '1.27', cache: false }
       # Before ~90 min of VM: a final tag without its narrative notes, or
       # with notes still marked draft, can never publish (#242).
@@ -136,7 +136,7 @@ jobs:
           docker image prune -af 2>/dev/null || true
           echo "--- after cleanup ---"; df -h /
 
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with: { go-version: '1.27', cache: false }
       - uses: actions/setup-node@v7.1.0
         with: { node-version: '26', package-manager-cache: false }
