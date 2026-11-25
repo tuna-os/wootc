@@ -135,7 +135,7 @@ commit that changes a job's inputs still gets its own run of that job (#363).
 A manual dispatch and a nightly schedule run all jobs. `winui-preview.yml`
 also packages all brands each night.
 
-Two other workflows can fail a pull request:
+Other workflows can also fail a pull request:
 
 - `actions-security.yml` runs on every PR. It verifies
   `.github/workflows/actions.lock` (`gh actions-lock`) and scans the workflows
@@ -145,6 +145,13 @@ Two other workflows can fail a pull request:
   against Simplified Technical English and fails when the problem count is
   more than the number in `.ste-budget`. That budget only goes down: do not
   raise it to make a PR pass.
+- Some control workflows run only when a PR changes the files that they
+  check. For example, `native-rpc-capabilities.yml` runs for a change to
+  `app/serve.go`, and `offline-image-bundle.yml` runs for a change to
+  `payload/bundle/`. The `on.pull_request.paths` list in each workflow names
+  its inputs. A change to the workflow file also runs it. To see each
+  workflow that a pull request can start, run
+  `grep -l pull_request .github/workflows/*.yml`.
 
 ## Before opening a PR
 
