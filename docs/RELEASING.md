@@ -529,8 +529,11 @@ sets the decision order and verification steps for a bad release.
 1. Download `wootc-Installer-Setup.exe` (or the branded setup for your
    distribution). It is not code-signed yet (alpha) — SmartScreen will warn;
    *More info → Run anyway*. The native shell does not need WebView2.
-2. The setup checks for Windows 10/11 64-bit, UEFI + Secure Boot, TPM 2.0,
-   and **BitLocker off** (alpha). It also needs at least 35 GB free on `C:`.
+2. The setup itself only requires 64-bit Windows 10 build 17763 or later.
+   The installed app checks the rest at startup: UEFI, Secure Boot, **BitLocker
+   off** (alpha) and free space on `C:`. It needs at least 42 GB free for the
+   smallest image (a 20 GB Linux disk plus a 22 GB install reserve). Larger
+   images need more.
 3. Run the setup, pick Bluefin, set a username + password, and click Install.
    Install creates the Linux disk file and changes the boot setup before you
    click **Reboot Now**. Save your work before you restart.

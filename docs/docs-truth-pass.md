@@ -293,6 +293,21 @@ workflow on main do not make a release asset exist.
 | Literal source/doc strings were treated as regression evidence | Removed `tests/unit/docs-truth.bats` and `app/serve_test.go`'s `TestProtocolMatchesWinuiShellSpec`; source wording tests are not behavioral proof. Existing runtime protocol, golden DTO, fixture and integration suites remain. No new grep-based replacement was added |
 | Historical screenshots could be read as current native UI | User-guide captions, GUI walkthrough and branded-ledger framing identify retained Wails/mock illustrations and historical evidence, not RC/native acceptance screenshots |
 
+## Re-run on current main — 2026-11-25, against `0aa2eab3`
+
+This pass replaces the closed, stale pass in PR #658. It is a static check
+of source and scripts. It is not an RC walk.
+
+| Claim | Source check | Result |
+|---|---|---|
+| README: encryption "selects TPM encryption by default" | `app/native_configuration.go` default `none`; `launchpad.js` pre-selects "No encryption" and disables TPM auto-unlock | Wrong. Fixed. |
+| RELEASING §User instructions: the setup checks UEFI, Secure Boot, TPM 2.0, BitLocker and 35 GB | `shell/packaging/setup.iss` allows x64 and `MinVersion=10.0.17763`; `PrepareToInstall` only refuses an existing destination | Wrong. The app checks the rest. Fixed. |
+| RELEASING, manual-testing: "35 GB free" | `launchpad.js` `MIN_INSTALL_RESERVE_GB = 22` and the `maxDiskSizeGB() < 20` gate, so 20 + 22 = 42 GB for the smallest image | Wrong. Fixed to 42 GB, larger for bigger images. |
+| Relative links, and backticked repo paths, in the eight scoped docs | script walk | All resolve. Runtime-only paths (`flatpak-install.json`, `printers.json`, `bridge-apps.json`, `brand.css`, `vault.json`) appear in source. |
+| Exe names | `app/branding/*/brand.json` `exeName` | Match docs. |
+
+Everything in the RC ledger below stays open. This pass added no RC evidence.
+
 ### Decisions that remain gates
 
 - [#544's latest bounded acceptance](https://github.com/tuna-os/wootc/issues/544#issuecomment-6356243044)
