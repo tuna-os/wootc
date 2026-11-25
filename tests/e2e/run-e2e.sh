@@ -80,6 +80,12 @@ WIN_EDITION="${WOOTC_E2E_WIN_EDITION:-pro}"
 # screenshot, snapshot prime run 30145961492). Default to the Pro generic key.
 WIN_KEY="${WOOTC_E2E_WIN_KEY:-W269N-WFGWX-YVC9B-4J6C9-T83GX}"
 export WOOTC_E2E_WIN_VERSION="$WIN_VERSION" WOOTC_E2E_WIN_EDITION="$WIN_EDITION"
+# Win10 media installs larger than Win11's here, leaving too little of the
+# default 80G for the 35 GiB root.disk plus the 20 GiB deployer scratch (#753).
+# The guest disk is sparse, so a larger ceiling costs nothing until used.
+if [[ "$WIN_VERSION" == 10* ]]; then
+    export WOOTC_E2E_DISK_SIZE="${WOOTC_E2E_DISK_SIZE:-100G}"
+fi
 
 # Parse flags
 SKIP_BUILD=false
@@ -908,7 +914,10 @@ Write-Output "bundle-dir-ready"' 2>&1 || true)
 
 qga_sync_oem() {
     step "Refreshing OEM payload in reused Windows guest..."
-    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null'
+    # The restored Win10 guest carries the PRIME's ownership/ACLs on the whole
+    # C:\OEM tree, so QGA writes fail "Access is denied" on every file (#753).
+    # Reset the tree once up front rather than file by file after three failures.
+    qga_powershell 'New-Item -ItemType Directory -Force -Path C:\OEM\payload\grub | Out-Null; cmd.exe /d /c "takeown /f C:\OEM /r /d y >NUL 2>&1 & icacls C:\OEM /grant *S-1-1-0:(OI)(CI)F /t /c >NUL 2>&1 & attrib -r -s -h C:\OEM\* /s /d >NUL 2>&1"; exit 0' >/dev/null 2>&1 || true
     # These writes are RETRIED, and their failure is REPORTED. Unguarded, a
     # single failed transfer returned non-zero straight into `set -e` and killed
     # the run with no message at all — which is the whole of the win10 axis in
@@ -3808,6 +3817,10 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
             # watchdog signature: deploy died, machine reset, nothing staged.
             fail "Deployer did NOT complete: kernel reboot with no verification summary"
             info "  This is the watchdog signature — the deploy died and the box reset."
+            if printf '%s\n' "$DEPLOYER_LOG" | grep -qiE 'no space left on device|ABORT:|\[FAIL\]'; then
+                info "  The deployer log names the cause (ENOSPC on the Windows drive is common on Win10):"
+                printf '%s\n' "$DEPLOYER_LOG" | grep -iE 'no space left on device|ABORT:|\[FAIL\]' | tail -5 >&2
+            fi
             info "  Phase-2 setup (BLS entry, 99wootc-boot module, initramfs regen)"
             info "  will NOT have run, so Phase 2 cannot boot. Deployer log:"
             printf '%s\n' "$DEPLOYER_LOG" | tail -15 >&2
