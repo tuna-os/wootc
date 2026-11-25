@@ -13,5 +13,6 @@ public static class ConfigurationProjection
         new(snapshot.Defaults.DiskSizeGB, snapshot.Defaults.Encryption, snapshot.Defaults.Bootloader,
             snapshot.Defaults.ComposeFs, snapshot.Defaults.WindowsLook),
         snapshot.Storage.Select(volume => new ConfigurationStorage(volume.Id, volume.DriveLetter, volume.DiskGuid,
-            volume.PartitionGuid, volume.NtfsSerial, volume.FreeBytes, volume.MaximumRootDiskSizeGB)).ToArray());
+            volume.PartitionGuid, volume.NtfsSerial, volume.FreeBytes, volume.MaximumRootDiskSizeGB)).ToArray(),
+        snapshot.DetectedApps.Select(app => new ConfigurationApp(app.Flatpak, app.Name, app.DisplayName)).ToArray());
 }

@@ -332,3 +332,28 @@ func TestGateScenarioRefusesFromTheSuppliedRead(t *testing.T) {
 		t.Fatal("a 2023-only firmware with a 2011 shim was not refused")
 	}
 }
+
+// StartInstall validates synchronously, inside the native shell's
+// confirmation deadline, so its refusal must come from the plan read alone,
+// read once, never from getSystemInfo and its unbounded defrag analysis
+// (native gate probe 44764569187: "A task was canceled." after 63 seconds).
+func TestStartInstallValidatesFromThePlanRead(t *testing.T) {
+	oldStamp, oldRead := shimAuthorities, planSystemInfo
+	t.Cleanup(func() { shimAuthorities, planSystemInfo = oldStamp, oldRead })
+	shimAuthorities = "2011"
+	reads := 0
+	planSystemInfo = func() SystemInfo {
+		reads++
+		return SystemInfo{SecureBootOn: true, SecureBootKnown: true, UefiDbRead: true, TrustedUefiAuthorities: []string{"2023"}}
+	}
+	a := NewApp()
+	if err := a.StartInstall(InstallConfig{ImageRef: "ghcr.io/example/image:latest", Bootloader: "grub2", Encryption: "none"}); err == nil {
+		t.Fatal("StartInstall did not refuse a 2023-only firmware reported by the plan read")
+	}
+	if reads != 1 {
+		t.Fatalf("StartInstall read the plan facts %d times, want 1", reads)
+	}
+	if a.GetStatus().Running {
+		t.Fatal("a refused plan started the install worker")
+	}
+}

@@ -1,5 +1,5 @@
 import '../src/style.css';
-import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetVMState, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict, GetInstallRecovery } from '../wailsjs/go/main/App';
+import { GetInstallSteps, GetImages, GetSystemInfo, ExistingInstallFound, GetMode, GetSessionCandidates, GetDetectedApps, GetBranding, GetReleaseNotice, GetUninstallInfo, GetVMCapability, GetVMState, GetFreshVMCapability, GetSupportPolicy, GetLastRun, GetRecoveryVerdict, GetInstallRecovery } from '../wailsjs/go/main/App';
 import { EventsOn } from '../wailsjs/runtime/runtime';
 import { startE2EDrive } from './lib/e2e.js';
 import { state } from './lib/state.js';
@@ -93,7 +93,7 @@ async function init() {
     return;
   }
 
-  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict, installRecovery] = await Promise.all([
+  const [images, sysinfo, existing, policy, sessionCandidates, lastRun, recoveryVerdict, installRecovery, detectedApps] = await Promise.all([
     GetImages(),
     GetSystemInfo(),
     ExistingInstallFound(),
@@ -109,6 +109,8 @@ async function init() {
     Promise.resolve().then(GetRecoveryVerdict).catch(() => null),
     // Interrupted-install classification from the durable journal (#287).
     Promise.resolve().then(GetInstallRecovery).catch(() => null),
+    // Detected Windows apps with a Flathub counterpart (SPEC §4.3); optional.
+    Promise.resolve().then(GetDetectedApps).catch(() => []),
   ]);
   state.lastRun = lastRun && lastRun.state ? lastRun : null;
   state.recoveryVerdict = recoveryVerdict && recoveryVerdict.verdict && recoveryVerdict.verdict !== 'none' && recoveryVerdict.verdict !== 'healthy' && recoveryVerdict.verdict !== 'deployed' ? recoveryVerdict : null;
@@ -118,6 +120,8 @@ async function init() {
   state.images = images || [];
   state.sysinfo = sysinfo;
   state.sessionCandidates = sessionCandidates || [];
+  state.detectedApps = Array.isArray(detectedApps) ? detectedApps : [];
+  state.config.flatpaks = state.detectedApps.map(app => app.flatpak);
   // A brand can name its pre-selected card; otherwise the first offered
   // image is the default, as before.
   state.selected = (state.brand?.defaultImage

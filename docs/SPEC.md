@@ -398,7 +398,6 @@ populate root.disk with the chosen bootc image.
      wootc.image=ghcr.io/tuna-os/yellowfin:gnome   (required)
      wootc.hostname=tunaos                           (optional)
      wootc.filesystem=xfs|btrfs|ext4                 (optional, per-distro default)
-     wootc.flatpaks=org.mozilla.firefox,...          (optional)
      wootc.luks=none|tpm2-luks|luks-passphrase       (optional)
      wootc.luks-passphrase=...                        (optional)
      wootc.vault=/wootc/install/vault.json          (optional, secure credentials)
@@ -408,8 +407,10 @@ populate root.disk with the chosen bootc image.
 8. losetup -fP /mnt/ntfs/wootc/disks/root.disk
 9. Write fisherman recipe JSON → /tmp/recipe.json
 10. Run: fisherman /tmp/recipe.json
-11. losetup -d, umount
-12. reboot
+11. If /wootc/install/apps.json lists Flatpaks: install them into the
+    target (§4.3)
+12. losetup -d, umount
+13. reboot
 ```
 
 ### 2.3 Secure Credential Handoff (vault.json)
@@ -460,6 +461,7 @@ Windows ACLs restricting read access to `SYSTEM` and `Administrators`:
 {
   "hostname": "tunaos",
   "username": "liveuser",
+  "full_name": "Zoë O'Brien-Åberg",
   "password_hash": "$y$j9T$RlhOWV...$v9zZ291aEF...",
   "timezone": "America/New_York",
   "locale": "en_US.UTF-8"
@@ -493,6 +495,7 @@ The deployer initramfs handles the vault in three steps:
   "hostname": "tunaos",
   "user": {
     "username": "liveuser",
+    "fullname": "Zoë O'Brien-Åberg",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   }
@@ -514,13 +517,94 @@ persists on the unencrypted NTFS partition.
 #### Target Provisioning
 
 fisherman's post-install hooks write the hashed password into
-`/target/etc/shadow`, the username into `/target/etc/passwd`, the
-hostname into `/target/etc/hostname`, and the timezone/locale into
-`/target/etc/localtime` and `/target/etc/locale.conf`.
+`/target/etc/shadow`, the username into `/target/etc/passwd`, and the
+hostname into `/target/etc/hostname`.
+
+The account's full name comes from Windows on every install, whether or
+not Windows-Style Mode is on. The installer reads the full name of the
+account that it moves. For a local account, it reads the local account
+database (`NetUserGetInfo` level 10, `usri10_full_name`). For a domain or
+Microsoft account, and for a local account with no name there, it uses
+`GetUserNameEx(NameDisplay)`. It writes it to the vault as
+`full_name`, an empty string when Windows has none.
+
+The deployer puts the name in
+the recipe as `user.fullname`, and fisherman gives it to
+`useradd --comment`, so it becomes the GECOS full name (`getent passwd`
+field 5). useradd refuses a `:` or a newline in that field, and fisherman
+then stops the whole install. So the installer and the deployer both apply
+one rule to the name:
+
+- Every Unicode whitespace character becomes a space.
+- The rule removes control characters (Unicode Cc), invalid UTF-8, `:` and
+  `,`. A comma starts the next subfield of GECOS.
+- Runs of spaces become one space. The rule removes the spaces at the start
+  and at the end.
+- The rule cuts the name to 256 bytes, on a character boundary.
+
+The rule keeps every other character, in any script, byte for byte. This includes
+apostrophes, hyphens, periods, quotes and backslashes; jq builds the
+recipe, so quotes and backslashes cannot break it. The deployer logs
+`account full name from Windows: <name>`, or `account full name from
+Windows: none recorded`. When `wootc-identity apply` copies the Windows
+account picture at boot, it also writes this name as AccountsService
+`RealName`. It runs `chfn` only when Windows-Style Mode collected a
+different `fullName` into `slurp.json`, so it never clears this name.
+Phase 3 (`wootc-go-native`) takes the first comma subfield of the Phase-2
+account's GECOS field, applies the same rule and copies it to the native
+install's account.
+
+The installer also reads the Windows time zone, UI language and keyboard
+layout into `\wootc\install\slurp\slurp.json` (`timezone`, `language`,
+`keyboardLayout`). The deployer gives them to fisherman as the recipe
+fields `timezone`, `locale` and `keyboard`. It changes the BCP-47 language
+tag to a glibc locale: `en-US` becomes `en_US.UTF-8`, and a tag without a
+region gets the main region of its language (`ja` becomes `ja_JP.UTF-8`).
+fisherman writes `/etc/localtime`, `/etc/locale.conf`, `/etc/vconsole.conf`
+and the X11 keyboard file in the deployment's `/etc`. The deployer leaves
+out a value that fisherman's recipe rules refuse, and logs it, because one
+refused value stops the whole install. Without `slurp.json`, the time zone
+comes from `clock.json` (below) and the image's other settings stay.
+
+When the user moves to a native disk (Phase 3), `wootc-go-native` gives
+fisherman the settings of the Phase-2 system. These are its hostname
+(`/etc/hostname`), its time zone (`/etc/localtime`), its `LANG`
+(`/etc/locale.conf`) and its keyboard (the `XKB*` keys of
+`/etc/vconsole.conf`). It also sets `"copyNetworkProfiles": true`, so
+fisherman copies the Phase-2 NetworkManager profiles, which include the
+Wi-Fi networks from Windows. It copies the Phase-2 `/etc/adjtime` to the
+native install, which keeps Windows next to it.
 
 On first boot, the display manager presents a login prompt. The user
 types the same password they chose on Screen 1 — it matches the hash.
 No cleartext ever touched disk.
+
+#### Hardware clock
+
+Windows keeps the hardware clock (RTC) in local time unless
+`RealTimeIsUniversal` is set, and Linux reads the RTC as UTC by default. In
+the "Saving your settings" step the engine writes
+`<storage drive>:\wootc\install\clock.json` on every install:
+
+```json
+{"schemaVersion":1,"rtcLocal":true,"utcOffsetSeconds":32400,"timezone":"Asia/Tokyo"}
+```
+
+`utcOffsetSeconds` is the Windows offset from UTC when the install ran,
+daylight saving included. `timezone` is the IANA name of the Windows zone,
+or empty when wootc has no mapping for it. When `rtcLocal` is true:
+
+- Before it writes any timestamp, the deployer subtracts the offset from
+  its system clock, once per boot. On a PC set to Tokyo time, deployer
+  timestamps were 9 hours in the future without this (probe 44869134695).
+- When `timezone` is set, the deployer writes `/etc/adjtime` with `LOCAL`
+  in the deployment. When `slurp.json` has no time zone, the recipe uses
+  this zone. The installed system then reads and writes the RTC in local
+  time, as Windows does. Otherwise Linux runs hours off until NTP corrects
+  it. Then Linux writes UTC to the RTC, and Windows is hours off.
+
+With no `clock.json`, `rtcLocal` false or an empty `timezone`, the clock
+stays as the kernel reads it and the RTC stays in UTC.
 
 ### 2.4 Filesystem Selection
 
@@ -561,9 +645,10 @@ Generated at deploy time from kernel cmdline args (and vault.json if provided):
   },
   "image": "ghcr.io/tuna-os/yellowfin:gnome",
   "hostname": "tunaos",
-  "flatpaks": ["org.mozilla.firefox"],
+  "flatpaks": [],
   "user": {
     "username": "liveuser",
+    "fullname": "Zoë O'Brien-Åberg",
     "password": "$y$j9T$RlhOWV...",
     "groups": ["wheel", "video", "audio"]
   },
@@ -577,6 +662,11 @@ handles:
 - **Pull**: `podman pull` to containers-storage
 - **Install**: `podman run --privileged <image> bootc install to-filesystem /target`
 - **Post**: flatpak copy, hostname write, Plymouth args, LUKS args, Bluetooth/WiFi sync, audio config, cache warm, fstrim/remount-ro/fsfreeze finalize
+
+The `flatpaks` list does not download apps. A non-empty list makes
+fisherman copy the host's whole `/var/lib/flatpak`, and `[]` copies
+nothing. The deployer initramfs has no Flatpaks, so the deployer sets
+`[]` and installs the selected apps itself (§4.3).
 
 ### 2.6 LUKS Encryption
 
@@ -1181,32 +1271,43 @@ are torn down (`ExecStop`) **before** `wootc-host-bind.service` unmounts
 /host/Users/<name>/Desktop      →  /home/<name>/Desktop
 ```
 
-On an ordinary unencrypted host, the user sees Windows files immediately
-inside the Linux home directory. No copy or import wizard is required, and
-the rw NTFS mount makes those passthrough files writable from Linux.
+The user sees their Windows files immediately inside their Linux home
+directory. No copy. No import wizard. Files are writable from Linux
+(via the rw NTFS mount). While Linux runs, wootc removes the Windows
+read-only attribute from bridged folders and sets it again at shutdown. See
+[Linux access to the Windows volume](ntfs-on-linux.md#linux-access-to-the-windows-volume).
 
 On a BitLocker host, the source bind is read-only. Documents instead appear
 in the editable native workspace `~/Documents/From Windows`; the copy's
 completion marker and user-facing notice make the no-refresh boundary
 explicit. The Windows source remains unchanged.
 
-**Steam libraries** are detected and reused in-place:
+**Steam libraries** are detected and reused in-place, without a
+re-download:
 
 ```
-/host/Program Files (x86)/Steam/steamapps/  →  detected by Steam Linux
+/host/Program Files (x86)/Steam/steamapps/  →  found by the Steam bridge
 ```
 
-The system writes a `libraryfolders.vdf` that points to the Windows
-Steam library. Games appear immediately — no re-download. Proton handles
-compatibility automatically.
+Linux Steam writes its own `libraryfolders.vdf` at its first start. The
+bridge never changes that file. Thus the bridge records the path of each
+Windows library. The migration chooser tells the user to add each library
+one time in Steam **Settings > Storage > Add Library**. After that step, the
+games run in place, with Proton for compatibility. Games do not appear
+without that step.
 
-wootc detects profiles from browsers and offers them for import:
+**Browser profiles:** the first Phase-2 boot copies them. The copy does not
+change Linux browser data. The user can turn off the category or one browser
+in the migration chooser. If the copy fails, the next boot tries again.
+Each browser gets its own Linux profile. The profile goes where the browser
+looks: its existing profile, else the installed Flatpak, else the installed
+native browser, else the Flathub Flatpak location.
 
 | Windows browser | Linux equivalent | What migrates |
 |---|---|---|
-| Chrome | Chrome (Flatpak) | bookmarks, history, passwords (with consent) |
-| Edge | Chrome (Flatpak) | bookmarks, history |
-| Firefox | Firefox (Flatpak) | bookmarks, history, passwords, extensions |
+| Chrome | Chrome (Flatpak or native) | bookmarks, history; passwords only through the separate, consented session migration |
+| Edge | Edge for Linux (Flatpak or native) | bookmarks, history |
+| Firefox | Firefox (Flatpak or native) | bookmarks, history, passwords, extensions |
 
 ### 4.2 Staged Native Conversion
 
@@ -1235,37 +1336,97 @@ Each stage is independent and reversible (before deletion):
 |---|---|---|
 | 1. Use Windows Documents | Bind-mount into `$HOME` | Yes (undo bind mount) |
 | 2. Use Steam libraries | Detect and reference in-place | Yes (nothing changed) |
-| 3. Import browser profile | Copy bookmarks/passwords/history | Yes (delete imported profile) |
+| 3. Import browser profile | Copy bookmarks/history (Firefox: whole profile) at first boot | Yes (delete imported profile) |
 | 4. Convert Documents to native | Copy files, update bind mount | Yes (files still on NTFS until stage 6) |
 | 5. Convert home to native | Move `$HOME` to native Linux filesystem | Yes (snapshot rollback) |
 | 6. Remove Windows | Delete Windows partition, expand Linux | **No** (Windows is gone) |
 
 ### 4.3 App Detection
 
-During installation, the deployer scans the Windows partition for
-installed applications and offers Linux equivalents via Flatpak:
+The Windows engine finds installed apps before the install starts. It reads
+the `DisplayName` of each entry in the three Uninstall registry keys:
+HKLM, HKLM `WOW6432Node`, and HKCU of the person who runs the installer.
+One table, [`app/data/app-flatpaks.json`](../app/data/app-flatpaks.json),
+maps a name to a Flathub app. Each entry has a `key`, the Linux app `name`,
+its `flatpak` ID, and `match`: lowercase parts of a `DisplayName`. The first
+entry that matches a name wins. The engine embeds this table. The deployer
+and `wootc-detect-apps` read the same file.
 
-| Windows app detected | Linux equivalent |
+Some examples:
+
+| Windows `DisplayName` | Flatpak |
 |---|---|
-| Visual Studio Code | `com.visualstudio.code` |
-| Discord | `com.discordapp.Discord` |
-| Spotify | `com.spotify.Client` |
-| Steam | `com.valvesoftware.Steam` |
-| Firefox | `org.mozilla.firefox` |
-| Chrome | `com.google.Chrome` |
-| OBS Studio | `com.obsproject.Studio` |
-| GIMP | `org.gimp.GIMP` |
-| VLC | `org.videolan.VLC` |
+| `GIMP 2.10.36` | `org.gimp.GIMP` |
+| `Inkscape 1.4.2` | `org.inkscape.Inkscape` |
+| `Audacity 3.7.1` | `org.audacityteam.Audacity` |
+| `Microsoft Visual Studio Code` | `com.visualstudio.code` |
+| `Steam` | `com.valvesoftware.Steam` |
 
-These are added to the fisherman recipe's `flatpaks` field and
-pre-installed during deployment.
+The table has no entry for Microsoft Edge, because each Windows 11 PC has it.
+
+The install form shows an **Apps** section with one checkbox for each
+detected Flatpak. All boxes start checked. The form shows this text:
+
+> We'll install the Linux versions of these apps from Flathub; uncheck any you don't want.
+
+When the engine detects no app, the form does not show the section. The
+plan sends the checked IDs in `InstallConfig.flatpaks`. The engine refuses
+an ID that it did not detect on this PC. It also refuses an ID that occurs
+two times, and a list of more than 64 IDs. The headless CLI has the same
+check for `-flatpaks=id1,id2`.
+
+In the "Saving your settings" step, the engine writes
+`<storage drive>:\wootc\install\apps.json` beside the vault. It writes this
+file for each install, with an empty list when the person keeps no app:
+
+```json
+{"schemaVersion":1,"remote":"flathub","remoteUrl":"https://dl.flathub.org/repo/flathub.flatpakrepo","flatpaks":["org.audacityteam.Audacity","org.inkscape.Inkscape"]}
+```
+
+After fisherman, the deployer installs each listed app into the target's
+system Flatpak installation (`payload/deployer/flatpak-install.sh`). It
+runs the `flatpak` of the installed image in a container, with the
+target's `/var/lib/flatpak` mounted. The deployer:
+
+- Installs only IDs that are in `app-flatpaks.json`.
+- Adds the remote from `remoteUrl` if the image does not have it.
+- Tries each app up to three times. An app that fails does not stop the
+  other apps or the install.
+- Counts an app as installed only when `flatpak info --system <id>` finds
+  it in the target after the install.
+- Applies the image's SELinux file contexts to the installed files. If
+  SELinux enforces its policy on the target, an app without labels counts
+  as failed.
+
+The deployer writes the requested IDs to `/etc/wootc/flatpaks.list`. It
+writes this receipt to `/etc/wootc/flatpak-install.json` in the target and
+to `\wootc\install\flatpak-install.json` on Windows:
+
+```json
+{"schemaVersion":1,"requested":["…"],"installed":["…"],
+ "failed":[{"id":"…","error":"…"}]}
+```
+
+Each app also gives one serial line: `wootc: flatpak installed: <id>` or
+`wootc: flatpak FAILED: <id>: <reason>`.
+
+On Linux, `wootc-detect-apps` uses the same map for the dashboard. Its
+`bridge-apps.json` gives each app an `installed` value, which is true only
+when `flatpak info --system <id>` finds the app on the Linux system.
+
+When the user moves to a native disk (Phase 3), `wootc-go-native` gives
+fisherman the apps of the Phase-2 system's Flatpak installation. Thus
+fisherman copies that installation, with its runtimes, to the native disk.
+After the install, `wootc-go-native` logs each app as
+`wootc: native flatpak present: <id>` or
+`wootc: native flatpak MISSING: <id>`.
 
 ### 4.4 Windows-Style Mode
 
 On first login, the system adopts the Windows host's aesthetics to reduce
-the visual shock of switching OS. This is ON by default — everything safe
-to bring along comes along, the way a Mac migration would — with the
-opt-out under Advanced for users who want the image maker's stock desktop:
+the visual shock of switching OS. The install form has a checkbox for this
+mode. The Wails launchpad sets it by default, under Advanced. The native
+shell uses the engine default, which is off:
 
 - Same wallpaper (extracted via fisherman's Slurp)
 - Same accent color
@@ -1291,8 +1452,8 @@ three consent tiers:
 
 | Tier | Policy | Examples |
 |---|---|---|
-| Apply automatically | Non-secret preferences with an obvious Linux equivalent, plus the connectivity a user cannot comfortably be without | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage, personal Wi-Fi networks (open/WPA-PSK/WPA3-SAE) |
-| Offer with preview | Useful data or configuration whose effect the user can inspect | browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, printers, display/audio preferences |
+| Apply automatically | Non-secret preferences with an obvious Linux equivalent, plus the connectivity a user cannot comfortably be without | timezone, keyboard layout, language, accessibility settings, wallpaper, accent color, hostname, browser homepage, personal Wi-Fi networks (open/WPA-PSK/WPA3-SAE), network printers (driverless IPP queues) |
+| Offer with preview | Useful data or configuration whose effect the user can inspect | browser data, Steam libraries, VPN endpoints, cloud-folder setup, developer tools, display/audio preferences |
 | Never migrate silently | Secrets, identity material, executable automation, or controller-specific state | passwords, private keys, access tokens, certificates, Bluetooth pairing keys, enterprise Wi-Fi credentials, scheduled-task commands |
 
 The maintenance control panel includes a **Bring your setup over** dashboard.
@@ -1317,6 +1478,77 @@ device-managed profiles, certificates, and user credentials are detected but
 not copied. The dashboard explains what was found and asks the user to finish
 authentication in Linux.
 
+#### Printers
+
+wootc moves printers as connections, never as drivers. A Windows driver
+cannot run on Linux. CUPS builds an IPP Everywhere queue from the data that the
+printer itself reports.
+
+The installer records every printer in the `Collecting your look and Wi-Fi`
+step. It uses `Get-Printer`, `Get-PrinterPort` and the default from
+`Win32_Printer`. It writes `<storage root>\wootc\install\printers.json`:
+
+```json
+{"schemaVersion": 1, "printers": [{"name": "Office Laser", "portName": "IP_10.0.0.9",
+  "driverName": "…", "default": true, "shared": false, "portKind": "tcpip",
+  "host": "10.0.0.9", "port": 9100, "protocol": "raw"}]}
+```
+
+The port sets `portKind`, not the driver. The kinds are `tcpip`, `ipp`,
+`wsd`, `usb`, `lpt`, `com`, `file`, `virtual` and `other`. A `tcpip` printer
+has a Standard TCP/IP port and records `host`, `port`, `protocol` (raw or lpr)
+and `lprQueue`. An `ipp` printer has an http, https, ipp or ipps URL as its
+port name, and `uri` keeps it. `file` is `FILE:` or `nul:`. `virtual` is
+`PORTPROMPT:` or an XPS, OneNote, fax or PDF port.
+
+On every Phase-2 boot, `wootc-printer-import.service` reads that file from the
+Windows volume. The unit runs as root after `cups.service`,
+`network-online.target` and `wootc-host-bind.service`. It writes the result to
+`/var/lib/wootc/printers.json` with mode 0644:
+
+```json
+{"schemaVersion": 1, "printers": [{"name": "Office Laser", "queue": "Office_Laser",
+  "status": "added", "uri": "ipp://10.0.0.9:631/ipp/print", "default": true,
+  "lastTried": "2026-11-21T04:10:29Z"}]}
+```
+
+A `waiting` or `not-migrated` record also has a `reason`. The journal gets one
+line for each printer: `wootc-printer-import: <name>: added <uri>`,
+`… waiting: <reason>` or `… not migrated: <reason>`.
+
+- A `tcpip` printer gets `ipp://<host>:631/ipp/print`.
+- An `ipp` printer keeps its URL. The importer changes http to ipp and https
+  to ipps, and adds an implied port 80 or 443.
+- The importer first makes sure that the address answers on its IPP port.
+  Then it runs `lpadmin -p <queue> -E -v <uri> -m everywhere` with a 90 s
+  limit.
+- The queue name starts as the Windows name. Each run of characters outside
+  `[A-Za-z0-9_-]` becomes one `_`. The importer removes a leading or trailing
+  `_` and keeps at most 127 characters. An empty result becomes `printer`. A
+  name that is already in the list gets `-2`, `-3` and so on. The comparison
+  ignores case.
+- If `lpadmin` succeeds, the status is `added`. The Windows default becomes
+  the CUPS default if CUPS has no default.
+- If `lpadmin` fails or the address does not answer, the status is `waiting`
+  and the reason tells why. The importer tries again at the next boot.
+- The importer never changes a queue that it added before, also when the user
+  removed or changed it. It also does not change a queue that has the same
+  name: that printer is `not-migrated`.
+- All other printers are `not-migrated` with a reason:
+  - Cable printers (usb, lpt, com): `connected by cable to this PC: plug it
+    in, and a driverless USB printer is set up automatically; others need
+    their Linux driver`
+  - WSD printers: `found by Windows on the network (WSD); if it supports
+    driverless printing, Settings → Printers lists it`
+  - Virtual and file printers: `Windows-only virtual printer`
+
+The migration chooser shows every printer and its status under **Printers**.
+If the user turns the category or a printer off, the importer adds no new
+queue. It removes no queue. Phase 3 copies the queues that wootc added to the
+native disk: their `printers.conf` entries and PPDs, and the report. The native
+system does not mount Windows, so a `waiting` printer stays `waiting` there.
+wootc does not migrate scanners.
+
 #### Bluetooth devices
 
 wootc may inventory paired Bluetooth devices (friendly name, class, and
@@ -1332,11 +1564,11 @@ The dashboard can offer the following independent, reversible import actions:
 
 | Category | Import behavior |
 |---|---|
-| Printers/scanners | Detect names and network addresses; offer driverless IPP setup, never copy Windows drivers. |
+| Printers/scanners | Network printers become driverless IPP Everywhere queues; cable, WSD and virtual printers are listed with the reason they did not move (see [Printers](#printers)). Windows drivers are never copied. Scanners are not migrated. |
 | VPN | Import endpoint, protocol, and non-secret settings; require passwords, certificates, and MFA again. |
 | Browser | Import bookmarks by default; offer history, extensions, and password migration only with separate consent. |
 | Cloud folders | Detect OneDrive, Dropbox, Google Drive, Syncthing, and Nextcloud; reconnect a Linux client rather than sharing or copying sync databases. |
-| Developer setup | Detect VS Code, WSL, Git, containers, language toolchains, and repositories; generate an install/open plan. Copy public SSH keys and Git identity only by consent; never copy private keys or credential stores. |
+| Developer setup | Detect VS Code, WSL, Git, containers, language toolchains, and repositories; generate an install/open plan. Copy public SSH keys and Git identity only by consent; never copy private keys or credential stores. **Implemented (Windows-native `%USERPROFILE%\.ssh` and `.gitconfig`):** on every Phase-2 boot `wootc-mount-user-dirs` runs `wootc-developer-bridge <winprofile> <linuxuser>` for each mapped account unless the chooser's **Developer setup** category is off. It copies, byte for byte and owned by the user, `~/.ssh/*.pub` and `known_hosts` (0644), `config` and `authorized_keys` (0600) into `~/.ssh` (0700). It never copies a private key: a file whose first line contains `PRIVATE KEY`, a file with a matching `.pub`, an `id_*` file without an extension, or a PuTTY `.ppk` is listed under `leftOnWindows`. Other `.ssh` files and subdirectories are listed under `notCarried`. From `.gitconfig` it writes `~/.gitconfig` (0644) holding only `user.name`, `user.email`, `user.signingkey` and `init.defaultBranch`, and only when neither `~/.gitconfig` nor `~/.config/git/config` exists. Every other key is listed under `notCarried` by name, never by value: `credential.*`, `core.autocrlf`, `core.sshCommand`, includes, and any identity value that is a Windows drive or UNC path. Existing Linux files are never overwritten: identical files count as `alreadyPresent`, different ones as `preserved`. As root, the wrapper then runs `restorecon -RF` on `~/.ssh` and `~/.gitconfig` when SELinux is enabled. The result is `~/.config/wootc/bridge-developer.json`. Limits: `Include`d SSH config fragments in subdirectories, Git `include` targets, GPG keyrings and Windows credential stores are not carried, and BitLocker-only profile roots are not read. |
 | Gaming | Discover Steam libraries, common save locations, and controllers; reuse libraries where compatible and show Proton guidance. |
 | Media | Offer portable music/photo library locations and compatible Plex/Jellyfin or OBS configuration exports. |
 | Desktop hardware | Offer display layout/scaling, preferred audio device, dock/monitor names, terminal fonts, color schemes, and Windows Terminal profiles as Linux suggestions. |

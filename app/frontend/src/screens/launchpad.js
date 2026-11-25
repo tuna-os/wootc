@@ -304,6 +304,40 @@ export function renderLaunchpad() {
     });
   }
 
+  // Detected Windows apps with a Flathub counterpart (SPEC §4.3), all checked
+  // to start, on the main form: the installer pre-installs the checked ones.
+  // DisplayName is registry text from third-party software: textContent only.
+  let appsBox = null;
+  if (state.detectedApps.length) {
+    appsBox = el('div');
+    appsBox.id = 'detected-apps';
+    appsBox.style.cssText = 'margin-top:8px;padding:8px;border:1.5px solid var(--border);border-radius:6px';
+    const title = el('div');
+    title.style.cssText = 'font-size:12px;font-weight:600';
+    title.textContent = 'Apps';
+    const disclosure = el('div');
+    disclosure.style.cssText = 'font-size:11.5px;color:var(--text-muted);margin-top:2px';
+    disclosure.textContent = "We'll install the Linux versions of these apps from Flathub; uncheck any you don't want.";
+    appsBox.append(title, disclosure);
+    state.detectedApps.forEach(app => {
+      const row = el('label');
+      row.style.cssText = 'display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12px;margin-top:6px';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.flatpak = app.flatpak;
+      checkbox.checked = state.config.flatpaks.includes(app.flatpak);
+      checkbox.onchange = () => {
+        const kept = new Set(state.config.flatpaks);
+        if (checkbox.checked) kept.add(app.flatpak); else kept.delete(app.flatpak);
+        state.config.flatpaks = state.detectedApps.map(a => a.flatpak).filter(id => kept.has(id));
+      };
+      const copy = el('span');
+      copy.textContent = `${app.name} (for ${app.displayName})`;
+      row.append(checkbox, copy);
+      appsBox.appendChild(row);
+    });
+  }
+
   const advanced = el('details');
   // Every control change re-renders the form; without persisting the open
   // state the panel snaps shut on each toggle — the user opens Advanced,
@@ -352,6 +386,7 @@ export function renderLaunchpad() {
         : 'Secure Boot is off. The bundled unsigned systemd-boot path is supported.';
     advanced.appendChild(sb);
   }
+  if (appsBox) fields.appendChild(appsBox);
   fields.appendChild(advanced);
 
   const hint = el('div');
@@ -728,6 +763,8 @@ async function startInstall() {
       // Wi-Fi) along. The field must travel with the config it belongs to.
       windowsLook:    state.config.windowsLook,
       sessionConsent: state.config.sessionConsent,
+      // The detected apps left checked; the engine refuses any it did not detect.
+      flatpaks:       state.config.flatpaks,
     });
   } catch (e) {
     state.progress.error = String(e);

@@ -10,7 +10,6 @@
 #   wootc.hostname=myhost                          (optional, default: tunaos)
 #   wootc.debug                                     (optional, drops to shell)
 #   wootc.filesystem=xfs|btrfs|ext4                (optional, default: xfs for EL10, btrfs for Fedora)
-#   wootc.flatpaks=org.mozilla.firefox,...          (optional)
 #   wootc.luks=none|luks-passphrase|tpm2-luks       (optional)
 #   wootc.luks-passphrase=...                        (optional)
 #   wootc.bootloader=grub2|systemd                   (optional)
@@ -24,11 +23,15 @@ set -Eeuo pipefail
 source "${WOOTC_STEPS_FILE:-/usr/libexec/wootc-steps.sh}"
 # shellcheck source=payload/deployer/initramfs-lib.sh
 source "${WOOTC_INITRAMFS_LIB_FILE:-/usr/libexec/wootc-initramfs-lib.sh}"
+# shellcheck source=payload/deployer/phase2-overlay.sh
+source "${WOOTC_PHASE2_OVERLAY_FILE:-/usr/libexec/wootc-phase2-overlay.sh}"
 # Source only definitions; orchestration and mount lifetime remain here.
 # shellcheck source=payload/deployer/lifecycle.sh
 source /usr/libexec/wootc-lifecycle.sh
 # shellcheck source=payload/deployer/migration-diagnostics.sh
 source /usr/libexec/wootc-migration-diagnostics.sh
+# shellcheck source=payload/deployer/flatpak-install.sh
+source "${WOOTC_FLATPAK_INSTALL_FILE:-/usr/libexec/wootc-flatpak-install.sh}"
 
 # Set once the Windows NTFS volume is mounted. Keep this log append-only so a
 # failed reboot or a later deployment attempt cannot erase the evidence from
@@ -280,7 +283,6 @@ IMAGE="$(read_cmdline wootc.image)"
 SOURCE_IMAGE="$IMAGE"
 FILESYSTEM="$(read_cmdline wootc.filesystem xfs)"
 HOSTNAME="$(read_cmdline wootc.hostname tunaos)"
-FLATPAKS="$(read_cmdline wootc.flatpaks)"
 LUKS_TYPE="$(read_cmdline wootc.luks none)"
 LUKS_PASSPHRASE="$(read_cmdline wootc.luks-passphrase)"
 VAULT_PATH="$(read_cmdline wootc.vault)"
@@ -591,6 +593,89 @@ TIMEOUT_KARG="rd.timeout=120"
 LOOP_KARG="loop.max_part=16"
 PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
 
+# phase2_lsm_karg <os root> — prints selinux=0 when the installed OS does not
+# use SELinux (no /etc/selinux/config, or SELINUX=disabled in it).
+#
+# A composefs Phase 2 boots the deployer's Fedora kernel (the UKI vmlinuz
+# has no PE signature of its own; see the ESP staging below). That kernel's
+# built-in LSM list starts SELinux. On an OS without SELinux (the Ubuntu and
+# Debian images grouper and flounder-sid), SELinux then runs with no policy,
+# the OS's systemd (+SELINUX) mounts selinuxfs, and `bootc status` stops with
+# "Ensuring selinux install_t type: No label found in policy 'None' for
+# /usr/bin/ostree". The first-boot record is never written (runs 44769912580
+# and 44770794387). selinux=0 boots such an OS as its own kernel would; an OS
+# with an SELinux configuration keeps the kernel's default.
+phase2_lsm_karg() {
+    local cfg="$1/etc/selinux/config"
+    if [[ ! -f "$cfg" ]] || grep -qE '^[[:space:]]*SELINUX[[:space:]]*=[[:space:]]*disabled[[:space:]]*$' "$cfg"; then
+        echo "selinux=0"
+    fi
+}
+
+# phase2_host_loader — the loader that started this deployer: systemd-boot,
+# grub, or unknown. Read from LoaderInfo, the EFI variable a loader sets for
+# the OS (systemd's Boot Loader Interface; Fedora's signed GRUB sets it from
+# its built-in bli module). Phase 2 boots through the same chain the Windows
+# installer staged for this deployer, and bootc on the installed system reads
+# this same variable to decide where its boot entries live.
+phase2_host_loader() {
+    local var="${WOOTC_LOADER_INFO:-/sys/firmware/efi/efivars/LoaderInfo-4a67b082-0a4c-41cf-b6c7-440b29bb8c4f}" info=""
+    # efivarfs: 4 attribute bytes, then the UTF-16LE string.
+    [[ -r "$var" ]] && info=$(tail -c +5 "$var" | tr -d '\0')
+    case "${info,,}" in
+        *systemd-boot*) echo systemd-boot ;;
+        *grub*) echo grub ;;
+        *) echo unknown ;;
+    esac
+}
+
+# ── Hardware clock kept in Windows local time ───────────────────────────────
+# clock.json (app/clock_handoff.go) says how Windows keeps the RTC. Windows
+# stores local time there unless RealTimeIsUniversal is set, and this kernel
+# read it as UTC. On a PC set to Tokyo time the deployer ran 9 hours fast and
+# the E2E rejected deployer-started.json as written in the future (probe
+# 44869134695).
+#
+# correct_rtc_local_clock <clock.json> — subtract Windows' UTC offset from the
+# system clock, once per boot (a /run marker), before anything here writes a
+# timestamp. No record, an RTC kept in UTC, or an unreadable record: the clock
+# stays as the kernel read it. The RTC itself is not written.
+correct_rtc_local_clock() {
+    local record=$1 mark=${WOOTC_CLOCK_MARK:-/run/wootc-clock-corrected} fields local_rtc offset now
+    [[ -r "$record" && ! -e "$mark" ]] || return 0
+    fields=$(jq -r 'select(.schemaVersion == 1 and (.rtcLocal | type) == "boolean" and (.utcOffsetSeconds | type) == "number") | "\(.rtcLocal) \(.utcOffsetSeconds)"' "$record" 2>/dev/null || true)
+    read -r local_rtc offset <<<"$fields"
+    # Real offsets run from UTC-12 to UTC+14.
+    if [[ ! "$offset" =~ ^-?[0-9]{1,5}$ ]] || (( offset < -50400 || offset > 50400 )); then
+        err "  [WARN] clock.json is unreadable; the clock stays as the hardware clock reads"
+        return 0
+    fi
+    [[ "$local_rtc" == true && "$offset" != 0 ]] || return 0
+    now=$(date -u +%s)
+    if date -u -s "@$(( now - offset ))" >/dev/null; then
+        : > "$mark"
+        log "hardware clock holds Windows local time (UTC offset ${offset}s); system clock set to $(date -u +%FT%TZ)"
+    else
+        err "  [WARN] could not correct the clock for Windows local time"
+    fi
+}
+
+# write_rtc_adjtime <clock.json> <deployment etc> — dual boot with a Windows
+# that keeps the RTC in local time: the installed system keeps it in local
+# time too (/etc/adjtime LOCAL, adjtime(5)). Otherwise it boots hours off
+# until NTP steps, and then rtcsync writes UTC to the RTC and Windows is hours
+# off on return. LOCAL needs the right /etc/localtime: the record's zone,
+# which slurp_recipe_settings puts in the recipe when slurp.json has none. An
+# unmapped Windows zone (empty timezone) leaves the RTC in UTC.
+write_rtc_adjtime() {
+    local record=$1 etc=$2 zone
+    [[ -r "$record" ]] || return 0
+    zone=$(jq -r 'select(.schemaVersion == 1 and .rtcLocal == true) | .timezone | strings' "$record" 2>/dev/null || true)
+    [[ -n "$zone" ]] || return 0
+    printf '0.0 0 0.0\n0\nLOCAL\n' > "$etc/adjtime"
+    log "  /etc/adjtime: hardware clock in local time (${zone}), as Windows keeps it"
+}
+
 # ── Live telemetry ──────────────────────────────────────────────────────────
 # Stream the journal to NTFS continuously: the exit-trap post-mortem is
 # written by exactly the code that can hang, so a wedge must still leave a
@@ -599,6 +684,7 @@ PHASE2_KARGS="$MGMT_KARG $SSHD_KARG $TIMEOUT_KARG $LOOP_KARG"
 LOG_DIR=/mnt/ntfs/wootc/logs
 mkdir -p "$LOG_DIR"
 PERSIST_LOG="$LOG_DIR/deployer.log"
+correct_rtc_local_clock /mnt/ntfs/wootc/install/clock.json
 log "Persistent deployer log started: C:\\wootc\\logs\\deployer.log"
 (
     set +eu  # telemetry must survive any single command failing
@@ -945,12 +1031,37 @@ persist_bitlocker_key() {
     return 1
 }
 
+# sanitize_full_name <name> — the account full name made safe for GECOS and
+# fisherman. fisherman passes user.fullname to useradd --comment, useradd
+# refuses a ':' or a newline, and fisherman treats that refusal as fatal to
+# the whole install. The installer already applies this rule
+# (sanitizeFullName in app/fullname.go); it is applied again here because
+# the vault is a file on NTFS, not a promise. Every Unicode whitespace
+# character becomes a space; control characters (Unicode Cc), ':' and ','
+# (the GECOS subfield separator) are dropped; runs of spaces collapse; the
+# ends are trimmed; the result is cut to 256 bytes (util-linux chfn's limit)
+# on a character boundary. Everything else is kept byte for byte.
+sanitize_full_name() {
+    jq -rn --arg n "$1" '$n
+        | gsub("[\t\n\\x{0b}\f\r \\x{85}\\x{a0}\\x{1680}\\x{2000}-\\x{200a}\\x{2028}\\x{2029}\\x{202f}\\x{205f}\\x{3000}]"; " ")
+        | gsub("[\\p{Cc}:,]"; "")
+        | gsub(" {2,}"; " ") | sub("^ "; "") | sub(" $"; "")
+        | until(utf8bytelength <= 256; .[:-1]) | sub(" $"; "")'
+}
+
+# vault_full_name <vault.json> — the sanitised Windows account full name the
+# installer recorded (key full_name), empty when it recorded none.
+vault_full_name() {
+    sanitize_full_name "$(jq -r '.full_name | strings' "$1" 2>/dev/null || true)"
+}
+
 # ── Ingest vault.json (secure credential handoff) ───────────────────────────
 VAULT_USER=""
 VAULT_PASSWORD_HASH=""
 VAULT_SECONDARY_USERS=""
 VAULT_PROFILE_MAP=""
 VAULT_DISTRO_NAME=""
+VAULT_FULL_NAME=""
 if [[ -n "$VAULT_PATH" ]]; then
     VAULT_FILE="/mnt/ntfs${VAULT_PATH}"
     if [[ -f "$VAULT_FILE" ]]; then
@@ -969,6 +1080,8 @@ if [[ -n "$VAULT_PATH" ]]; then
         # Branded installers (docs/branding-and-distribution.md) name the
         # Phase-2 boot menu after the distribution they installed.
         VAULT_DISTRO_NAME=$(jq -r '.distro_name // empty' "$VAULT_FILE" 2>/dev/null || true)
+        # The Windows account's full name, for the account's GECOS field.
+        VAULT_FULL_NAME=$(vault_full_name "$VAULT_FILE")
         if [[ -n "$VAULT_HOSTNAME" ]]; then
             HOSTNAME="$VAULT_HOSTNAME"
         fi
@@ -1503,14 +1616,120 @@ if [[ "$FILESYSTEM" == btrfs ]]; then
     fi
 fi
 
+# ── Windows time zone, language and keyboard → recipe ───────────────────────
+# fisherman_settings_members <timezone> <locale> <xkb layout> <xkb variant> <xkb model>
+# Print the recipe members fisherman writes into the installed system
+# (/etc/localtime, /etc/locale.conf, /etc/vconsole.conf and the X11 keyboard
+# file), one per line with a trailing comma, for the values that pass
+# fisherman's own recipe rules (fisherman internal/recipe/rules.go). fisherman
+# refuses a whole recipe for one bad value, so a value that would fail is
+# left out and named on stderr instead. Empty values print nothing.
+# wootc-go-native has the same function; settings-carry.bats keeps the two
+# identical.
+fisherman_settings_members() {
+    local tz=$1 locale=$2 layout=$3 variant=$4 model=$5
+    local tz_re='^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'
+    local locale_re='^([a-z]{2,3}(_[A-Z]{2,3})?|C|POSIX)(\.[A-Za-z0-9][A-Za-z0-9_-]*)?(@[A-Za-z0-9]+)?$'
+    local layout_re='^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$'
+    local variant_re='^[A-Za-z0-9_.+-]*(,[A-Za-z0-9_.+-]*)*$'
+    local model_re='^[A-Za-z0-9_.+-]+$'
+    if [[ -n "$tz" ]]; then
+        if (( ${#tz} <= 64 )) && [[ "$tz" =~ $tz_re ]]; then
+            printf '"timezone": "%s",\n' "$tz"
+        else
+            printf 'settings: time zone %q is not an IANA name; left out\n' "$tz" >&2
+        fi
+    fi
+    if [[ -n "$locale" ]]; then
+        if (( ${#locale} <= 64 )) && [[ "$locale" =~ $locale_re ]]; then
+            printf '"locale": "%s",\n' "$locale"
+        else
+            printf 'settings: locale %q is not a locale name; left out\n' "$locale" >&2
+        fi
+    fi
+    if [[ -n "$layout" ]]; then
+        if (( ${#layout} > 64 )) || [[ ! "$layout" =~ $layout_re ]]; then
+            printf 'settings: keyboard layout %q is not an XKB layout; keyboard left out\n' "$layout" >&2
+            return 0
+        fi
+        if (( ${#variant} > 64 )) || [[ ! "$variant" =~ $variant_re ]]; then
+            printf 'settings: keyboard variant %q is not an XKB variant; variant left out\n' "$variant" >&2
+            variant=""
+        fi
+        if [[ -n "$model" ]] && { (( ${#model} > 64 )) || [[ ! "$model" =~ $model_re ]]; }; then
+            printf 'settings: keyboard model %q is not an XKB model; model left out\n' "$model" >&2
+            model=""
+        fi
+        printf '"keyboard": {"layout": "%s"%s%s},\n' "$layout" \
+            "${variant:+, \"variant\": \"$variant\"}" "${model:+, \"model\": \"$model\"}"
+    fi
+}
+
+# locale_from_language_tag <BCP-47 tag> — the glibc locale for a Windows UI
+# language: en-US → en_US.UTF-8, zh-Hant-TW → zh_TW.UTF-8. A tag without a
+# region takes the language's main region (Windows reports "ja", "ko", and
+# such); a language not in that table gives nothing, and the image's
+# locale stays.
+locale_from_language_tag() {
+    local tag=$1 lang region="" part
+    local -a parts
+    IFS=- read -r -a parts <<<"$tag"
+    lang=${parts[0]:-}
+    lang=${lang,,}
+    [[ "$lang" =~ ^[a-z]{2,3}$ ]] || return 0
+    for part in "${parts[@]:1}"; do
+        if [[ "$part" =~ ^[A-Za-z]{2}$ ]]; then
+            region=${part^^}
+            break
+        fi
+        case "${lang}-${part,,}" in
+            zh-hant) region=TW ;;
+            zh-hans) region=CN ;;
+        esac
+    done
+    if [[ -z "$region" ]]; then
+        case "$lang" in
+            ar) region=SA ;; cs) region=CZ ;; da) region=DK ;; de) region=DE ;;
+            el) region=GR ;; en) region=US ;; es) region=ES ;; et) region=EE ;;
+            fi) region=FI ;; fr) region=FR ;; he) region=IL ;; hu) region=HU ;;
+            it) region=IT ;; ja) region=JP ;; ko) region=KR ;; lt) region=LT ;;
+            lv) region=LV ;; nb) region=NO ;; nl) region=NL ;; pl) region=PL ;;
+            pt) region=PT ;; ro) region=RO ;; ru) region=RU ;; sk) region=SK ;;
+            sl) region=SI ;; sv) region=SE ;; th) region=TH ;; tr) region=TR ;;
+            uk) region=UA ;; vi) region=VN ;; zh) region=CN ;;
+            *) return 0 ;;
+        esac
+    fi
+    printf '%s_%s.UTF-8\n' "$lang" "$region"
+}
+
+# slurp_recipe_settings <slurp.json> [clock.json] — the recipe members for the
+# time zone, language and keyboard layout the installer read from Windows
+# (slurp.json: timezone, language, keyboardLayout). slurp.json exists only
+# with Windows-Style Mode; clock.json is written on every install, and its
+# zone is the time zone when slurp.json has none (write_rtc_adjtime relies on
+# it). Nothing when neither names a value: the image's settings stay.
+slurp_recipe_settings() {
+    local slurp=$1 clock=${2:-} tz="" lang="" layout=""
+    if [[ -f "$slurp" ]]; then
+        tz=$(jq -r '.timezone | strings' "$slurp" 2>/dev/null || true)
+        lang=$(jq -r '.language | strings' "$slurp" 2>/dev/null || true)
+        layout=$(jq -r '.keyboardLayout | strings' "$slurp" 2>/dev/null || true)
+    fi
+    if [[ -z "$tz" && -n "$clock" && -f "$clock" ]]; then
+        tz=$(jq -r 'select(.schemaVersion == 1) | .timezone | strings' "$clock" 2>/dev/null || true)
+    fi
+    fisherman_settings_members "$tz" "$(locale_from_language_tag "$lang")" "$layout" "" ""
+}
+
 # ── Write fisherman recipe ──────────────────────────────────────────────────
 # Fisherman handles partitioning, formatting, bootc install to-filesystem,
-# Flatpaks, and kernel cmdline injection. We just point it at the loop device.
-
-FLATPAKS_JSON="[]"
-if [[ -n "$FLATPAKS" ]]; then
-    FLATPAKS_JSON="[$(echo "$FLATPAKS" | sed 's/,/","/g' | sed 's/^/"/;s/$/"/')]"
-fi
+# and kernel cmdline injection. We just point it at the loop device.
+#
+# "flatpaks": [] — fisherman's list is not a download list: it copies the
+# HOST's /var/lib/flatpak, and this initramfs has none. The apps the user
+# chose are installed into the target after verification mounts it
+# (install_selected_flatpaks, SPEC §4.3).
 
 # Build LUKS encryption JSON
 LUKS_JSON='"encryption": { "type": "none" }'
@@ -1530,9 +1749,22 @@ fi
 # Modern desktops grant device access via logind session ACLs, so the legacy
 # video/audio memberships add nothing; wheel is what admin/sudo needs and is
 # present in /etc/group across every supported image family.
+#
+# fullname: the Windows account's full name (vault full_name), left out when
+# Windows had none. jq builds the object so a quote or backslash in the name
+# cannot break the recipe.
+recipe_user_json() {
+    jq -cn --arg u "$1" --arg p "$2" --arg f "$3" \
+        '{username: $u, password: $p, groups: ["wheel"]} + (if $f == "" then {} else {fullname: $f} end)'
+}
 USER_JSON=""
 if [[ -n "$VAULT_USER" && -n "$VAULT_PASSWORD_HASH" ]]; then
-    USER_JSON=",\"user\": { \"username\": \"${VAULT_USER}\", \"password\": \"${VAULT_PASSWORD_HASH}\", \"groups\": [\"wheel\"] }"
+    USER_JSON=",\"user\": $(recipe_user_json "$VAULT_USER" "$VAULT_PASSWORD_HASH" "$VAULT_FULL_NAME")"
+    if [[ -n "$VAULT_FULL_NAME" ]]; then
+        log "  account full name from Windows: ${VAULT_FULL_NAME}"
+    else
+        log "  account full name from Windows: none recorded"
+    fi
 fi
 
 # Verified OCI bundles were imported before probes into the primary store.
@@ -1540,6 +1772,16 @@ fi
 BUNDLE_JSON=""
 if [[ -d /mnt/ntfs/wootc/bundle/store && "$WOOTC_OFFLINE" != 1 ]]; then
     log "  [WARN] legacy image store cannot provide offline deployment; rebuild as OCI"
+fi
+
+# The Windows time zone, language and keyboard layout (SPEC §4.6, applied
+# automatically): fisherman writes them into the deployment's /etc, where
+# a composefs /usr is no obstacle.
+SETTINGS_ERR="${TMPDIR:-/tmp}/wootc-settings.err"
+SETTINGS_JSON=$(slurp_recipe_settings /mnt/ntfs/wootc/install/slurp/slurp.json /mnt/ntfs/wootc/install/clock.json 2>"$SETTINGS_ERR")
+while IFS= read -r _line; do err "  [WARN] $_line"; done <"$SETTINGS_ERR"
+if [[ -n "$SETTINGS_JSON" ]]; then
+    log "  settings from Windows: $(tr -d '\n' <<<"$SETTINGS_JSON")"
 fi
 
 RECIPE="/tmp/recipe.json"
@@ -1553,9 +1795,10 @@ cat > "$RECIPE" << EOF
   "unifiedStorage": false,
   "selinuxDisabled": false,
   ${LUKS_JSON},
+  ${SETTINGS_JSON}
   "image": "${IMAGE}",
   "hostname": "${HOSTNAME}",
-  "flatpaks": ${FLATPAKS_JSON}${USER_JSON}${BUNDLE_JSON}
+  "flatpaks": []${USER_JSON}${BUNDLE_JSON}
 }
 EOF
 
@@ -1595,336 +1838,8 @@ vstage() {
 }
 
 # ── [generic] Early-cpio overlay helpers ─────────────────────────────────────
-# Three Phase-2 staging branches (composefs+systemd-boot, generic
-# systemd-boot, ostree/grub2 with a target initramfs that cannot be
-# regenerated) prepend the same wootc-boot overlay onto the target's own
-# initrd. They used to carry three hand-copied variants of this code, and two
-# of them looked for ntfs-3g under a /mnt/sysroot that never exists in this
-# initramfs — silently falling through to a deployer binary shipped WITHOUT
-# its library closure (the exact cross-image soname failure documented in
-# docs/agent-lessons.md §8). One implementation, used by all branches.
-
-# stage_wootc_overlay <ovl-dir>
-# The attach unit, its wants edge, and the loop script — the minimum that
-# makes root.disk appear to the base initrd's ordinary sysroot.mount.
-stage_wootc_overlay() {
-    local ovl="$1"
-    # early_cpio marker: makes lsinitrd/skipcpio recognise this as a leading
-    # (early) cpio and skip past it to show the base initrd — honest
-    # introspection. Harmless to the kernel (same as microcode).
-    : > "$ovl/early_cpio"
-    install -D -m0644 /usr/lib/wootc/99wootc-boot/wootc-attach.service \
-        "$ovl/usr/lib/systemd/system/wootc-attach.service"
-    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-attach-loop.sh \
-        "$ovl/usr/lib/wootc/wootc-attach-loop.sh"
-    mkdir -p "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants"
-    ln -sf ../wootc-attach.service \
-        "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-
-    # The Phase-2 shutdown pair — the counterpart to this deployer's own
-    # "leave the NTFS volume clean before the forced reboot" teardown, which
-    # Phase 2 had no equivalent of. Without them Phase 2 reboots with the rw
-    # NTFS still mounted and the loop device still attached (systemd: "Not all
-    # file systems unmounted, 1 left"), and Windows comes back to a volume it
-    # boot-loops on and cannot repair.
-    #
-    # These are dracut HOOKS, not units, so they go under the hook dirs rather
-    # than being wired through systemd. /usr/lib, never /lib: dracut's
-    # $hookdir is /lib/dracut/hooks, which is the same path on the usr-merged
-    # images this overlay targets, and creating a real /lib directory in an
-    # early cpio would collide with the base initrd's /lib -> usr/lib symlink.
-    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-stage-shutdown.sh \
-        "$ovl/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
-    install -D -m0755 /usr/lib/wootc/99wootc-boot/wootc-umount-host.sh \
-        "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
-}
-
-# stage_ntfs3g_closure <ovl-dir>
-# Stage a userspace NTFS driver into the overlay for kernels without ntfs3.
-# Source order matters (agent-lessons §8 — never mix libraries across images):
-#   1. the TARGET deployment's own ntfs-3g: the binary plus its
-#      libntfs-3g/libfuse from the SAME tree. The rest of its closure (libc,
-#      loader) is the base initrd's own — coherent, both come from the image.
-#   2. the DEPLOYER's ntfs-3g as a COMPLETE private closure: binary, every
-#      ldd-resolved library, and the dynamic loader under
-#      /usr/lib/wootc/ntfs3g/, invoked through a wrapper. The target's
-#      libraries are never mixed in (measured skew that motivated this:
-#      libfuse3.so.4 vs .so.3 — lands, then dies exactly like a missing one).
-# Returns 0 when a driver was staged, 1 when none was available (the caller
-# decides whether kernel ntfs3 makes that survivable).
-stage_ntfs3g_closure() {
-    local ovl="$1" d tsrc="" lib nbin ldso=""
-    for d in /usr/bin /usr/sbin /bin /sbin; do
-        [[ -x "$DEPLOY_ROOT$d/ntfs-3g" ]] && { tsrc="$DEPLOY_ROOT$d/ntfs-3g"; break; }
-    done
-    if [[ -n "$tsrc" ]]; then
-        install -D -m0755 "$tsrc" "$ovl/usr/bin/ntfs-3g"
-        # Its NTFS/FUSE libraries from the same tree, symlink chains intact
-        # (libntfs-3g.so.N is a link to .so.N.0.0 — both must land). $lib is
-        # the path with the deployment prefix stripped, so it doubles as the
-        # destination inside the overlay.
-        while IFS= read -r lib; do
-            mkdir -p "$ovl${lib%/*}" 2>/dev/null || true
-            cp -a "$DEPLOY_ROOT$lib" "$ovl${lib%/*}/" 2>/dev/null || true
-        done < <(find "$DEPLOY_ROOT/usr/lib64" "$DEPLOY_ROOT/lib64" \
-                      "$DEPLOY_ROOT/usr/lib" "$DEPLOY_ROOT/lib" \
-                      -maxdepth 1 \( -name 'libntfs-3g*' -o -name 'libfuse*' \) \
-                      2>/dev/null | sed "s|^$DEPLOY_ROOT||")
-        mkdir -p "$ovl/usr/sbin"
-        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
-        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs-3g"
-        log "  early-cpio: staged the TARGET's own ntfs-3g (+libs) from the deployment"
-        return 0
-    fi
-    nbin=$(command -v ntfs-3g 2>/dev/null || true)
-    if [[ -n "$nbin" ]]; then
-        local pdir="usr/lib/wootc/ntfs3g"
-        install -D -m0755 "$nbin" "$ovl/$pdir/ntfs-3g"
-        # Every ldd-resolved dependency AND the loader (the line without "=>").
-        while IFS= read -r lib; do
-            [[ -f "$lib" ]] || continue
-            install -D -m0755 "$lib" "$ovl/$pdir/${lib##*/}"
-            case "$lib" in
-                */ld-linux*|*/ld64.so*|*/ld.so*) ldso="${lib##*/}" ;;
-            esac
-        done < <(dso_closure "$nbin")
-        if [[ -z "$ldso" ]]; then
-            # Best-effort: all three callers fall back to kernel ntfs3 with a
-            # [WARN]. Never say [FAIL] for something the deployer survives —
-            # run-e2e.sh kills the run on the first [FAIL] on the serial.
-            err "  [WARN] early-cpio: no dynamic loader resolved for the deployer's ntfs-3g — cannot build a self-contained closure"
-            rm -rf "${ovl:?}/$pdir"
-            return 1
-        fi
-        # PROVE the closure is complete by RUNNING it (ldd reports only the
-        # first missing library; execution reports the truth). This is the
-        # deployer's own binary on the deployer's own kernel, so it can run
-        # here — pinned to the staged loader + staged libs only.
-        if ! "$ovl/$pdir/$ldso" --library-path "$ovl/$pdir" "$ovl/$pdir/ntfs-3g" --version >/dev/null 2>&1; then
-            err "  [WARN] early-cpio: staged ntfs-3g closure does not execute against its own libraries"
-            rm -rf "${ovl:?}/$pdir"
-            return 1
-        fi
-        # The wrapper the attach hook's mount_host() will find as `ntfs-3g`.
-        #
-        # The hardcoded `exec -a "@ntfs-3g"` is load-bearing, not cosmetic:
-        # the FUSE daemon this wrapper becomes must carry an argv[0] whose
-        # first byte is '@' so systemd's initrd switch-root killing spree
-        # spares it (systemd's ROOT STORAGE DAEMONS contract). Without it the
-        # daemon is SIGKILLed mid-switch-root and every loop I/O returns EIO,
-        # ending in "Failed to execute /sbin/init: Input/output error" — all
-        # three el10 cells of run 32534827767. Only this fallback bites: a
-        # native ntfs-3g never re-execs, so the '@' mount_host() sets
-        # survives, which is why el10 was green while the target-image
-        # ntfs-3g install still succeeded.
-        #
-        # The '@' must be hardcoded HERE; propagating the caller's name via
-        # `exec -a "\$0"` does not work (run 32538672432 proved it): this is
-        # a shebang script, and Linux shebang handling REPLACES argv[0] with
-        # the script path when it builds the interpreter's argv — the
-        # caller's '@mount.ntfs-3g' is discarded before this script runs, so
-        # \$0 is always the plain script path. /proc/PID/cmdline — what the
-        # killing spree reads — is fixed at execve time, so the hardcoded '@'
-        # survives both ld.so's argv shift and ntfs-3g's daemonizing fork.
-        # Unconditional '@' is harmless in every other context (argv[0] only
-        # feeds ntfs-3g's usage messages). Needs bash for `exec -a`, which
-        # the attach hook (bash) already requires present.
-        mkdir -p "$ovl/usr/bin" "$ovl/usr/sbin"
-        cat > "$ovl/usr/bin/ntfs-3g" <<NTFSWRAP
-#!/bin/bash
-exec -a "@ntfs-3g" /$pdir/$ldso --library-path /$pdir /$pdir/ntfs-3g "\$@"
-NTFSWRAP
-        chmod 0755 "$ovl/usr/bin/ntfs-3g"
-        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs"
-        ln -sf /usr/bin/ntfs-3g "$ovl/usr/sbin/mount.ntfs-3g"
-        log "  early-cpio: staged the DEPLOYER's ntfs-3g as a private closure (loader=$ldso, exec-verified)"
-        return 0
-    fi
-    return 1
-}
-
-# stage_qemu_ga_into_target
-# Give the deployed system a guest agent the E2E control plane can reach, on
-# images that ship none.
-#
-# The previous implementation wrote the binary to $DEPLOY_ROOT/usr/bin/qemu-ga
-# and the unit to $DEPLOY_ROOT/usr/lib/systemd/system/. On a composefs
-# deployment both writes SUCCEED and both are INVISIBLE at runtime: the sealed
-# .cfs image is mounted over /usr, so the deployment directory's own /usr is
-# shadowed. dakota booted Phase 2 all the way to a login prompt carrying
-# `systemd.wants=qemu-guest-agent.service`, with no such unit anywhere in the
-# booted system, while the deployer logged "[PASS] qemu-guest-agent installed
-# from deployer into target" (run 30703716667). The harness then reported
-# "the Phase-2 guest agent never answered". A PASS derived from a write
-# landing rather than from the runtime seeing it.
-#
-# /etc and /var ARE the runtime ones under composefs. Ground truth from that
-# same boot: wootc-passthrough.service (installed into $DEPLOY_ROOT/etc with
-# ExecStart=/var/usrlocal/bin/wootc-mount-user-dirs) started and finished.
-# So stage into those, never into /usr:
-#   binary + full ldd closure  → /var/usrlocal/lib/wootc-qga/
-#   wrapper                    → /var/usrlocal/bin/qemu-ga
-#   unit + wants symlink       → /etc/systemd/system/
-#
-# The closure is the agent-lessons §8 rule that stage_ntfs3g_closure follows:
-# never mix the deployer's binary with the target's libraries: ship every
-# ldd-resolved library plus the loader, invoke through the staged loader, and
-# PROVE it by running it (ldd reports only the first missing library).
-#
-# The unit is named wootc-qemu-ga.service and gated on
-# ConditionPathExists=!/usr/bin/qemu-ga so it can never displace an agent the
-# image ships itself. That condition is evaluated in the booted real root,
-# the only place where "does this image have qemu-ga" is observable. A chroot
-# probe here cannot answer it: under composefs $DEPLOY_ROOT/usr is empty, so
-# the probe reports "absent" for every image, including ones that have it.
-stage_qemu_ga_into_target() {
-    local src pdir="var/usrlocal/lib/wootc-qga" lib ldso=""
-    src=$(command -v qemu-ga 2>/dev/null || true)
-    if [[ -z "$src" ]]; then
-        err "  [WARN] qga: the deployer initramfs carries no qemu-ga to stage"
-        return 1
-    fi
-    rm -rf "${DEPLOY_ROOT:?}/$pdir"
-    install -D -m0755 "$src" "$DEPLOY_ROOT/$pdir/qemu-ga"
-    while IFS= read -r lib; do
-        [[ -f "$lib" ]] || continue
-        install -D -m0755 "$lib" "$DEPLOY_ROOT/$pdir/${lib##*/}"
-        case "$lib" in
-            */ld-linux*|*/ld64.so*|*/ld.so*) ldso="${lib##*/}" ;;
-        esac
-    done < <(dso_closure "$src")
-    if [[ -z "$ldso" ]]; then
-        # [WARN], not [FAIL]: the caller continues with "no fallback qemu-ga
-        # staged", and run-e2e.sh aborts the deploy on the first [FAIL] it
-        # sees on the serial — which is how this line, on its own, ended
-        # bluefin-dakota-win11pro in run 30707067821.
-        err "  [WARN] qga: no dynamic loader resolved for the deployer's qemu-ga; cannot build a self-contained closure"
-        rm -rf "${DEPLOY_ROOT:?}/$pdir"
-        return 1
-    fi
-    if ! "$DEPLOY_ROOT/$pdir/$ldso" --library-path "$DEPLOY_ROOT/$pdir" \
-            "$DEPLOY_ROOT/$pdir/qemu-ga" --version >/dev/null 2>&1; then
-        err "  [WARN] qga: staged qemu-ga closure does not execute against its own libraries"
-        rm -rf "${DEPLOY_ROOT:?}/$pdir"
-        return 1
-    fi
-    install -d -m0755 "$DEPLOY_ROOT/var/usrlocal/bin"
-    cat > "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga" <<QGAWRAP
-#!/bin/sh
-exec /$pdir/$ldso --library-path /$pdir /$pdir/qemu-ga "\$@"
-QGAWRAP
-    chmod 0755 "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga"
-    install -d -m0755 "$DEPLOY_ROOT/etc/systemd/system" \
-                      "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
-    cat > "$DEPLOY_ROOT/etc/systemd/system/wootc-qemu-ga.service" <<'QGAUNIT'
-[Unit]
-Description=QEMU Guest Agent (staged by the wootc deployer)
-Documentation=https://github.com/tuna-os/wootc
-# Never displace an agent the image ships itself.
-ConditionPathExists=!/usr/bin/qemu-ga
-ConditionPathExists=!/usr/sbin/qemu-ga
-ConditionPathExists=/var/usrlocal/bin/qemu-ga
-After=local-fs.target
-# The virtio-serial port can appear after this unit is first tried; Restart
-# handles that, so the default 5-starts-in-10s limit must not give up on it.
-StartLimitIntervalSec=0
-
-[Service]
-# A breadcrumb on the console: the serial log is the only Phase-2 evidence the
-# harness can read when the agent is the thing that is broken, so "the unit was
-# tried" must be distinguishable from "the unit does not exist".
-ExecStartPre=/bin/sh -c 'echo "wootc: starting staged qemu-ga" > /dev/kmsg'
-ExecStart=/var/usrlocal/bin/qemu-ga --method=virtio-serial --path=/dev/virtio-ports/org.qemu.guest_agent.0
-Restart=always
-RestartSec=2
-
-[Install]
-WantedBy=multi-user.target
-QGAUNIT
-    ln -sf ../wootc-qemu-ga.service \
-        "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-qemu-ga.service"
-    # Assert the runtime view, not the writes: the wants symlink must resolve
-    # to the unit, and the unit's ExecStart must exist under the deployment.
-    if [[ ! -e "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-qemu-ga.service" ]]; then
-        err "  [WARN] qga: multi-user.target.wants/wootc-qemu-ga.service dangles; the agent would never start"
-        return 1
-    fi
-    if [[ ! -x "$DEPLOY_ROOT/var/usrlocal/bin/qemu-ga" ]]; then
-        err "  [WARN] qga: /var/usrlocal/bin/qemu-ga is not executable in the deployment"
-        return 1
-    fi
-    log "  [PASS] fallback qemu-ga staged (loader=$ldso, exec-verified) at /var/usrlocal/bin/qemu-ga, enabled as wootc-qemu-ga.service"
-    return 0
-}
-
-# build_phase2_initrd <ovl-dir> <base-initrd> <out-path>
-# Pack the overlay ahead of the base initrd and VERIFY the result by
-# inspection — "the concatenated file is non-empty" validated nothing (a
-# hookless or interpreter-less initramfs is non-empty too, and costs a full
-# VM run to diagnose). Fails closed on a defective overlay; base-initrd
-# introspection is best-effort (its compression varies by image) and only
-# fails when a successful listing PROVES a required piece missing.
-build_phase2_initrd() {
-    local ovl="$1" base="$2" out="$3"
-    # The overlay must be verifiably complete BEFORE packing: unit file,
-    # wants edge (a dangling wants is a proven silent no-op), executable hook.
-    if [[ ! -f "$ovl/usr/lib/systemd/system/wootc-attach.service" ]] || \
-       [[ ! -L "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service" ]] || \
-       [[ ! -x "$ovl/usr/lib/wootc/wootc-attach-loop.sh" ]]; then
-        err "  [FAIL] early-cpio overlay is incomplete (unit/wants/hook) — refusing to build a Phase-2 initrd that cannot attach root.disk"
-        return 1
-    fi
-    # The shutdown pair is checked separately, and separately fatal: an
-    # overlay missing it produces a Phase 2 that BOOTS PERFECTLY and then
-    # hands Windows back a volume it cannot repair — a failure that costs a
-    # full 60-90 minute VM run to see, and looks nothing like its cause.
-    if [[ ! -x "$ovl/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" ]] || \
-       [[ ! -x "$ovl/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh" ]]; then
-        err "  [FAIL] early-cpio overlay carries no Phase-2 shutdown hooks — refusing to build a Phase-2 initrd that would reboot with the Windows NTFS still mounted rw"
-        return 1
-    fi
-    if ! ( cd "$ovl" && find . | cpio -o -H newc --quiet ) > "$ovl.cpio" || \
-       ! cat "$ovl.cpio" "$base" > "$out" || [[ ! -s "$out" ]]; then
-        rm -f "$ovl.cpio"
-        err "  [FAIL] early-cpio: cpio prepend failed — Phase-2 initrd would be hookless"
-        return 1
-    fi
-    rm -f "$ovl.cpio"
-    # The overlay supplies unit+hook (+ possibly ntfs-3g); everything else the
-    # hook needs at runtime must come from the BASE initrd: its interpreter
-    # (bash — the hook's shebang), losetup, udevadm, mount. Listing walks every
-    # segment of the image; an empty result just means "unverifiable here",
-    # which must WARN, not fail a deploy that may be good.
-    local listing=""
-    listing=$(list_initrd_members "$base")
-    if [[ -z "$listing" ]]; then
-        log "  [WARN] early-cpio: could not list the base initrd (unknown compression) — interpreter/tool presence unverified"
-        return 0
-    fi
-    # Only a listing that actually holds a root filesystem can prove a tool
-    # absent. A microcode-only early-cpio listing has no bin/ tree at all, and
-    # calling that proof is how a good initrd got declared unbootable.
-    if ! grep -qE '(^|/)(usr/)?s?bin/' <<<"$listing"; then
-        log "  [WARN] early-cpio: the base initrd listing holds no bin/ tree (early-cpio segment only?) — tool presence unverified"
-        return 0
-    fi
-    local missing=() tool found
-    for tool in bash losetup udevadm mount; do
-        found=0
-        grep -qE "(^|/)(usr/)?s?bin/$tool$" <<<"$listing" && found=1
-        # busybox-style initrds provide tools as applet symlinks with the
-        # same basename; the grep above already matches those. A systemd
-        # UKI initrd without a shell at all is the real failure mode here.
-        [[ "$found" == 1 ]] || missing+=("$tool")
-    done
-    if (( ${#missing[@]} > 0 )); then
-        err "  [FAIL] the target's base initrd lacks: ${missing[*]} — the wootc-attach hook cannot run in Phase 2"
-        err "         (every segment listed and a bin/ tree was found, so this is proof, not a probe failure; the image's initrd must ship these or the hook must be rewritten against what it ships)"
-        return 1
-    fi
-    log "  early-cpio: base initrd verified (bash/losetup/udevadm/mount present)"
-    return 0
-}
+# stage_wootc_overlay, stage_ntfs3g_closure, stage_qemu_ga_into_target and
+# build_phase2_initrd live in phase2-overlay.sh (sourced at the top).
 
 # Re-mount the installed disk while its NTFS backing mount is still live.
 # `losetup --find` picks a fresh loop device rather than reusing the previous
@@ -2608,7 +2523,7 @@ if [[ -n "$VERIFY_ROOT" ]]; then
         err "  [WARN] dracut 99wootc-boot module source tree not found under \$DEPLOY_ROOT (the built initramfs was verified above)"
     fi
 
-    vstage "before-userbridge (writes \$DEPLOY_ROOT/usr/local + /usr/share — read-only under composefs)"
+    vstage "before-userbridge (writes \$DEPLOY_ROOT/var/usrlocal, /etc and /var/lib/wootc — never /usr, sealed under composefs)"
     # ── [generic] User Data Bridge (native passthrough) ──────────────────
     # Distro-agnostic: installs units/scripts into the target root. Only
     # its *placement inside* the verification mount is provisioner-hosted.
@@ -2676,6 +2591,8 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
     install -m755 /usr/lib/wootc/migration/wootc-umount-user-dirs \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-umount-user-dirs"
+    install -m755 /usr/lib/wootc/migration/wootc-folder-flags \
+        "$DEPLOY_ROOT/var/usrlocal/bin/wootc-folder-flags"
     # Extra bridge categories (SPEC §4.1–4.2): Steam, browser import, and
     # the stage-4 folder conversion used by the migration dashboard.
     install -m755 /usr/lib/wootc/migration/wootc-steam-bridge \
@@ -2689,8 +2606,13 @@ QGAEOF
         "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc_import_safety.py"
     install -m755 /usr/lib/wootc/migration/wootc-copy-windows-documents \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-copy-windows-documents"
+    # Nothing the running system needs may go under $DEPLOY_ROOT/usr: on a
+    # composefs deployment (bluefin, prepare-root [composefs] enabled) the
+    # sealed image is mounted over /usr and such a write is invisible at
+    # runtime. polkit also reads /etc/polkit-1/actions; desktop entries go to
+    # /usr/local/share/applications (= /var/usrlocal, in XDG_DATA_DIRS).
     install -D -m644 /usr/lib/wootc/migration/org.tunaos.wootc.policy \
-        "$DEPLOY_ROOT/usr/share/polkit-1/actions/org.tunaos.wootc.policy"
+        "$DEPLOY_ROOT/etc/polkit-1/actions/org.tunaos.wootc.policy"
     # Optional post-install utilities. These are not required for the deployer
     # to run, so a payload that a given initramfs did not carry must WARN, never
     # abort the whole deploy (set -e) — a missing GUI helper is not worth losing
@@ -2704,28 +2626,28 @@ QGAEOF
     # BitLocker) + its GUI launcher. Post-install utility — no autostart.
     mig_opt 755 wootc-import     "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import"
     mig_opt 755 wootc-import-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-import-gui"
-    mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-import.desktop"
+    mig_opt 644 wootc-import.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-import.desktop"
     # Migration chooser (§4.6): discover everything migratable, default-on, opt-out.
     mig_opt 755 wootc-manifest "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest"
     mig_opt 755 wootc-manifest-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-manifest-gui"
-    mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-manifest.desktop"
+    mig_opt 644 wootc-manifest.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-manifest.desktop"
     # Identity prefill/copy (§4.6): account name + picture (never the password).
     mig_opt 755 wootc-identity "$DEPLOY_ROOT/var/usrlocal/bin/wootc-identity"
     # Account setup screen: pre-fills the identity, asks for the one thing that
     # cannot be migrated (the password). Never persists the secret.
     mig_opt 755 wootc-user-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-user-gui"
-    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-user.desktop"
+    mig_opt 644 wootc-user.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-user.desktop"
     # Gates the bridges on the migration chooser's opt-out selection.
     mig_opt 755 wootc-selection "$DEPLOY_ROOT/var/usrlocal/bin/wootc-selection"
-    # Program migrator plugins and schemas (docs/plugin-architecture.md).
+    # Program migrator plugins and schemas (docs/plugin-architecture.md),
+    # where wootc-manifest finds a deployed first-party plugin set.
     if [[ -d /usr/lib/wootc/migration/plugins.d ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/lib/wootc/plugins.d" "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d"
-        cp -a /usr/lib/wootc/migration/plugins.d/* "$DEPLOY_ROOT/usr/lib/wootc/plugins.d/" 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d"
         cp -a /usr/lib/wootc/migration/plugins.d/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/plugins.d/" 2>/dev/null || true
     fi
     if [[ -d /usr/lib/wootc/migration/schemas ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/lib/wootc/schemas"
-        cp -a /usr/lib/wootc/migration/schemas/* "$DEPLOY_ROOT/usr/lib/wootc/schemas/" 2>/dev/null || true
+        mkdir -p "$DEPLOY_ROOT/var/usrlocal/lib/wootc/schemas"
+        cp -a /usr/lib/wootc/migration/schemas/* "$DEPLOY_ROOT/var/usrlocal/lib/wootc/schemas/" 2>/dev/null || true
     fi
     # Phase 3 (§4.2 stage 5-6): "move to Linux only" planner. Analysis path is
     # live; the destructive repartition path is guarded off until rung-3 proof.
@@ -2736,7 +2658,7 @@ QGAEOF
     install -D -m755 /usr/bin/fisherman "$DEPLOY_ROOT/var/usrlocal/bin/fisherman"
     mig_opt 755 wootc-go-native  "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native"
     mig_opt 755 wootc-go-native-gui "$DEPLOY_ROOT/var/usrlocal/bin/wootc-go-native-gui"
-    mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/usr/share/applications/wootc-go-native.desktop"
+    mig_opt 644 wootc-go-native.desktop "$DEPLOY_ROOT/var/usrlocal/share/applications/wootc-go-native.desktop"
     # QGA commands run in virt_qemu_ga_t, which SELinux prevents from executing podman/bootc.
     # Stage a narrow systemd request bridge so PID 1 runs the migration engine in a normal domain.
     mkdir -p "$DEPLOY_ROOT/var/usrlocal/libexec" "$DEPLOY_ROOT/var/usrlocal/libexec" 2>/dev/null || true
@@ -2760,6 +2682,10 @@ QGAEOF
     fi
     # WSL migration (§4.6): dotfiles + Brewfile from a WSL install.
     mig_opt 755 wootc-wsl-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-wsl-bridge"
+    # Developer setup (§4.6): public SSH files + Git identity, run per user on
+    # every Phase-2 boot by wootc-mount-user-dirs. /var/usrlocal, not /usr:
+    # composefs-sealed images hide deployer writes under /usr at runtime.
+    mig_opt 755 wootc-developer-bridge "$DEPLOY_ROOT/var/usrlocal/bin/wootc-developer-bridge"
     # Wi-Fi migration (§4.6): the bridge needs python3 + nmcli, so it runs on
     # first boot (oneshot service), not in this minimal initramfs. Stage the
     # exported profiles into the deployment; the bridge imports then shreds them.
@@ -2776,6 +2702,20 @@ QGAEOF
         chmod 700 "$DEPLOY_ROOT/var/lib/wootc/wifi-import"
         chmod 600 "$DEPLOY_ROOT"/var/lib/wootc/wifi-import/*.xml 2>/dev/null || true
         log "  Staged Wi-Fi profiles for first-boot import"
+    fi
+    # Printer migration (§4.6): the importer reads the Windows printer list
+    # straight off the NTFS volume on EVERY boot (a printer that did not
+    # answer is retried), so nothing is staged and the unit is enabled
+    # whether or not a list exists; without one it exits at once. The wants
+    # link only goes in beside both files, never dangling.
+    mig_opt 755 wootc-printer-import "$DEPLOY_ROOT/var/usrlocal/bin/wootc-printer-import"
+    mig_opt 644 wootc-printer-import.service "$DEPLOY_ROOT/etc/systemd/system/wootc-printer-import.service"
+    if [[ -f "$DEPLOY_ROOT/var/usrlocal/bin/wootc-printer-import" \
+       && -f "$DEPLOY_ROOT/etc/systemd/system/wootc-printer-import.service" ]]; then
+        mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+        ln -sf ../wootc-printer-import.service \
+            "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-printer-import.service"
+        log "  Printer import enabled (wootc-printer-import.service)"
     fi
     # ESP self-healing sync: keeps the Windows-ESP kernel pair current
     # after bootc updates of the installed loop-root deployment.
@@ -2839,6 +2779,7 @@ QGAEOF
     # separate in host-esp.conf for Windows's installation-plan cross-check.
     mkdir -p "$DEPLOY_ROOT/etc/wootc"
     printf '%s\n' "$IMAGE" > "$DEPLOY_ROOT/etc/wootc/installed-image-ref"
+    write_rtc_adjtime /mnt/ntfs/wootc/install/clock.json "$DEPLOY_ROOT/etc"
 
     # Phase-2 first-boot evidence and health marker (§2, §3): updates state.json to healthy.
     install -D -m644 /usr/libexec/wootc-steps.sh \
@@ -2871,6 +2812,10 @@ QGAEOF
 
     install -m755 /usr/lib/wootc/migration/wootc-detect-apps \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-detect-apps"
+    if ! install -D -m644 /usr/lib/wootc/migration/lib/app-flatpaks.json \
+            "$DEPLOY_ROOT/var/usrlocal/lib/wootc/app-flatpaks.json"; then
+        err "  [WARN] app-flatpaks.json not staged — wootc-detect-apps will not match Windows programs"
+    fi
     install -m755 /usr/lib/wootc/migration/wootc-office-bridge \
         "$DEPLOY_ROOT/var/usrlocal/bin/wootc-office-bridge"
     # Windows-Style Mode: per-user look apply on first login.
@@ -2888,24 +2833,24 @@ QGAEOF
     # files, and the landing bats pin both sides of that contract.
     mig_opt 755 wootc-welcome "$DEPLOY_ROOT/var/usrlocal/bin/wootc-welcome"
     mig_opt 644 wootc-welcome.desktop "$DEPLOY_ROOT/etc/xdg/autostart/wootc-welcome.desktop"
-    # Slurped Windows look (wallpaper/theme/timezone), if the installer
-    # collected it. Timezone applies system-wide right here.
+    # Slurped Windows look (wallpaper/theme), if the installer collected it.
+    # The time zone, language and keyboard went into the fisherman recipe.
     # Session envelopes remain encrypted on the NTFS source for the explicit
-    # per-user unlock/import flow (#1). Never install them into /usr/share:
-    # only non-secret look/identity data belongs in the immutable target.
+    # per-user unlock/import flow (#1); only non-secret look/identity data is
+    # installed. /var/lib/wootc, not /usr/share: under composefs the sealed
+    # /usr hides anything written into the deployment's /usr, and first-login
+    # apply-look found no look data at all on bluefin.
     if [[ -d /mnt/ntfs/wootc/install/slurp ]]; then
-        mkdir -p "$DEPLOY_ROOT/usr/share/wootc/slurp"
+        mkdir -p "$DEPLOY_ROOT/var/lib/wootc/slurp"
         find /mnt/ntfs/wootc/install/slurp -mindepth 1 -maxdepth 1 ! -name session \
-            -exec cp -a {} "$DEPLOY_ROOT/usr/share/wootc/slurp/" \;
+            -exec cp -a {} "$DEPLOY_ROOT/var/lib/wootc/slurp/" \;
+        # apply-look runs as each user: NTFS modes must not decide that.
+        chown -R 0:0 "$DEPLOY_ROOT/var/lib/wootc/slurp"
+        chmod -R u=rwX,go=rX "$DEPLOY_ROOT/var/lib/wootc/slurp"
         # Retain the encrypted .enc inputs and status-only exports.json on
         # NTFS. An unlock or database rewrite is not verified authentication;
         # neither is authority to erase the source. Cleanup requires explicit
         # discard or a verified authenticated import, not deployment success.
-        SLURP_TZ=$(jq -r '.timezone // empty' /mnt/ntfs/wootc/install/slurp/slurp.json 2>/dev/null || true)
-        if [[ -n "$SLURP_TZ" && -e "$DEPLOY_ROOT/usr/share/zoneinfo/$SLURP_TZ" ]]; then
-            ln -sf "../usr/share/zoneinfo/$SLURP_TZ" "$DEPLOY_ROOT/etc/localtime"
-            log "  Timezone set to $SLURP_TZ (from Windows)"
-        fi
     fi
     mkdir -p "$DEPLOY_ROOT/etc/systemd/system/local-fs.target.wants" \
              "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
@@ -2953,6 +2898,11 @@ QGAEOF
     # loop-root cmdline from the patched BLS entries.
     vstage "before-esp-staging (reaching here means /usr writes all succeeded)"
     log "Syncing Phase-2 kernel to ESP..."
+    PHASE2_LSM_KARG=$(phase2_lsm_karg "$DEPLOY_ROOT")
+    if [[ -n "$PHASE2_LSM_KARG" ]]; then
+        PHASE2_KARGS="$PHASE2_KARGS $PHASE2_LSM_KARG"
+        log "  installed OS has no SELinux configuration: Phase 2 boots with $PHASE2_LSM_KARG"
+    fi
 
     # ESP is partition 1 of the disk containing the NTFS partition.
     # /dev/sda3 → /dev/sda1, /dev/nvme0n1p3 → /dev/nvme0n1p1
@@ -3036,7 +2986,23 @@ QGAEOF
                     exit 1
                 fi
                 log "  composefs: Phase-2 kernel=$cfs_linux initrd=$cfs_initrd"
-                cp "$KSRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                # Where bootc's entries live follows the loader that boots
+                # Phase 2, because bootc decides by the same LoaderInfo
+                # variable (payload/migration/wootc-cfs-boot). The Windows
+                # installer's signed chain is GRUB: bootc then reads its
+                # entries from /sysroot/boot, so they move there and the
+                # Windows ESP gets a GRUB menu of exactly those entries. A
+                # systemd-boot chain keeps them on root.disk's ESP and boots
+                # loader/entries/wootc.conf.
+                PHASE2_HOST_LOADER=$(phase2_host_loader)
+                CFS_GRUB=1
+                [[ "$PHASE2_HOST_LOADER" != systemd-boot ]] || CFS_GRUB=0
+                if [[ "$CFS_GRUB" == 1 ]]; then
+                    log "  composefs: this deployer was started by $PHASE2_HOST_LOADER (LoaderInfo); bootc's entries move to /boot for GRUB"
+                else
+                    log "  composefs: this deployer was started by systemd-boot (LoaderInfo); bootc's entries stay on root.disk's ESP"
+                    cp "$KSRC" /mnt/esp/EFI/wootc/phase2-vmlinuz
+                fi
                 # Inject wootc-boot: unit + wants symlink + loop script. PREPEND an
                 # uncompressed cpio ahead of the (compressed) base initrd — the
                 # kernel's early-cpio mechanism unpacks the leading 4-byte-padded
@@ -3071,12 +3037,43 @@ QGAEOF
                 # and are signed with the Fedora key the deployer kernel trusts.
                 _dkver=$(ls /lib/modules | head -1)
                 if [[ -n "$_dkver" && -d "/lib/modules/$_dkver" ]]; then
-                    mkdir -p "$OVL/lib/modules"
-                    cp -a "/lib/modules/$_dkver" "$OVL/lib/modules/"
+                    # usr/lib/modules, never lib/modules: a real lib/ in this
+                    # early cpio blocks the base initrd's lib -> usr/lib
+                    # symlink (the kernel's unpacker cannot replace a
+                    # non-empty directory with a symlink), so /lib/dracut-lib.sh
+                    # and everything else under /lib vanish from Phase 2. Run
+                    # 44742028340 (grouper): every dracut hook failed to source
+                    # dracut-lib.sh and wootc-attach died before its first line.
+                    mkdir -p "$OVL/usr/lib/modules"
+                    cp -a "/lib/modules/$_dkver" "$OVL/usr/lib/modules/"
+                    # depmod -b reads <base>/lib/modules on kmod builds that
+                    # predate the /usr/lib/modules default; give it that view
+                    # for this one call only.
+                    ln -s usr/lib "$OVL/lib"
                     depmod -b "$OVL" "$_dkver" 2>/dev/null || true
+                    rm -f "$OVL/lib"
                     # Load essential modules before wootc-attach via a
                     # systemd service (dracut pre-udev hooks may not fire
                     # in the UKI initrd's minimal init).
+                    #
+                    # fat, vfat and binfmt_misc load here too, although
+                    # nothing in the initrd uses them. The deployer kernel's
+                    # modules exist only in this initrd: after switch-root
+                    # the OS has its own kernel's tree, so a module that
+                    # loads on demand later is missing. `bootc status` mounts
+                    # root.disk's ESP to read the boot entries; on grouper it
+                    # stopped with "Mounting /dev/loop0p1: No such device (os
+                    # error 19)" (run 44781343011), so the first-boot record
+                    # was never written, and proc-sys-fs-binfmt_misc.mount
+                    # failed. Codepage 437 and ascii are built into the
+                    # Fedora kernel.
+                    #
+                    # modprobe first: it resolves dependencies and finds the
+                    # tree under usr/lib/modules, where this overlay puts it.
+                    # The old loader searched only /lib/modules and reported
+                    # every module "NOT FOUND" on grouper. insmod of a file
+                    # from either tree stays as the fallback (fat before vfat:
+                    # insmod does not resolve dependencies).
                     mkdir -p "$OVL/usr/lib/systemd/system" \
                              "$OVL/usr/lib/systemd/system/initrd-root-device.target.wants"
                     cat > "$OVL/usr/lib/systemd/system/wootc-load-modules.service" <<'SMOD'
@@ -3098,13 +3095,16 @@ SMOD
 #!/bin/sh
 echo "wootc: load-modules starting (kver=$(uname -r))" > /dev/console
 _kver=$(uname -r)
-for _mod in virtio_pci virtio_scsi ahci sd_mod; do
-    _path=$(find "/lib/modules/$_kver" -name "${_mod}.ko" -print -quit 2>/dev/null)
-    if [ -n "$_path" ] && [ -f "$_path" ]; then
+for _mod in virtio_pci virtio_scsi ahci sd_mod fat vfat binfmt_misc; do
+    if modprobe "$_mod" 2>/dev/null; then
+        echo "wootc: modprobe $_mod" > /dev/console
+        continue
+    fi
+    _path=$(find "/usr/lib/modules/$_kver" "/lib/modules/$_kver" -name "${_mod}.ko*" -print -quit 2>/dev/null)
+    if [ -n "$_path" ] && insmod "$_path" 2>/dev/null; then
         echo "wootc: insmod $_mod ($_path)" > /dev/console
-        insmod "$_path" 2>/dev/null || modprobe "$_mod" 2>/dev/null || true
     else
-        echo "wootc: module $_mod NOT FOUND in /lib/modules/$_kver" > /dev/console
+        echo "wootc: module $_mod NOT LOADED (kver $_kver, file: ${_path:-none})" > /dev/console
     fi
 done
 echo "wootc: load-modules done" > /dev/console
@@ -3115,6 +3115,50 @@ SMODSH
                     log "  Staged deployer kernel modules ($_dkver) for Phase 2"
                 fi
 
+                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
+                if [[ "$CFS_GRUB" == 1 ]]; then
+                # One overlay for every entry: GRUB loads it ahead of each
+                # entry's own initrd. Its checks run against this entry's.
+                esp_claim_before_write /mnt/esp EFI/wootc/phase2-overlay.cpio || exit 1
+                if build_phase2_initrd "$OVL" "$ISRC" /mnt/esp/EFI/wootc/phase2-overlay.cpio --overlay-only; then
+                    rm -rf "$OVL"
+                    log "  [PASS] composefs Phase-2 overlay packed (contents verified against the entry's initrd)"
+                else
+                    rm -rf "$OVL"
+                    err "  [FAIL] composefs: Phase-2 overlay build/verify failed — aborting before the ESP advertises an unbootable Phase 2"
+                    exit 1
+                fi
+                # The entries carry this machine's Phase-2 arguments from here
+                # on: bootc copies the booted entry's options into each new one.
+                mkdir -p /mnt/verify/boot
+                if ! /usr/lib/wootc/migration/wootc-cfs-boot adopt --esp "$TESP" --boot /mnt/verify/boot \
+                        --kargs "loop=/wootc/disks/root.disk wootc.host_uuid=${HOST_UUID} ${PHASE2_CONSOLE_FULL} ${PHASE2_KARGS}" \
+                        --drop "quiet rhgb" ||
+                   ! /usr/lib/wootc/migration/wootc-cfs-boot sync --install --boot /mnt/verify/boot --esp /mnt/esp; then
+                    err "  [FAIL] composefs: could not move bootc's entries to /boot or write the GRUB menu of them"
+                    exit 1
+                fi
+                rm -f /mnt/esp/loader/entries/wootc-deployer.conf
+                # Day 2: the same sync after every boot and, once bootc has
+                # finalized an upgrade or written a rollback, before shutdown.
+                install -D -m755 /usr/lib/wootc/migration/wootc-cfs-boot \
+                    "$DEPLOY_ROOT/var/usrlocal/bin/wootc-cfs-boot"
+                install -D -m644 /usr/lib/wootc/migration/wootc-esp-own \
+                    "$DEPLOY_ROOT/var/usrlocal/lib/wootc/wootc-esp-own"
+                install -D -m644 /usr/lib/wootc/migration/wootc-esp-sync-shutdown.service \
+                    "$DEPLOY_ROOT/etc/systemd/system/wootc-esp-sync-shutdown.service"
+                mkdir -p "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants"
+                ln -sf ../wootc-esp-sync-shutdown.service \
+                    "$DEPLOY_ROOT/etc/systemd/system/multi-user.target.wants/wootc-esp-sync-shutdown.service"
+                if [[ -n "$ESP_UUID" ]]; then
+                    mkdir -p "$DEPLOY_ROOT/etc/wootc"
+                    printf 'HOST_ESP_UUID=%s\nBOOTLOADER=grub2\nPHASE2_BOOT=composefs-bls\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
+                        "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
+                else
+                    err "  [WARN] no UUID for the Windows ESP $ESP_DEV: updates will not reach the boot menu"
+                fi
+                log "  [PASS] Phase-2 composefs entries in /boot and a GRUB menu of them on the Windows ESP"
+                else
                 if build_phase2_initrd "$OVL" "$ISRC" /mnt/esp/EFI/wootc/phase2-initramfs.img; then
                     rm -rf "$OVL"
                     log "  [PASS] composefs Phase-2 initrd patched with wootc-boot (prepend-cpio, contents verified)"
@@ -3169,13 +3213,13 @@ menuentry "Windows" {
 GRUBCFGEOF
                 done
 
-                ESP_UUID=$(blkid -s UUID -o value "$ESP_DEV" 2>/dev/null || true)
                 if [[ -n "$ESP_UUID" ]]; then
                     mkdir -p "$DEPLOY_ROOT/etc/wootc"
                     printf 'HOST_ESP_UUID=%s\nBOOTLOADER=systemd\nSOURCE_IMAGE_REF=%s\nSOURCE_FILESYSTEM=%s\n' \
                         "$ESP_UUID" "$SOURCE_IMAGE" "$FILESYSTEM" > "$DEPLOY_ROOT/etc/wootc/host-esp.conf"
                 fi
                 log "  [PASS] Phase-2 composefs/systemd-boot entry written (root+composefs+loop kargs)"
+                fi   # close CFS_GRUB (systemd-boot chain)
                 CFS_HANDLED=1
             fi
 
@@ -3407,6 +3451,17 @@ GRUBEOF
         fi
     fi
 
+    # The Linux equivalents of the Windows apps the user kept selected (SPEC
+    # §4.3). After the ESP staging, so a slow download cannot hold back the
+    # part that makes Phase 2 boot; before the relabel below, which then
+    # labels /etc/wootc with the receipt in it. Fails soft per app.
+    log "  verify: installing the selected Windows apps' Flatpaks"
+    install_selected_flatpaks /mnt/ntfs/wootc/install/apps.json \
+        /usr/lib/wootc/migration/lib/app-flatpaks.json "$IMAGE" \
+        "$(flatpak_target_var /mnt/verify "$DEPLOY_ROOT")" "$DEPLOY_ROOT/etc" \
+        /mnt/ntfs/wootc/install/flatpak-install.json
+    vstage "flatpaks-done"
+
     # Files written by this initramfs do not automatically inherit the target
     # deployment's SELinux labels. Mode 0755 is not enough: on enforcing
     # Bluefin an unlabeled /var/usrlocal/bin/wootc-go-native exists and resolves
@@ -3431,12 +3486,11 @@ GRUBEOF
         for _path in \
             /var/usrlocal \
             /usr/local \
-            /usr/share/applications \
-            /usr/share/polkit-1/actions \
-            /usr/share/wootc \
+            /etc/polkit-1/actions \
             /etc/systemd/system \
             /etc/xdg/autostart \
             /etc/wootc \
+            /etc/adjtime \
             /var/lib/wootc; do
             [[ -e "$DEPLOY_ROOT$_path" ]] && RELABEL_PATHS+=("$_path")
         done

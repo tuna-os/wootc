@@ -48,8 +48,12 @@ type NativeConfigurationSnapshot struct {
 	Bundle                  NativeConfigurationBundle    `json:"bundle"`
 	StorageStatus           string                       `json:"storageStatus"`
 	Storage                 []NativeConfigurationStorage `json:"storage"`
-	OriginalUserCaptured    bool                         `json:"originalUserCaptured"`
-	InstallAuthorized       bool                         `json:"installAuthorized"`
+	// DetectedApps are the Windows programs with a Flathub counterpart
+	// (app-flatpaks.json), one per Flatpak. The engine fills it on Windows
+	// after the storage observation; it is never null on the wire.
+	DetectedApps         []DetectedApp `json:"detectedApps"`
+	OriginalUserCaptured bool          `json:"originalUserCaptured"`
+	InstallAuthorized    bool          `json:"installAuthorized"`
 }
 
 type NativeConfigurationImage struct {
@@ -272,7 +276,7 @@ func readNativeConfigurationTimed(ctx context.Context, roots []string, selectedR
 	return NativeConfigurationSnapshot{SchemaVersion: 1, BrandID: brandID, RootBinding: binding, RootScope: scope,
 		CatalogueSource: catalogueSource, CatalogueMetadataSHA256: hex.EncodeToString(sum[:]), PolicySource: policySource,
 		Policy: policy, Branding: brand, Images: images, Defaults: NativeConfigurationDefaults{DiskSizeGB: 40, Encryption: "none", Bootloader: "auto"},
-		Steps: InstallerSteps(), Bundle: bundle, StorageStatus: "not-observed", Storage: []NativeConfigurationStorage{}}, nil
+		Steps: InstallerSteps(), Bundle: bundle, StorageStatus: "not-observed", Storage: []NativeConfigurationStorage{}, DetectedApps: []DetectedApp{}}, nil
 }
 
 func decodeNativeImageCatalogue(data []byte) ([]Image, error) {

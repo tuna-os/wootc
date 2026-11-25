@@ -31,7 +31,7 @@ on:
       use_base_image: { type: boolean, default: true }
       # Rung 3: after Phase 2 boots, graduate the migration onto a BLANK second
       # disk (wootc-go-native migrate --to-disk) — the full 1→2→3 chain. Gives
-      # the guest a spare 40G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
+      # the guest a spare 64G drive (WOOTC_E2E_DISK2_SIZE) and passes --phase3.
       # Windows + root.disk stay untouched, so the run remains reversible.
       phase3: { type: boolean, default: false }
       # Offline axis (#217): the guest VM gets no network device, and the
@@ -110,6 +110,14 @@ jobs:
   # compiles them; both go back to e2e for the OEM and GUI paths. Each side
   # status-only artifact under the name the other waits for if it fails
   # first, so neither waits out its budget for a job that has stopped.
+  #
+  # The names carry the run ATTEMPT. A rerun keeps the earlier attempts'
+  # artifacts in the run, and every attempt of e2e makes a new signing key:
+  # release run 44920191678's "re-run failed jobs" e2e took attempt 1's
+  # installer (an engine with attempt 1's key) and refused its own staged
+  # manifest as "signature is invalid". Each wait names its peer job, so a
+  # peer carried over un-run from an earlier attempt stops the wait at once
+  # with "re-run all jobs" (.github/scripts/wait-run-artifact.sh).
   native-shell:
     if: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
     runs-on: windows-latest
@@ -119,9 +127,9 @@ jobs:
     # the wide budget is only ever spent on a queue.
     timeout-minutes: 280
     env:
-      NATIVE_SHELL_ARTIFACT: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
-      NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
-      NATIVE_INSTALLER_ARTIFACT: e2e-native-installer-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
+      NATIVE_SHELL_ARTIFACT: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      NATIVE_INSTALLER_ARTIFACT: e2e-native-installer-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -165,6 +173,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          WAIT_RUN_ARTIFACT_PEER: ${{ inputs.native_proof && 'native-shell GUI acceptance' || 'e2e' }}
         run: bash .github/scripts/wait-run-artifact.sh 14400 "$NATIVE_ENGINE_ARTIFACT"
       - uses: actions/download-artifact@v8.0.2
         with:
@@ -237,9 +246,9 @@ jobs:
     env:
       NATIVE: ${{ inputs.gui_install && inputs.gui_frontend == 'native' }}
       WOOTC_E2E_NATIVE_PROOF: ${{ inputs.native_proof && '1' || '0' }}
-      NATIVE_SHELL_ARTIFACT: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
-      NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
-      NATIVE_INSTALLER_ARTIFACT: e2e-native-installer-${{ inputs.case_name || 'run' }}-${{ github.run_id }}
+      NATIVE_SHELL_ARTIFACT: e2e-native-shell-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      NATIVE_ENGINE_ARTIFACT: e2e-native-engine-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
+      NATIVE_INSTALLER_ARTIFACT: e2e-native-installer-${{ inputs.case_name || 'run' }}-${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       flake_verdict: ${{ steps.flake.outputs.verdict }}
     steps:
@@ -365,7 +374,7 @@ jobs:
           node-version: '26'
 
       - name: Set up Go for lifecycle CLI
-        uses: actions/setup-go@v7.0.0
+        uses: actions/setup-go@v7.1.0
         with:
           # The app module declares Go 1.25; disk reclaim removes the hosted
           # toolcache, so a GUI run must provision it explicitly.
@@ -401,6 +410,7 @@ jobs:
         if: ${{ env.NATIVE == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          WAIT_RUN_ARTIFACT_PEER: native-shell
         run: |
           set -euo pipefail
           # The installer artifact appears first only as the native-shell
@@ -491,6 +501,7 @@ jobs:
         if: ${{ env.NATIVE == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          WAIT_RUN_ARTIFACT_PEER: native-shell
         run: bash .github/scripts/wait-run-artifact.sh 3600 "$NATIVE_INSTALLER_ARTIFACT"
 
       - name: Download the native installers
@@ -556,9 +567,10 @@ jobs:
           # instead: root.disk 25 GiB + 20 GiB scratch + 6 GiB headroom = 51 GiB,
           # which an ~79 GiB C: holding ~16 GiB of Windows can actually give up.
           WOOTC_E2E_ROOT_DISK_GIB: ${{ inputs.bitlocker == 'on' && '25' || '35' }}
-          # Rung 3: hand the guest a blank 40G second disk as the graduate target.
+          # Rung 3: hand the guest a blank 64G second disk as the graduate target
+          # (fisherman refuses a disk under 50 GiB).
           # Empty string when phase3=false → dockur adds no second disk.
-          WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '40G' || '' }}
+          WOOTC_E2E_DISK2_SIZE: ${{ inputs.phase3 && '64G' || '' }}
           # Empty string → run-e2e.sh's per-image heuristic picks the bootloader.
           WOOTC_E2E_BOOTLOADER: ${{ inputs.bootloader }}
           # Empty string → the deployer's own filesystem default.

@@ -19,7 +19,7 @@
 #   wootc-go-native migrate ...     GUARDED — destructive repartition (stub)
 #
 # Test hooks (fixtures, no real disks): WOOTC_GN_ROOT_SRC, WOOTC_GN_LSBLK,
-# WOOTC_GN_HOSTCONF, WOOTC_GN_HOME, WOOTC_GN_FORCE_LOOP.
+# WOOTC_GN_HOSTCONF, WOOTC_GN_HOME, WOOTC_GN_FORCE_LOOP, WOOTC_GN_ETC.
 
 set -Eeuo pipefail
 
@@ -307,6 +307,458 @@ bootc_local_imgref() {
         || echo "ghcr.io/tuna-os/yellowfin:gnome"
 }
 
+# ── Graduation scratch ──────────────────────────────────────────────────────
+# fisherman's podman-run install needs the whole image in local
+# containers-storage. Pulled into root.disk's own /var, that copy comes on top
+# of the installed system: bluefin:stable (4.6 GiB of compressed layers) filled
+# a 30 GiB root.disk on all four pull attempts (run 44743470001, "no space left
+# on device" under /var/lib/containers). Stage it as the deployer does
+# instead: an ext4 file next to root.disk on the Windows volume, sized from the
+# image, mounted at /var/fisherman-tmp and over /var/lib/containers, and
+# deleted afterwards. root.disk keeps no second copy of the image.
+#
+# The mounts are made in the system's own mount namespace, as the deployer's
+# are. bootc, inside fisherman's install container, looks its source image up
+# with `podman inspect` in PID 1's mount namespace; with the scratch mounted in
+# a private namespace that store was not there, and the install failed with
+# 'no such object: "<image id>"' (probe 44825571768).
+GN_SELF=$(readlink -f "${BASH_SOURCE[0]}")
+GN_SCRATCH_MIN_GIB=20
+
+# graduation_scratch_gib — GiB the scratch must hold for <compressed layer
+# bytes>: deploy.sh's scratch_need_gib formula (3.5x the compressed layers
+# covers blob staging plus the worst measured unpack ratio, +4 GiB ext4
+# metadata), so an image that deployed also graduates.
+graduation_scratch_gib() {
+    local bytes=$1 gib=$((1 << 30)) need
+    if [[ ! "$bytes" =~ ^[0-9]+$ ]] || (( bytes == 0 )); then
+        echo "$GN_SCRATCH_MIN_GIB"
+        return 0
+    fi
+    need=$(( (bytes * 7 / 2 + gib - 1) / gib + 4 ))
+    (( need < GN_SCRATCH_MIN_GIB )) && need=$GN_SCRATCH_MIN_GIB
+    echo "$need"
+}
+
+# image_layer_bytes — the sum of <ref>'s compressed layers as the registry's
+# manifest states them (no download). Prints nothing when it cannot be read.
+image_layer_bytes() {
+    local sizes total=0 s
+    sizes=$(timeout 120 skopeo inspect --retry-times 3 \
+        --format '{{range .LayersData}}{{.Size}} {{end}}' "docker://$1" 2>/dev/null) || return 0
+    for s in $sizes; do
+        [[ "$s" =~ ^[0-9]+$ ]] && total=$(( total + s ))
+    done
+    (( total > 0 )) && echo "$total"
+    return 0
+}
+
+# host_wootc_dir — the wootc directory on the Windows volume: the parent of
+# the disks/ directory holding the root.disk loop file that backs this system.
+#
+# The initramfs attaches root.disk through its own NTFS mount. When that mount
+# is not reachable from the real root, the kernel reports the backing path
+# from the volume's root: "/wootc/disks/root.disk" (fuse-ntfs-3g, E2E
+# 39007144179; bluefin gate probe 44781443975, where `df /wootc` then failed).
+# The volume stays mounted at the private host mount, so the path is looked
+# up there and accepted, as wootc_boot_identity.loop_backs_file does, only
+# when the file is exactly as large as the loop device.
+GN_SYSFS=/sys
+GN_HOST_MNT=/run/initramfs/wootc-host
+host_wootc_dir() {
+    if [[ -n "${WOOTC_GN_HOST_DIR:-}" ]]; then echo "$WOOTC_GN_HOST_DIR"; return 0; fi
+    local mp src dev backing sectors bytes
+    for mp in /sysroot /; do
+        src=$(findmnt -nvo SOURCE "$mp" 2>/dev/null || true)
+        [[ "$src" == /dev/* ]] || continue
+        dev=$(lsblk -no PKNAME "$src" 2>/dev/null | head -1 || true)
+        [[ -n "$dev" ]] || dev=${src#/dev/}
+        backing=$(cat "$GN_SYSFS/block/$dev/loop/backing_file" 2>/dev/null || true)
+        [[ "$backing" == /* && "$backing" != *" (deleted)" ]] || continue
+        if [[ ! -f "$backing" && -f "$GN_HOST_MNT$backing" ]]; then
+            sectors=$(cat "$GN_SYSFS/block/$dev/size" 2>/dev/null || true)
+            bytes=$(stat -c %s "$GN_HOST_MNT$backing" 2>/dev/null || true)
+            [[ "$sectors" =~ ^[0-9]+$ && "$bytes" =~ ^[0-9]+$ ]] && (( sectors * 512 == bytes )) \
+                && backing="$GN_HOST_MNT$backing"
+        fi
+        if [[ -f "$backing" ]]; then
+            dirname "$(dirname "$backing")"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# native_install_staged — create the scratch, then pull <img> and run
+# fisherman <recipe> on it (cmd_staged_install, in a child process that
+# unmounts the scratch when it exits). Refuses with the numbers, before
+# writing anything, when the Windows volume cannot hold the scratch.
+native_install_staged() {
+    local img=$1 recipe=$2 hostdir scratch need free dfout rc=0
+    hostdir=$(host_wootc_dir) \
+        || die "cannot locate the Windows volume that holds root.disk (no loop backing file under /sysroot or /)"
+    scratch="$hostdir/cache/native-scratch.img"
+    rm -f "$scratch"
+    need=$(graduation_scratch_gib "$(image_layer_bytes "$img")")
+    # An unreadable free-space figure is its own failure, never "0 GiB free"
+    # (gate probe 44771739639 refused with "the drive has 0 GiB free" and no
+    # way to tell an empty df from a full drive).
+    dfout=$(df -B1 --output=avail "$hostdir" 2>&1) \
+        || die "cannot read the free space of the Windows drive at $hostdir: $(tr '\n' ' ' <<<"$dfout")"
+    free=$(tail -1 <<<"$dfout" | tr -d ' ')
+    [[ "$free" =~ ^[0-9]+$ ]] \
+        || die "cannot read the free space of the Windows drive at $hostdir (df printed: $(tr '\n' ' ' <<<"$dfout"))"
+    # Keep 1 GiB beyond the scratch: Windows still writes to this volume.
+    if (( free < ((need + 1) << 30) )); then
+        # Name what holds the space so the refusal can be checked against
+        # the drive: the volume totals and the largest files wootc keeps there.
+        log "Windows drive at $hostdir: $(df -h --output=size,used,avail "$hostdir" 2>&1 | tail -1)"
+        log "largest files under $hostdir: $(find "$hostdir" -xdev -type f -size +1G -printf '%p %s bytes; ' 2>&1 | head -c 2000)"
+        die "$img needs about ${need} GiB of temporary space on the Windows drive to unpack (freed afterwards); the drive has $(( free >> 30 )) GiB free. Free up space in Windows and try again."
+    fi
+    log "Staging $img in a ${need} GiB scratch on the Windows drive ($scratch)…"
+    mkdir -p "$hostdir/cache"
+    if ! truncate -s "${need}G" "$scratch" || ! mkfs.ext4 -q -F "$scratch"; then
+        rm -f "$scratch"
+        die "cannot create the ${need} GiB scratch $scratch"
+    fi
+    "$GN_SELF" __staged-install "$scratch" "$img" "$recipe" || rc=$?
+    rm -f "$scratch"
+    return "$rc"
+}
+
+# stage_progress <disk> — while the pull and the install run, log every
+# GN_PROGRESS_SECS what the scratch holds and what has reached <disk>, but
+# only when one of them moved. Neither `podman pull` without a terminal nor
+# bootc's deploy prints anything for minutes: gate probe 44791710524 showed
+# one "Starting … migrate" line for 15 minutes and could not tell a slow pull
+# from a hang. A silent log now means nothing moved.
+GN_PROGRESS_SECS=30
+stage_progress() {
+    local disk=${1#/dev/} last="" now used written
+    while sleep "$GN_PROGRESS_SECS" >/dev/null 2>&1; do
+        used=$(df -BM --output=used /var/fisherman-tmp 2>/dev/null | tail -1 | tr -d ' ' || true)
+        written=$(awk '{ print int($7 / 2048) }' "$GN_SYSFS/block/$disk/stat" 2>/dev/null || true)
+        now="scratch ${used:-?} used, ${written:-?} MiB written to /dev/$disk"
+        [[ "$now" == "$last" ]] || log "progress: $now"
+        last=$now
+    done
+}
+
+# cmd_staged_install — runs in its own process (native_install_staged), so its
+# EXIT trap undoes every mount it made, in reverse order, whatever the outcome.
+# `mount -o loop` sets autoclear, so the loop device detaches with the scratch.
+#
+# While it runs, root podman on this system sees the scratch store instead of
+# its own: /var/lib/containers and the runroot (/run/containers, /run/libpod)
+# are covered, because the runroot describes the store under it. /var/tmp is
+# not covered; TMPDIR points podman's blob staging into the scratch instead.
+GN_STAGED_MOUNTS=()
+GN_PROGRESS_PID=""
+staged_mount() {
+    mount "$@" || die "cannot mount ${*: -1} for the native install"
+    GN_STAGED_MOUNTS+=("${*: -1}")
+}
+staged_cleanup() {
+    local i m
+    if [[ -n "$GN_PROGRESS_PID" ]]; then kill "$GN_PROGRESS_PID" 2>/dev/null || true; fi
+    for (( i = ${#GN_STAGED_MOUNTS[@]} - 1; i >= 0; i-- )); do
+        m=${GN_STAGED_MOUNTS[i]}
+        umount -R "$m" 2>/dev/null || umount -Rl "$m" 2>/dev/null || log "WARN: cannot unmount $m"
+    done
+}
+cmd_staged_install() {
+    local scratch=$1 img=$2 recipe=$3 pull_ok=false attempt disk
+    trap staged_cleanup EXIT
+    mkdir -p /var/fisherman-tmp
+    staged_mount -o loop "$scratch" /var/fisherman-tmp
+    mkdir -p /var/fisherman-tmp/host-containers /var/fisherman-tmp/var-tmp \
+        /var/lib/containers /run/containers /run/libpod
+    chmod 1777 /var/fisherman-tmp/var-tmp
+    staged_mount --bind /var/fisherman-tmp/host-containers /var/lib/containers
+    # A fresh runroot: the running system's podman state describes its own
+    # store, not this one.
+    staged_mount -t tmpfs tmpfs /run/containers
+    staged_mount -t tmpfs tmpfs /run/libpod
+    # containers/image stages pull blobs in $TMPDIR (default /var/tmp)
+    # whatever the storage root.
+    export TMPDIR=/var/fisherman-tmp/var-tmp
+
+    disk=$(grep -oP '"disk":\s*"\K[^"]+' "$recipe" 2>/dev/null || true)
+    stage_progress "$disk" &
+    GN_PROGRESS_PID=$!
+
+    # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
+    # the image container, exactly how the deployer installed root.disk — the
+    # one path proven against every supported image. The two alternatives both
+    # failed live on bluefin:lts:
+    #   * direct mode without --source-imgref: "must be executed inside a
+    #     podman container" (run 20260723T0106);
+    #   * direct mode with --source-imgref containers-storage:<ref>:
+    #     "Multiple commit objects found" — the containers-storage transport
+    #     chokes on sealed/chunked images (run 20260723T0155).
+    # Pre-pull for visible progress; podman run then uses the local copy.
+    if ! podman image exists "$img" 2>/dev/null; then
+        log "Pulling $img into the scratch containers-storage for the native install…"
+        # Retry: this pull runs INSIDE the Phase-2 VM, over whatever network
+        # that guest has — flaky on a mirror-less hosted runner (bluefin
+        # phase3, GH matrix 20260724T1558: one 'network down?' died the whole
+        # graduation). Podman resumes copied layers, so retries are cheap.
+        for attempt in 1 2 3 4; do
+            if podman pull "$img"; then pull_ok=true; break; fi
+            log "  pull attempt $attempt failed (scratch: $(df -h /var/fisherman-tmp 2>/dev/null | awk 'NR==2{print $3" used of "$2}')); retrying in $((attempt*15))s…"
+            sleep $((attempt*15))
+        done
+        [[ "$pull_ok" == true ]] || \
+            die "cannot stage $img locally after 4 attempts — native install needs its content"
+    fi
+    fisherman "$recipe" || die "fisherman native install failed"
+}
+
+# fisherman_settings_members <timezone> <locale> <xkb layout> <xkb variant> <xkb model>
+# Print the recipe members for the values that pass fisherman's recipe
+# rules, one per line with a trailing comma; name the others on stderr and
+# leave them out (fisherman refuses a whole recipe for one bad value). The
+# deployer has the same function; settings-carry.bats keeps the two identical.
+fisherman_settings_members() {
+    local tz=$1 locale=$2 layout=$3 variant=$4 model=$5
+    local tz_re='^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)*$'
+    local locale_re='^([a-z]{2,3}(_[A-Z]{2,3})?|C|POSIX)(\.[A-Za-z0-9][A-Za-z0-9_-]*)?(@[A-Za-z0-9]+)?$'
+    local layout_re='^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$'
+    local variant_re='^[A-Za-z0-9_.+-]*(,[A-Za-z0-9_.+-]*)*$'
+    local model_re='^[A-Za-z0-9_.+-]+$'
+    if [[ -n "$tz" ]]; then
+        if (( ${#tz} <= 64 )) && [[ "$tz" =~ $tz_re ]]; then
+            printf '"timezone": "%s",\n' "$tz"
+        else
+            printf 'settings: time zone %q is not an IANA name; left out\n' "$tz" >&2
+        fi
+    fi
+    if [[ -n "$locale" ]]; then
+        if (( ${#locale} <= 64 )) && [[ "$locale" =~ $locale_re ]]; then
+            printf '"locale": "%s",\n' "$locale"
+        else
+            printf 'settings: locale %q is not a locale name; left out\n' "$locale" >&2
+        fi
+    fi
+    if [[ -n "$layout" ]]; then
+        if (( ${#layout} > 64 )) || [[ ! "$layout" =~ $layout_re ]]; then
+            printf 'settings: keyboard layout %q is not an XKB layout; keyboard left out\n' "$layout" >&2
+            return 0
+        fi
+        if (( ${#variant} > 64 )) || [[ ! "$variant" =~ $variant_re ]]; then
+            printf 'settings: keyboard variant %q is not an XKB variant; variant left out\n' "$variant" >&2
+            variant=""
+        fi
+        if [[ -n "$model" ]] && { (( ${#model} > 64 )) || [[ ! "$model" =~ $model_re ]]; }; then
+            printf 'settings: keyboard model %q is not an XKB model; model left out\n' "$model" >&2
+            model=""
+        fi
+        printf '"keyboard": {"layout": "%s"%s%s},\n' "$layout" \
+            "${variant:+, \"variant\": \"$variant\"}" "${model:+, \"model\": \"$model\"}"
+    fi
+}
+
+# phase2_user_json <username> <GECOS field> <crypt hash> — the native
+# recipe's "user" object for this system's account. The full name is the
+# first comma subfield of GECOS only (chfn and adduser add ",room,phone,..."
+# after it), passed through the deployer's sanitize_full_name rule again
+# (useradd refuses ':' and newlines, which would stop the native install),
+# and json.dumps builds the object so a quote or backslash in the name cannot
+# break the recipe. An empty full name is left out.
+phase2_user_json() {
+    python3 - "$1" "$2" "$3" <<'PY'
+import json, re, sys, unicodedata
+user, gecos, crypt = sys.argv[1:4]
+space = set("\t\n\x0b\x0c\r \x85\xa0\u1680\u2028\u2029\u202f\u205f\u3000")
+space |= {chr(c) for c in range(0x2000, 0x200B)}
+name = "".join(" " if c in space else c for c in gecos.split(",", 1)[0])
+# Cs: bytes that were not UTF-8 arrive as surrogate escapes; drop them as
+# the installer drops invalid UTF-8.
+name = "".join(c for c in name if c != ":" and unicodedata.category(c) not in ("Cc", "Cs"))
+name = re.sub(" {2,}", " ", name).strip(" ")
+while len(name.encode()) > 256:
+    name = name[:-1]
+name = name.rstrip(" ")
+account = {"username": user, "password": crypt, "groups": ["wheel"]}
+if name:
+    account["fullname"] = name
+print(json.dumps(account))
+PY
+}
+
+# phase2_hostname — this system's static hostname, or "wootc" when it has
+# none fisherman would accept (RFC 1123 labels, at most 64 characters).
+phase2_hostname() {
+    local etc=${WOOTC_GN_ETC:-/etc} name=""
+    local re='^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$'
+    [[ -r "$etc/hostname" ]] && name=$(head -1 "$etc/hostname" | tr -d '[:space:]')
+    if [[ -n "$name" ]] && (( ${#name} <= 64 )) && [[ "$name" =~ $re ]]; then
+        printf '%s\n' "$name"
+    else
+        [[ -z "$name" ]] || log "hostname '$name' is not a valid hostname; the native install is named wootc"
+        printf 'wootc\n'
+    fi
+}
+
+# env_file_value <file> <key> — KEY=value from an env-style file such as
+# /etc/locale.conf, without quotes. Nothing when the file or key is absent.
+env_file_value() {
+    [[ -r "$1" ]] || return 0
+    sed -n "s/^[[:space:]]*$2=//p" "$1" | tail -1 | tr -d '"'"'"'\r'
+}
+
+# phase2_recipe_settings — the recipe members for this system's time zone
+# (/etc/localtime), language (/etc/locale.conf LANG) and keyboard
+# (/etc/vconsole.conf XKB*), the files fisherman writes on the native disk.
+phase2_recipe_settings() {
+    local etc=${WOOTC_GN_ETC:-/etc} tz="" link
+    if link=$(readlink "$etc/localtime" 2>/dev/null) && [[ "$link" == *zoneinfo/* ]]; then
+        tz=${link##*zoneinfo/}
+    fi
+    fisherman_settings_members "$tz" \
+        "$(env_file_value "$etc/locale.conf" LANG)" \
+        "$(env_file_value "$etc/vconsole.conf" XKBLAYOUT)" \
+        "$(env_file_value "$etc/vconsole.conf" XKBVARIANT)" \
+        "$(env_file_value "$etc/vconsole.conf" XKBMODEL)"
+}
+
+# carry_rtc_mode <native etc> — this system's hardware-clock mode
+# (/etc/adjtime; deploy.sh's write_rtc_adjtime sets LOCAL when Windows keeps
+# the RTC in local time). The dual-boot native system shares the RTC with the
+# same Windows, so it keeps the same mode. No adjtime: the RTC stays UTC.
+carry_rtc_mode() {
+    local etc=${WOOTC_GN_ETC:-/etc}
+    [[ -f "$etc/adjtime" ]] || return 0
+    cp -a "$etc/adjtime" "$1/adjtime"
+}
+
+# phase2_flatpak_apps — the app IDs of this system's system-wide Flatpak
+# installation, one per line. Nothing when flatpak is absent or lists none.
+phase2_flatpak_apps() {
+    command -v flatpak >/dev/null 2>&1 || return 0
+    flatpak list --system --app --columns=application 2>/dev/null \
+        | awk '$1 ~ /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z0-9_-]+)+$/ { print $1 }' | sort -u
+}
+
+# verify_native_flatpaks <flatpak dir> <id>... — say, per app, whether the
+# native install's Flatpak installation at <flatpak dir> holds it. Asks
+# flatpak itself about that installation; without flatpak, looks for the
+# app's active deployment. A missing app is reported, not fatal: the native
+# system boots without it and the user can reinstall it.
+verify_native_flatpaks() {
+    local dir=$1 id present
+    shift
+    for id in "$@"; do
+        if command -v flatpak >/dev/null 2>&1; then
+            FLATPAK_SYSTEM_DIR="$dir" flatpak info --system "$id" >/dev/null 2>&1 && present=1 || present=0
+        else
+            [[ -d "$dir/app/$id/current/active/files" ]] && present=1 || present=0
+        fi
+        if [[ "$present" == 1 ]]; then
+            log "wootc: native flatpak present: $id"
+        else
+            log "WARN: wootc: native flatpak MISSING: $id (not in $dir)"
+        fi
+    done
+}
+
+# carry_wootc_printers <cups dir> <printer state> <native etc> <native var> —
+# put the CUPS queues wootc-printer-import added (their printers.conf entries
+# and PPDs) and its report on the native disk (SPEC §4.6). fisherman has no
+# such member, and the importer cannot redo the work there: the native system
+# never mounts the Windows volume. A queue the user removed since is not in
+# printers.conf, so it stays removed; printers still "waiting" stay listed as
+# waiting in the report. Never fatal: the native system boots without them.
+carry_wootc_printers() {
+    local cups=$1 state=$2 netc=$3 nvar=$4 q i
+    [[ -f "$state" ]] || return 0
+    install -D -m644 "$state" "$nvar/lib/wootc/printers.json" \
+        || { log "WARN: printer report not carried to the native install"; return 0; }
+    local -a queues=()
+    mapfile -t queues < <(python3 -c 'import json, sys
+for r in json.load(open(sys.argv[1])).get("printers", []):
+    if r.get("status") == "added" and r.get("queue"):
+        print(r["queue"])' "$state" 2>/dev/null)
+    (( ${#queues[@]} > 0 )) || return 0
+    # cupsd writes printers.conf lazily (DirtyCleanInterval, 30 s by
+    # default): a queue added moments ago can be live yet not on disk. Give
+    # it a minute rather than drop a queue CUPS still knows.
+    for q in "${queues[@]}"; do
+        for (( i = 0; i < 60; i++ )); do
+            grep -qiE "^<(Default)?Printer ${q}>\$" "$cups/printers.conf" 2>/dev/null && break
+            LC_ALL=C lpstat -v "$q" >/dev/null 2>&1 || break
+            sleep 1
+        done
+    done
+    mkdir -p "$netc/cups/ppd"
+    # Append to the image's own printers.conf rather than replace it; the
+    # setfiles pass at the end of graduation labels what is written here.
+    local carried
+    carried=$(python3 - "$cups/printers.conf" "$netc/cups/printers.conf" "${queues[@]}" <<'PY'
+import re, sys
+src, dst, wanted = sys.argv[1], sys.argv[2], {q.lower() for q in sys.argv[3:]}
+try:
+    text = open(src).read()
+except OSError:
+    sys.exit(0)
+try:
+    have = open(dst).read()
+except OSError:
+    have = ""
+present = {m.group(2).lower() for m in re.finditer(r"^<(Default)?Printer (\S+)>$", have, re.M)}
+has_default = re.search(r"^<DefaultPrinter ", have, re.M) is not None
+out = []
+# cupsd closes the default queue's block with </DefaultPrinter>.
+for m in re.finditer(r"^<(Default)?Printer (\S+)>\n(.*?)^</(?:Default)?Printer>\n", text, re.M | re.S):
+    default, name, body = m.group(1), m.group(2), m.group(3)
+    if name.lower() not in wanted or name.lower() in present:
+        continue
+    tag = "DefaultPrinter" if default and not has_default else "Printer"
+    has_default = has_default or tag == "DefaultPrinter"
+    out.append(f"<{tag} {name}>\n{body}</{tag}>\n")
+    print(name)
+if out:
+    with open(dst, "a") as f:
+        f.write("".join(out))
+PY
+    )
+    [[ -n "$carried" ]] || { log "WARN: no wootc printer queue found in $cups/printers.conf to carry"; return 0; }
+    chown root:lp "$netc/cups/printers.conf" 2>/dev/null || true
+    chmod 0600 "$netc/cups/printers.conf" 2>/dev/null || true
+    while IFS= read -r q; do
+        # Never Phase 2's attributes (cp -a): root:lp 0640 like cupsd's own.
+        if [[ -f "$cups/ppd/$q.ppd" ]]; then
+            install -m 0640 "$cups/ppd/$q.ppd" "$netc/cups/ppd/$q.ppd"
+            chown root:lp "$netc/cups/ppd/$q.ppd" 2>/dev/null || true
+        fi
+        log "wootc: carried printer queue $q to the native install"
+    done <<<"$carried"
+}
+
+# label_repo_object_dirs MNT FC — give the ostree object store's directories
+# (objects/ and its fan-out objects/00..ff) the label FC gives their path on
+# the physical root MNT. bootc 1.16.10 leaves them unlabeled_t, like
+# /ostree/repo (bootc-dev/bootc#2368, fixed in 1.16.11, relabels them and
+# skips the objects). Only the directories: the files in them are hardlinks
+# of deployment files that carry their commit's labels, and setfiles always
+# recurses, so each directory is labeled by itself with chcon.
+label_repo_object_dirs() {
+    local mnt=$1 fc=$2 objects=$1/ostree/repo/objects d out i
+    local -a dirs=() paths=() contexts=()
+    [[ -d "$objects" && ! -L "$objects" ]] || return 0
+    while IFS= read -r -d '' d; do
+        dirs+=("$d"); paths+=("${d#"$mnt"}")
+    done < <(find "$objects" -maxdepth 1 -type d -print0)
+    out=$(matchpathcon -N -n -m dir -f "$fc" "${paths[@]}") || return 1
+    mapfile -t contexts <<<"$out"
+    (( ${#contexts[@]} == ${#dirs[@]} )) || return 1
+    for i in "${!dirs[@]}"; do
+        [[ "${contexts[i]}" == *:*:* ]] || return 1
+        chcon -- "${contexts[i]}" "${dirs[i]}" || return 1
+    done
+}
+
 # graduate_to_disk_execute — install the running OS onto a whole TARGET disk via
 # fisherman (reusing the local image, same as the deployer), migrate /home, and let
 # UEFI boot it. Reversible: Windows + root.disk on the original disk are
@@ -324,32 +776,6 @@ graduate_to_disk_execute() {
     log "Installing $img onto $target as $filesystem (wipes $target only) via fisherman…"
     command -v fisherman >/dev/null || die "fisherman not found — deploy.sh must install it into the target root"
 
-    # Use fisherman's podman-run mode (recipe image set): bootc runs INSIDE
-    # the image container, exactly how the deployer installed root.disk — the
-    # one path proven against every supported image. The two alternatives both
-    # failed live on bluefin:lts:
-    #   * direct mode without --source-imgref: "must be executed inside a
-    #     podman container" (run 20260723T0106);
-    #   * direct mode with --source-imgref containers-storage:<ref>:
-    #     "Multiple commit objects found" — the containers-storage transport
-    #     chokes on sealed/chunked images (run 20260723T0155).
-    # Pre-pull for visible progress; podman run then uses the local copy.
-    if ! podman image exists "$img" 2>/dev/null; then
-        log "Pulling $img into local containers-storage for the native install…"
-        # Retry: this pull runs INSIDE the Phase-2 VM, over whatever network
-        # that guest has — flaky on a mirror-less hosted runner (bluefin
-        # phase3, GH matrix 20260724T1558: one 'network down?' died the whole
-        # graduation). Podman resumes copied layers, so retries are cheap.
-        pull_ok=false
-        for attempt in 1 2 3 4; do
-            if podman pull "$img"; then pull_ok=true; break; fi
-            log "  pull attempt $attempt failed; retrying in $((attempt*15))s…"
-            sleep $((attempt*15))
-        done
-        [[ "$pull_ok" == true ]] || \
-            die "cannot stage $img locally after 4 attempts (network?) — native install needs its content"
-    fi
-
     # Mirror the running system's primary account into the native install.
     # A recipe without the user produced a native system holding the rsync'd
     # home but NO matching passwd entry, no tmpfiles home pin, and foreign
@@ -362,13 +788,30 @@ graduate_to_disk_execute() {
         gfull=$(getent passwd "$guser" | cut -d: -f5)
         ghash=$(awk -F: -v u="$guser" '$1 == u {print $2}' /etc/shadow 2>/dev/null)
         [[ "$ghash" == \$* ]] || ghash=""
+        guserjson=$(phase2_user_json "$guser" "$gfull" "$ghash") \
+            || die "cannot build the native install's account for $guser"
         guserjson=",
-  \"user\": {
-    \"username\": \"$guser\",
-    \"fullname\": \"$gfull\",
-    \"password\": \"$ghash\",
-    \"groups\": [\"wheel\"]
-  }"
+  \"user\": $guserjson"
+    fi
+
+    # The Phase-2 system's own settings, so the native system is the same
+    # machine: its hostname, time zone, language and keyboard, and its
+    # NetworkManager profiles (the Wi-Fi networks migrated from Windows).
+    local ghost gsettings
+    ghost=$(phase2_hostname)
+    gsettings=$(phase2_recipe_settings)
+    log "Carrying hostname $ghost${gsettings:+ and $(tr -d '\n' <<<"$gsettings")} to the native install"
+    # The Phase-2 system's Flatpak apps — the ones the installer put there
+    # (SPEC §4.3) and any the user added since. A non-empty list makes
+    # fisherman copy this system's whole installation, shared runtimes
+    # included; [] copies nothing, which lost every app at Phase 3.
+    local -a gflatpaks=()
+    mapfile -t gflatpaks < <(phase2_flatpak_apps)
+    local gflatpakjson="[]"
+    if (( ${#gflatpaks[@]} > 0 )); then
+        gflatpakjson="[$(printf '"%s",' "${gflatpaks[@]}")"
+        gflatpakjson="${gflatpakjson%,}]"
+        log "Carrying ${#gflatpaks[@]} Flatpak app(s) to the native install: ${gflatpaks[*]}"
     fi
 
     # Fisherman recipe; fisherman handles partitioning, formatting,
@@ -377,12 +820,20 @@ graduate_to_disk_execute() {
 {
   "disk": "$target",
   "filesystem": "$filesystem",
+  $gsettings
+  "copyNetworkProfiles": true,
   "image": "$img",
-  "hostname": "wootc",
-  "flatpaks": []$guserjson
+  "hostname": "$ghost",
+  "flatpaks": ${gflatpakjson}$guserjson
 }
 EOF
-    fisherman "$recipe" || die "fisherman native install failed"
+    # fisherman checks the recipe, the target's size among it, only when the
+    # install starts, which is after the pull. Ask it before: probe 44807218628
+    # pulled for 41 minutes and then learned that the 40 GiB target was under
+    # fisherman's 50 GiB minimum.
+    fisherman validate "$recipe" >&2 \
+        || die "fisherman refuses this install (see above); nothing was downloaded or written"
+    native_install_staged "$img" "$recipe"
     rm -f "$recipe"
 
     # Post-fisherman: write wootc-specific state into the new install.
@@ -397,6 +848,17 @@ EOF
     local dest="$mnt/home"
     local dep; dep=$(ls -d "$mnt"/ostree/deploy/*/deploy/*.0 2>/dev/null | head -1)
     [[ -n "$dep" ]] && dest="$(dirname "$(dirname "$dep")")/var/home"
+    # The native deployment's /var: the stateroot's on ostree, the shared
+    # state var on composefs-native.
+    local nvar="$mnt/var"
+    if [[ -n "$dep" ]]; then
+        nvar="$(dirname "$(dirname "$dep")")/var"
+    elif [[ -d "$mnt/state/deploy" ]]; then
+        nvar="$mnt/state/os/default/var"
+    fi
+    if (( ${#gflatpaks[@]} > 0 )); then
+        verify_native_flatpaks "$nvar/lib/flatpak" "${gflatpaks[@]}"
+    fi
     mkdir -p "$dest"
     if command -v rsync >/dev/null; then
         rsync -aHAX /home/ "$dest/" 2>/dev/null || true
@@ -430,6 +892,9 @@ EOF
     mkdir -p "$etcroot/wootc"
     cp -a /etc/wootc/. "$etcroot/wootc/" 2>/dev/null || true
     printf '%s\n' "$target" > "$etcroot/wootc/native-target"
+    carry_rtc_mode "$etcroot" || log "WARN: the hardware-clock mode (/etc/adjtime) was not carried"
+    carry_wootc_printers /etc/cups /var/lib/wootc/printers.json "$etcroot" "$nvar" \
+        || log "WARN: printer queues not carried to the native install"
     if [[ -x /var/usrlocal/libexec/wootc-e2e-phase3-dispatch ]]; then
         mkdir -p "$etcroot/systemd/system/multi-user.target.wants"
         ln -sf /usr/lib/systemd/system/qemu-guest-agent.service \
@@ -603,6 +1068,167 @@ WantedBy=multi-user.target
 UNIT
         ln -sf ../wootc-e2e-native-root-probe.service \
             "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-root-probe.service"
+        # The generic post-boot health check cannot run through the agent
+        # either: on the enforcing native system every systemctl call from
+        # virt_qemu_ga_t answered "Failed to retrieve unit state: Access
+        # denied" (probe 44833993709), so the gate saw no boot state, no
+        # D-Bus and no display manager on a system that had booted. The
+        # harness stages the check (tests/e2e/phase3-health.sh) and its
+        # Phase-2 baseline in /run before graduation; run them here from
+        # init's context and export the verdict to /run. Plain cp: the
+        # native policy labels them as its own /etc/wootc files.
+        local staged
+        for staged in e2e-phase3-health.sh e2e-phase3-health.baseline; do
+            if [[ -f "/run/wootc-$staged" ]]; then
+                cp "/run/wootc-$staged" "$etcroot/wootc/$staged" \
+                    || log "WARN: could not copy the staged $staged into the native install"
+            fi
+        done
+        cat > "$etcroot/wootc/e2e-native-health.sh" <<'HEALTHPROBE'
+#!/bin/bash
+# Runs from init's unconfined context at boot; the confined guest agent
+# reads only the /run export. The check waits for the boot to finish
+# itself, so this unit must not hold the boot transaction (Type=exec).
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-health
+check=/etc/wootc/e2e-phase3-health.sh
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+read -r boot < /proc/sys/kernel/random/boot_id
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+status=0
+if [[ -f "$check" ]]; then
+    baseline=$(cat /etc/wootc/e2e-phase3-health.baseline 2>/dev/null || true)
+    output=$(/bin/sh "$check" check "$baseline" 2>&1) || status=$?
+else
+    status=127
+    output="no health check at $check: the harness did not stage it before graduation"
+fi
+temp=$(mktemp "${out}.XXXXXX")
+printf 'HEALTH_SCHEMA=1\nHEALTH_BOOT_ID=%s\nHEALTH_STATUS=%s\n%s\n' \
+    "$boot" "$status" "$output" > "$temp"
+chmod 0644 "$temp"
+read -r current < /proc/sys/kernel/random/boot_id
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
+HEALTHPROBE
+        chmod +x "$etcroot/wootc/e2e-native-health.sh"
+        # Type=exec: the start job completes once the script runs, so the
+        # boot can finish while the check waits for it. RuntimeMaxSec bounds
+        # a hung check; the harness then finds no export and refuses.
+        cat > "$etcroot/systemd/system/wootc-e2e-native-health.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export the post-boot health check to /run
+After=local-fs.target
+
+[Service]
+Type=exec
+RuntimeMaxSec=900
+ExecStart=/bin/bash /etc/wootc/e2e-native-health.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-health.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-health.service"
+        # The migration suite (tests/e2e/migration-check.py) reads user homes,
+        # NetworkManager keyfiles and Flatpak installs, none of which the
+        # confined agent may read. The harness stages the check and this
+        # run's manifest in /run during Phase 2; run them from init's context
+        # once the system is up and export the result to /run.
+        for staged in e2e-migration-check.py e2e-migration-expected.tsv; do
+            if [[ -f "/run/wootc-$staged" ]]; then
+                cp "/run/wootc-$staged" "$etcroot/wootc/$staged" \
+                    || log "WARN: could not copy the staged $staged into the native install"
+            fi
+        done
+        cat > "$etcroot/wootc/e2e-native-migration.sh" <<'MIGRATIONPROBE'
+#!/bin/bash
+# Runs from init's unconfined context; the agent reads only the /run export.
+set -Eeuo pipefail
+out=/run/wootc-e2e-native-migration
+rm -f -- "$out"
+temp=""
+trap '[[ -z "$temp" ]] || rm -f -- "$temp"' EXIT
+read -r boot < /proc/sys/kernel/random/boot_id
+[[ "$boot" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+# A login and a Flatpak launch are part of the check: let the boot settle.
+systemctl is-system-running --wait >/dev/null 2>&1 || true
+status=0
+check=/etc/wootc/e2e-migration-check.py
+if [[ -f "$check" ]]; then
+    output=$(/usr/bin/python3 "$check" native /etc/wootc/e2e-migration-expected.tsv 2>&1) || status=$?
+else
+    status=127
+    output="no migration check at $check: the harness did not stage it before graduation"
+fi
+temp=$(mktemp "${out}.XXXXXX")
+printf 'MIGRATION_SCHEMA=1\nMIGRATION_BOOT_ID=%s\nMIGRATION_STATUS=%s\n%s\n' \
+    "$boot" "$status" "$output" > "$temp"
+chmod 0644 "$temp"
+read -r current < /proc/sys/kernel/random/boot_id
+[[ "$current" == "$boot" ]]
+mv -T -- "$temp" "$out"
+temp=""
+MIGRATIONPROBE
+        chmod +x "$etcroot/wootc/e2e-native-migration.sh"
+        cat > "$etcroot/systemd/system/wootc-e2e-native-migration.service" <<'UNIT'
+[Unit]
+Description=wootc E2E: export the migration check to /run
+After=local-fs.target NetworkManager.service
+
+[Service]
+Type=exec
+RuntimeMaxSec=1200
+ExecStart=/bin/bash /etc/wootc/e2e-native-migration.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+        ln -sf ../wootc-e2e-native-migration.service \
+            "$etcroot/systemd/system/multi-user.target.wants/wootc-e2e-native-migration.service"
+    fi
+    # Label everything graduation wrote with the target's own policy, as the
+    # deployer does for Phase 2. fisherman's offline useradd rewrites passwd,
+    # group and shadow as plain etc_t, and the /home copy above keeps Phase
+    # 2's labels (/var/home/linuxbrew stayed home_root_t). Probe 44843263310:
+    # 5943 such paths under /etc and /var/home on the enforcing native
+    # system, and init_t was denied creating /var/lib/systemd/random-seed in
+    # a var_t directory. setfiles, not restorecon: it applies the given
+    # file_contexts with -r rooting the paths at the deployment/stateroot.
+    # The physical root's own directories need it too: the bootc in
+    # bluefin:stable keeps the unlabeled_t that /ostree/deploy inherits from
+    # the fresh filesystem root, and bootupd was denied getattr on
+    # /sysroot/ostree/deploy (probe 44843263310). Those paths are labeled as
+    # bootc labels them, rooted at the physical root; the deployments (their
+    # own logical roots), the stateroot /var (labeled above) and the object
+    # stores are excluded. The repo itself is not: bootc left /ostree/repo
+    # unlabeled_t too, and the confined guest agent was denied searching it
+    # (probe 44889931801). ostree repo objects are hardlinks of deployment
+    # files, so the repo's system_conf_t must never reach them; only the
+    # object store's directories get it (label_repo_object_dirs).
+    if [[ -n "$dep" ]]; then
+        local fc stateroot d
+        local -a keep=()
+        stateroot=$(dirname "$(dirname "$dep")")
+        fc=$(ls "$dep"/etc/selinux/*/contexts/files/file_contexts 2>/dev/null | head -1)
+        if [[ -n "$fc" ]]; then
+            for d in "$mnt"/ostree/deploy/*/deploy/* "$mnt"/ostree/deploy/*/var \
+                "$mnt"/ostree/repo/objects "$mnt"/composefs; do
+                if [[ -d "$d" && ! -L "$d" ]]; then keep+=(-e "$d"); fi
+            done
+            if ! command -v setfiles >/dev/null \
+                || ! setfiles -F -r "$dep" "$fc" "$dep/etc" \
+                || ! setfiles -F -r "$stateroot" "$fc" "$stateroot/var" \
+                || ! setfiles -F -r "$mnt" "${keep[@]}" "$fc" "$mnt" \
+                || ! label_repo_object_dirs "$mnt" "$fc"; then
+                umount "$mnt" 2>/dev/null || true
+                die "could not apply the native system's SELinux labels to $dep/etc, $stateroot/var and the physical root; the native boot is not scheduled"
+            fi
+            log "Applied the native system's SELinux labels to /etc, /var and the physical root"
+        fi
     fi
     sync; umount "$mnt" 2>/dev/null || true
 
@@ -749,11 +1375,16 @@ print(json.dumps({
 PY
 }
 
+# Sourced (tests): define the functions only.
+[[ "${BASH_SOURCE[0]}" == "$0" ]] || return 0
+
 case "${1:-plan}" in
     plan)    shift 2>/dev/null || true; cmd_plan "$@" ;;
     check)   shift; cmd_check "$@" ;;
     status)  shift; cmd_status "$@" ;;
     migrate) shift; cmd_migrate "$@" ;;
+    # Internal: native_install_staged runs the staged install as a child process.
+    __staged-install) shift; cmd_staged_install "$@" ;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown subcommand: $1 (plan|check|status|migrate)" ;;
 esac

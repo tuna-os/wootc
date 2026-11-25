@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 )
 
 // ── Headless CLI ─────────────────────────────────────────────────────────────
@@ -73,6 +74,21 @@ func headlessUninstall(args []string) int {
 // firmware the build host does not have.
 var headlessSystemInfo = getSystemInfo
 
+// headlessDetectedApps is detectInstalledApps, swappable so tests can stand
+// in Windows programs the build host does not have.
+var headlessDetectedApps = detectInstalledApps
+
+// parseFlatpakFlag splits -flatpaks: comma-separated IDs, blanks ignored.
+func parseFlatpakFlag(value string) []string {
+	ids := []string{}
+	for _, id := range strings.Split(value, ",") {
+		if id = strings.TrimSpace(id); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 func headlessInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	var cfg InstallConfig
@@ -84,6 +100,7 @@ func headlessInstall(args []string) int {
 	fs.StringVar(&cfg.Bootloader, "bootloader", "auto", "bootloader chain (auto|grub2|systemd-boot; auto lets the deployer detect the image's backend)")
 	fs.StringVar(&cfg.FaultInject, "fault-inject", "", "inject simulated fault at boundary (root-disk|image-pull|efi-staging|bcd-arming|pre-reboot)")
 	noReboot := fs.Bool("no-reboot", true, "do not reboot after arming (default true; pass -no-reboot=false to reboot)")
+	flatpaks := fs.String("flatpaks", "", "comma-separated Flathub IDs of detected Windows apps to pre-install (default none)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -100,6 +117,12 @@ func headlessInstall(args []string) int {
 		return 2
 	}
 	cfg.Bootloader = bootloader
+	// The same check the GUI plan gets: only apps detected on this computer.
+	cfg.Flatpaks = parseFlatpakFlag(*flatpaks)
+	if err := validateFlatpakSelection(cfg.Flatpaks, headlessDetectedApps()); err != nil {
+		fmt.Fprintf(os.Stderr, "install: %v\n", err)
+		return 2
+	}
 
 	// headless bypasses StartInstall, and with it gateScenario's Secure Boot
 	// check (#322). An unattended install is the one with nobody watching

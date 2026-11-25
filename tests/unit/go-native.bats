@@ -76,7 +76,8 @@ STUB
 }
 
 @test "--phase3 provisions its dedicated blank target and handles none found" {
-    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"' "$E2E_RUNNER"
+    grep -Fq 'export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"' "$E2E_RUNNER"
+    grep -Fq "WOOTC_E2E_DISK2_SIZE: \${{ inputs.phase3 && '64G' || '' }}" "$REPO_ROOT/.github/workflows/e2e-hosted.yml"
     # The mount TARGET is a variable on purpose: dockur creates a disk2 whenever
     # /storage2 exists, defaulting to 64 GiB, and formatting it every run starved
     # swtpm's startup race and silently disabled TPM. So phase3 runs mount it at
@@ -458,10 +459,40 @@ NTFSINFO
     # foreign labels. The account must ride the recipe (fisherman CreateUser)
     # with the crypt hash copied verbatim, and the migrated home chowned to
     # the user (rsync preserves the fuse binds' root:root ownership).
-    grep -Fq '\"user\": {' "$GN"
-    grep -Fq '\"username\": \"$guser\"' "$GN"
+    grep -Fq '\"user\": $guserjson' "$GN"
+    grep -Fq 'guserjson=$(phase2_user_json "$guser" "$gfull" "$ghash")' "$GN"
     grep -qE '^[^#]*ghash=.*etc/shadow' "$GN"
     grep -qE '^[^#]*chown -R .*guser' "$GN"
+    run bash -c 'source "$1"; phase2_user_json wootc "" "\$6\$salt\$hash"' _ "$GN"
+    [ "$status" -eq 0 ]
+    [ "$(jq -c . <<<"$output")" = '{"username":"wootc","password":"$6$salt$hash","groups":["wheel"]}' ]
+}
+
+@test "Phase-3 recipe carries the GECOS full name JSON-escaped, first subfield only" {
+    # The GECOS name used to be pasted into the recipe raw: a quote or
+    # backslash broke the JSON, and chfn's ",room,phone" subfields rode along
+    # into the native account's name.
+    heredoc=$(sed -n '/^    cat > "\$recipe" <<EOF$/,/^EOF$/p' "$GN" | sed '1d;$d')
+    [ -n "$heredoc" ]
+    gecos='Zoë "Zed" O'"'"'Brien-Åberg\ a1b2c3,Room 1,555,,'
+    run env HEREDOC="$heredoc" bash -c 'source "$1"
+        target=/dev/sdb filesystem=xfs img=ghcr.io/ublue-os/bluefin:stable
+        ghost=wootc-test gsettings="" gflatpakjson="[]"
+        guserjson=",
+  \"user\": $(phase2_user_json wootc "$2" "\$6\$salt\$hash")"
+        eval "cat <<EOF
+$HEREDOC
+EOF"' _ "$GN" "$gecos"
+    echo "$output"
+    [ "$status" -eq 0 ]
+    [ "$(jq -r '.user.fullname' <<<"$output")" = 'Zoë "Zed" O'"'"'Brien-Åberg\ a1b2c3' ]
+    [ "$(jq -r '.user.password' <<<"$output")" = '$6$salt$hash' ]
+    # The E2E seed, as useradd stored it, comes back byte for byte.
+    run bash -c 'source "$1"; phase2_user_json wootc "$2" ""' _ "$GN" "Zoë O'Brien-Åberg 0a1b2c"
+    [ "$(jq -r '.fullname' <<<"$output")" = "Zoë O'Brien-Åberg 0a1b2c" ]
+    # A ':' or newline (useradd refuses both) never reaches the recipe.
+    run bash -c 'source "$1"; phase2_user_json wootc "$2" ""' _ "$GN" $'Ann:\nLee'
+    [ "$(jq -r '.fullname' <<<"$output")" = 'Ann Lee' ]
 }
 
 @test "Phase-3 installs the /run userdata probe for the confined guest agent" {
@@ -503,6 +534,183 @@ NTFSINFO
     [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-root-probe.sh'* ]]
 }
 
+@test "Phase-3 labels the native /etc and /var with the target policy before the boot is scheduled" {
+    # Probe 44843263310: on the enforcing native system 5943 paths under /etc
+    # and /var/home kept the labels of offline useradd and of the /home copy
+    # (passwd as etc_t, /var/home/linuxbrew as home_root_t).
+    grep -qF 'setfiles -F -r "$dep" "$fc" "$dep/etc"' "$GN"
+    grep -qF 'setfiles -F -r "$stateroot" "$fc" "$stateroot/var"' "$GN"
+    local label boot rsync
+    label=$(grep -nF 'setfiles -F -r "$dep"' "$GN" | head -1 | cut -d: -f1)
+    rsync=$(grep -nF 'rsync -aHAX /home/ "$dest/"' "$GN" | head -1 | cut -d: -f1)
+    boot=$(grep -n 'BootNext' "$GN" | awk -F: -v l="$label" '$1 > l { print $1; exit }')
+    [ "$rsync" -lt "$label" ]
+    [ -n "$boot" ]
+    # A failed relabel stops before the native boot is scheduled.
+    grep -q 'die "could not apply the native system.s SELinux labels' "$GN"
+}
+
+# relabel_block — the relabel step of graduate_to_disk_execute, with the
+# label_repo_object_dirs helper it calls, for eval in a function that sets
+# mnt and dep.
+relabel_block() {
+    awk '/^label_repo_object_dirs\(\) \{$/ { fn=1 }
+        fn { print }
+        fn && /^}$/ { fn=0 }
+        /^    # Label everything graduation wrote/ { a=1 }
+        a && /^    if \[\[ -n "\$dep" \]\]; then$/ { b=1 }
+        b { print }
+        b && /^    fi$/ { exit }' "$GN"
+}
+
+# relabel_fixture — a physical root at $mnt with a deployment $dep, its
+# file_contexts $fc, an object store with one object, and stubs for setfiles,
+# matchpathcon (CTX overrides the context it answers) and chcon.
+relabel_fixture() {
+    mnt="$TMP/phys"; dep="$mnt/ostree/deploy/default/deploy/abc.0"
+    fc="$dep/etc/selinux/targeted/contexts/files/file_contexts"
+    mkdir -p "$(dirname "$fc")" "$mnt/ostree/repo/objects/ab" "$mnt/ostree/repo/refs" \
+        "$mnt/ostree/deploy/default/var/home" "$mnt/ostree/deploy/default/deploy/old.0" "$mnt/ostree/bootc"
+    : >"$fc"; : >"$mnt/ostree/deploy/default/deploy/abc.origin"; : >"$mnt/ostree/repo/objects/ab/cdef.file"
+    ln -s abc.0 "$mnt/ostree/deploy/default/deploy/current"
+    printf '#!/bin/bash\necho "setfiles $*" >>"%s"\n[[ "$*" != *"${SETFILES_FAIL:-none}"* ]]\n' \
+        "$CALLED" >"$STUBDIR/setfiles"
+    cat >"$STUBDIR/matchpathcon" <<STUB
+#!/bin/bash
+echo "matchpathcon \$*" >>"$CALLED"
+while [[ \$1 == -* ]]; do case \$1 in -m|-f) shift 2 ;; *) shift ;; esac; done
+for p; do echo "\${CTX:-system_u:object_r:system_conf_t:s0}"; done
+STUB
+    printf '#!/bin/bash\necho "chcon $*" >>"%s"\n' "$CALLED" >"$STUBDIR/chcon"
+    chmod +x "$STUBDIR/setfiles" "$STUBDIR/matchpathcon" "$STUBDIR/chcon"
+}
+
+@test "Phase-3 labels the physical root without reaching the deployments, the stateroot /var or the repo objects" {
+    # Probe 44843263310: bootupd was denied getattr on an unlabeled
+    # /sysroot/ostree/deploy. Repo objects are hardlinks of deployment files:
+    # the repo's label must never reach them, nor the deployments' roots.
+    local block mnt dep fc
+    block=$(relabel_block)
+    [[ "$block" == *setfiles* ]]
+    relabel_fixture
+    run env BLOCK="$block" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { echo "LOG: $*"; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c '^setfiles ' "$CALLED")" -eq 3 ]
+    grep -qxF "setfiles -F -r $dep $fc $dep/etc" "$CALLED"
+    grep -qxF "setfiles -F -r $mnt/ostree/deploy/default $fc $mnt/ostree/deploy/default/var" "$CALLED"
+    grep -qxF "setfiles -F -r $mnt -e $dep -e $mnt/ostree/deploy/default/deploy/old.0 -e $mnt/ostree/deploy/default/var -e $mnt/ostree/repo/objects $fc $mnt" "$CALLED"
+    # A failed physical-root relabel stops before the boot is scheduled.
+    : >"$CALLED"
+    run env BLOCK="$block" SETFILES_FAIL="-r $mnt -e" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { :; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DIE: could not apply the native system's SELinux labels"*"the physical root"* ]]
+    grep -qx "umount $mnt" "$CALLED"
+}
+
+@test "Phase-3 labels /ostree/repo and its object directories, never the objects" {
+    # Probe 44889931801: bootc 1.16.10 left /sysroot/ostree/repo unlabeled_t
+    # (bootc-dev/bootc#2368) and graduation excluded the whole repo from its
+    # relabel, so the enforcing native system denied searching it. The repo
+    # and its metadata are labeled with the physical root; objects/ and its
+    # fan-out directories by their own path; the object files keep the
+    # labels of the deployment files they are hardlinks of.
+    local block mnt dep fc ctx=system_u:object_r:system_conf_t:s0 line
+    block=$(relabel_block)
+    [[ "$block" == *'label_repo_object_dirs() {'* ]]
+    relabel_fixture
+    run env BLOCK="$block" bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { echo "LOG: $*"; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 0 ]
+    # The physical-root relabel reaches /ostree/repo and refs/, not objects/.
+    line=$(grep "^setfiles -F -r $mnt -e " "$CALLED")
+    [[ " $line " != *" -e $mnt/ostree/repo "* ]]
+    [[ " $line " == *" -e $mnt/ostree/repo/objects "* ]]
+    # The object directories are labeled by their path on the physical root.
+    line=$(grep '^matchpathcon ' "$CALLED")
+    [[ "$line" == "matchpathcon -N -n -m dir -f $fc "* ]]
+    [ "$(printf '%s\n' ${line#"matchpathcon -N -n -m dir -f $fc "} | sort | tr '\n' ' ')" \
+        = "/ostree/repo/objects /ostree/repo/objects/ab " ]
+    [ "$(grep -c '^chcon ' "$CALLED")" -eq 2 ]
+    grep -qxF "chcon -- $ctx $mnt/ostree/repo/objects" "$CALLED"
+    grep -qxF "chcon -- $ctx $mnt/ostree/repo/objects/ab" "$CALLED"
+    [ "$(grep -c 'cdef.file' "$CALLED")" -eq 0 ]
+    # No context for an object directory stops before the boot is scheduled.
+    : >"$CALLED"
+    run env BLOCK="$block" CTX='<<none>>' bash -c 'die() { echo "DIE: $*"; exit 1; }; log() { :; }
+        f() { local mnt=$1 dep=$2; eval "$BLOCK"; }; f "$1" "$2"' _ "$mnt" "$dep"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"DIE: could not apply the native system's SELinux labels"*"the physical root"* ]]
+    [ "$(grep -c '^chcon ' "$CALLED")" -eq 0 ]
+    grep -qx "umount $mnt" "$CALLED"
+}
+
+@test "Phase-3 runs the post-boot health check from a boot unit that does not hold the boot" {
+    # Probe 44833993709: run through the confined agent on the native system,
+    # every systemctl call answered "Access denied". The check runs from
+    # init's context instead. It waits for the boot itself, so a oneshot
+    # (or ordering before the agent) would wait on its own start job.
+    local block unit
+    block=$(awk '/^    if \[\[ -x \/var\/usrlocal\/libexec\/wootc-e2e-phase3-dispatch / { active=1 }
+        heredoc && $0 == heredoc { heredoc=""; next }
+        heredoc { next }
+        active { print }
+        active && match($0, /<<.[A-Z]+.$/) { heredoc=substr($0, RSTART+3, RLENGTH-4) }
+        active && /^    fi$/ { exit }' "$GN")
+    [[ "$block" == *'"/run/wootc-$staged" "$etcroot/wootc/$staged"'* ]]
+    [[ "$block" == *'e2e-native-health.sh'* ]]
+    [[ "$block" == *'multi-user.target.wants/wootc-e2e-native-health.service'* ]]
+    unit=$(awk '/wootc-e2e-native-health.service" <<.UNIT.$/ { active=1; next }
+        active && /^UNIT$/ { exit }
+        active { print }' "$GN")
+    [[ "$unit" == *'Type=exec'* ]]
+    [[ "$unit" == *'RuntimeMaxSec='* ]]
+    [[ "$unit" != *'Before='* ]]
+    [[ "$unit" == *'ExecStart=/bin/bash /etc/wootc/e2e-native-health.sh'* ]]
+}
+
+# native_health_probe <dir>: the HEALTHPROBE script with its /run, /etc and
+# /proc paths moved under <dir>.
+native_health_probe() {
+    awk '/<<.HEALTHPROBE.$/ { active=1; next } active && /^HEALTHPROBE$/ { exit } active { print }' "$GN" \
+        | sed -e "s#/run/wootc-e2e-native-health#$1/out#" \
+              -e "s#/etc/wootc/#$1/etc/#g" \
+              -e "s#/proc/sys/kernel/random/boot_id#$1/boot_id#g" > "$1/probe"
+}
+
+@test "native health probe exports the check's output, status and boot" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    printf 'SCHEMA=1\nDISPLAY_MANAGER=gdm.service\n' > "$d/etc/e2e-phase3-health.baseline"
+    printf '%s\n' 'echo "mode=$1"; printf "%s\n" "$2" | sed "s/^/baseline: /"; echo "FAIL: x"; exit 1' \
+        > "$d/etc/e2e-phase3-health.sh"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[0]}" = HEALTH_SCHEMA=1 ]
+    [ "${lines[1]}" = HEALTH_BOOT_ID=c49ec976-2f51-420f-a1a7-2cda006e6053 ]
+    [ "${lines[2]}" = HEALTH_STATUS=1 ]
+    [ "${lines[3]}" = mode=check ]
+    [ "${lines[4]}" = "baseline: SCHEMA=1" ]
+    [ "${lines[5]}" = "baseline: DISPLAY_MANAGER=gdm.service" ]
+    [ "${lines[6]}" = "FAIL: x" ]
+}
+
+@test "native health probe without a staged check exports a failure, not silence" {
+    local d="$BATS_TEST_TMPDIR"
+    mkdir -p "$d/etc"
+    echo c49ec976-2f51-420f-a1a7-2cda006e6053 > "$d/boot_id"
+    native_health_probe "$d"
+    run bash "$d/probe"
+    [ "$status" -eq 0 ]
+    run cat "$d/out"
+    [ "${lines[2]}" = HEALTH_STATUS=127 ]
+    [[ "${lines[3]}" == "no health check at $d/etc/e2e-phase3-health.sh"* ]]
+}
+
 @test "Phase-3 copies the QGA sysconfig without Phase 2's label, and not qemu-ga.conf" {
     # Run 39874539856: the native bluefin:stable system reached GDM but QGA
     # never answered. The deployer writes these configs unlabeled; cp -a
@@ -517,4 +725,233 @@ NTFSINFO
         active && /^UNIT$/ { exit }
         active { print }' "$GN")
     [[ "$unit" == *'TimeoutStartSec=60'* ]]
+}
+
+# ── Graduation scratch (run 44743470001) ─────────────────────────────────────
+# bluefin:stable's 4.6 GiB of compressed layers filled a 30 GiB root.disk on
+# every Phase-3 pull ("no space left on device" under /var/lib/containers).
+# The pull and fisherman now run in an image-sized ext4 scratch next to
+# root.disk on the Windows volume, as in the deployer.
+
+# graduation_stubs <avail bytes on the Windows volume>: skopeo reports the
+# bluefin:stable layer total (4,960,000,000 bytes = 4.62 GiB -> 21 GiB scratch).
+graduation_stubs() {
+    HOSTDIR="$TMP/host/wootc"; mkdir -p "$HOSTDIR/disks"
+    printf '#!/bin/bash\necho "skopeo $*" >>"%s"\necho "2480000000 2480000000 "\n' "$CALLED" >"$STUBDIR/skopeo"
+    printf '#!/bin/bash\necho "Avail"\necho "%s"\n' "$1" >"$STUBDIR/df"
+    for tool in truncate mkfs.ext4; do
+        printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
+    done
+    # The scratch must exist while the install runs; the staged-install
+    # child (GN_SELF) checks it.
+    printf '#!/bin/bash\necho "truncate $*" >>"%s"\n: >"${@: -1}"\n' "$CALLED" >"$STUBDIR/truncate"
+    printf '#!/bin/bash\necho "gn-self $* scratch-present=$([ -e "$2" ] && echo yes || echo no)" >>"%s"\n' "$CALLED" >"$STUBDIR/gn-self"
+    chmod +x "$STUBDIR"/skopeo "$STUBDIR"/df "$STUBDIR"/truncate "$STUBDIR"/mkfs.ext4 "$STUBDIR"/gn-self
+}
+
+@test "Phase-3 scratch size matches the deployer's scratch formula" {
+    local deploy="$REPO_ROOT/payload/deployer/deploy.sh" bytes ours theirs
+    for bytes in "" 0 1073741824 4960000000 6760000000 12884901888; do
+        ours=$(bash -c 'source "$1"; graduation_scratch_gib "$2"' _ "$GN" "$bytes")
+        theirs=$(bash -c 'SCRATCH_MIN_GIB=20; eval "$(sed -n "/^scratch_need_gib() {/,/^}/p" "$1")"; scratch_need_gib "$2"' _ "$deploy" "$bytes")
+        [ "$ours" = "$theirs" ] || { echo "bytes=$bytes go-native=$ours deployer=$theirs"; return 1; }
+    done
+    [ "$(bash -c 'source "$1"; graduation_scratch_gib 4960000000' _ "$GN")" = 21 ]
+}
+
+@test "Phase-3 stages the image in a scratch on the Windows volume, then deletes it" {
+    graduation_stubs $(( 28 << 30 ))
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SELF="$2/gn-self"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    echo "$output"; cat "$CALLED"
+    [ "$status" -eq 0 ]
+    grep -Fxq "truncate -s 21G $HOSTDIR/cache/native-scratch.img" "$CALLED"
+    grep -Fxq "mkfs.ext4 -q -F $HOSTDIR/cache/native-scratch.img" "$CALLED"
+    # A child process in the system's own mount namespace: bootc looks its
+    # source image up with podman in PID 1's namespace (probe 44825571768).
+    grep -Fxq "gn-self __staged-install $HOSTDIR/cache/native-scratch.img ghcr.io/projectbluefin/bluefin:stable /run/r.json scratch-present=yes" "$CALLED"
+    run grep -n 'unshare' "$GN"
+    [ "$status" -ne 0 ]
+    [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
+}
+
+@test "Phase-3 refuses before writing anything when the Windows volume cannot hold the scratch" {
+    graduation_stubs $(( 15 << 30 ))
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"needs about 21 GiB of temporary space on the Windows drive"* ]]
+    [[ "$output" == *"the drive has 15 GiB free"* ]]
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
+    [ "$status" -ne 0 ]
+    [ ! -e "$HOSTDIR/cache/native-scratch.img" ]
+}
+
+@test "Phase-3 says it cannot read the free space instead of claiming 0 GiB free" {
+    # Gate probe 44771739639 refused with "the drive has 0 GiB free"; an
+    # empty or failed df produced the same words as a full drive.
+    graduation_stubs 0
+    printf '#!/bin/bash\necho "df: %s: No such file or directory" >&2\nexit 1\n' "$HOSTDIR" >"$STUBDIR/df"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"cannot read the free space of the Windows drive at $HOSTDIR: df: $HOSTDIR: No such file or directory"* ]]
+    [[ "$output" != *"GiB free"* ]]
+    run grep -E '^(truncate|mkfs.ext4|gn-self) ' "$CALLED"
+    [ "$status" -ne 0 ]
+}
+
+@test "Phase-3 refusal names the drive totals and the largest files on it" {
+    graduation_stubs $(( 15 << 30 ))
+    printf '#!/bin/bash\nif [ "$1" = -h ]; then echo " Size Used Avail"; echo " 79G 64G 15G"; else echo Avail; echo %s; fi\n' $(( 15 << 30 )) >"$STUBDIR/df"
+    dd if=/dev/zero of="$HOSTDIR/disks/root.disk" bs=1 count=0 seek=2G 2>/dev/null  # truncate is stubbed
+    run bash -c 'source "$1"; PATH="$2:$PATH"; WOOTC_GN_HOST_DIR="$3" native_install_staged ghcr.io/projectbluefin/bluefin:stable /run/r.json' \
+        _ "$GN" "$STUBDIR" "$HOSTDIR"
+    echo "$output"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"Windows drive at $HOSTDIR:  79G 64G 15G"* ]]
+    [[ "$output" == *"largest files under $HOSTDIR: $HOSTDIR/disks/root.disk 2147483648 bytes;"* ]]
+    [[ "$output" == *"the drive has 15 GiB free"* ]]
+}
+
+@test "Phase-3 staged install mounts the scratch over podman's storage before it pulls, and unmounts it" {
+    for tool in mkdir chmod mount fisherman; do
+        printf '#!/bin/bash\necho "%s $*" >>"%s"\n' "$tool" "$CALLED" >"$STUBDIR/$tool"
+    done
+    # Nothing is local in a fresh scratch: `podman image exists` fails.
+    printf '#!/bin/bash\necho "podman $* TMPDIR=$TMPDIR" >>"%s"\n[ "$1 $2" != "image exists" ]\n' "$CALLED" >"$STUBDIR/podman"
+    chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/fisherman "$STUBDIR"/podman
+    run bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/wootc/cache/native-scratch.img img:tag /run/r.json' \
+        _ "$GN" "$STUBDIR"
+    echo "$output"; cat "$CALLED"
+    [ "$status" -eq 0 ]
+    # /var/tmp stays the session's own; podman stages blobs via TMPDIR.
+    run grep -E '^mount .* /var/tmp$' "$CALLED"
+    [ "$status" -ne 0 ]
+    local want=(
+        "mount -o loop /h/wootc/cache/native-scratch.img /var/fisherman-tmp"
+        "mount --bind /var/fisherman-tmp/host-containers /var/lib/containers"
+        "mount -t tmpfs tmpfs /run/containers"
+        "mount -t tmpfs tmpfs /run/libpod"
+        "podman pull img:tag TMPDIR=/var/fisherman-tmp/var-tmp"
+        "fisherman /run/r.json"
+        "umount -R /run/libpod"
+        "umount -R /run/containers"
+        "umount -R /var/lib/containers"
+        "umount -R /var/fisherman-tmp"
+    ) prev=0 line
+    for w in "${want[@]}"; do
+        line=$(grep -Fxn "$w" "$CALLED" | head -1 | cut -d: -f1)
+        [ -n "$line" ] || { echo "missing: $w"; return 1; }
+        [ "$line" -gt "$prev" ] || { echo "out of order: $w"; return 1; }
+        prev=$line
+    done
+}
+
+# host_layout <backing_file text> <root.disk bytes>: /sysroot on loop0p3, the
+# loop's sysfs (16 MiB device) and a host mount holding wootc/disks/root.disk.
+host_layout() {
+    mkdir -p "$TMP/sys/block/loop0/loop" "$TMP/hostmnt/wootc/disks"
+    printf '%s\n' "$1" >"$TMP/sys/block/loop0/loop/backing_file"
+    printf '32768\n' >"$TMP/sys/block/loop0/size"
+    head -c "$2" /dev/zero >"$TMP/hostmnt/wootc/disks/root.disk"
+    printf '#!/bin/bash\n[ "${@: -1}" = /sysroot ] && echo /dev/loop0p3\n' >"$STUBDIR/findmnt"
+    printf '#!/bin/bash\necho loop0\n' >"$STUBDIR/lsblk"
+    chmod +x "$STUBDIR/findmnt" "$STUBDIR/lsblk"
+}
+
+find_host() {
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SYSFS="$3/sys"; GN_HOST_MNT="$3/hostmnt"; host_wootc_dir' \
+        _ "$GN" "$STUBDIR" "$TMP"
+}
+
+@test "Phase-3 finds the Windows volume from the root.disk loop backing file" {
+    host_layout "$TMP/hostmnt/wootc/disks/root.disk" $(( 16 << 20 ))
+    find_host
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TMP/hostmnt/wootc" ]
+}
+
+@test "Phase-3 finds the Windows volume when the kernel reports the backing path from the volume root" {
+    # Gate probe 44781443975 (bluefin): backing_file read "/wootc/disks/root.disk",
+    # and `df /wootc` failed. The file is at the private host mount.
+    host_layout /wootc/disks/root.disk $(( 16 << 20 ))
+    find_host
+    [ "$status" -eq 0 ]
+    [ "$output" = "$TMP/hostmnt/wootc" ]
+}
+
+@test "Phase-3 does not take a same-named file of another size for root.disk" {
+    host_layout /wootc/disks/root.disk $(( 8 << 20 ))
+    find_host
+    [ "$status" -ne 0 ]
+    [ -z "$output" ]
+}
+
+# ── Phase-3 progress (gate probe 44791710524: 15 minutes of one status line) ─
+
+@test "Phase-3 logs the scratch and target-disk totals only when they move" {
+    mkdir -p "$TMP/sys/block/sdb"
+    echo "0 0 0 0 0 0 0 0" >"$TMP/sys/block/sdb/stat"
+    printf '#!/bin/bash\necho Used\necho 1234M\n' >"$STUBDIR/df"; chmod +x "$STUBDIR/df"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; GN_SYSFS="$3"; GN_PROGRESS_SECS=0.1
+        stage_progress /dev/sdb 2>"$4" & pid=$!
+        sleep 1; echo "0 0 0 0 0 0 4096 0" >"$3/block/sdb/stat"; sleep 1
+        kill "$pid"' _ "$GN" "$STUBDIR" "$TMP/sys" "$TMP/log"
+    cat "$TMP/log"
+    [ "$(grep -c 'progress: ' "$TMP/log")" -eq 2 ]
+    grep -Fxq '[wootc-go-native] progress: scratch 1234M used, 0 MiB written to /dev/sdb' "$TMP/log"
+    grep -Fxq '[wootc-go-native] progress: scratch 1234M used, 2 MiB written to /dev/sdb' "$TMP/log"
+}
+
+@test "Phase-3 staged install stops its progress log when it fails" {
+    # A progress loop left running holds the dispatcher's output pipe open, and
+    # the result file would never be written.
+    for tool in mkdir chmod mount podman; do
+        printf '#!/bin/bash\nexit 0\n' >"$STUBDIR/$tool"
+    done
+    printf '#!/bin/bash\nexit 1\n' >"$STUBDIR/fisherman"
+    chmod +x "$STUBDIR"/mkdir "$STUBDIR"/chmod "$STUBDIR"/mount "$STUBDIR"/podman "$STUBDIR"/fisherman
+    printf '{ "disk": "/dev/sdb" }\n' >"$TMP/r.json"
+    run timeout 20 bash -c 'source "$1"; PATH="$2:$PATH"; cmd_staged_install /h/scratch.img img:tag "$3" 2>&1 | cat' \
+        _ "$GN" "$STUBDIR" "$TMP/r.json"
+    echo "$output"
+    [ "$status" -ne 124 ]
+    [[ "$output" == *"fisherman native install failed"* ]]
+}
+
+@test "Phase-3 dispatcher streams the migration output to the progress file" {
+    local block
+    block=$(sed -n '/^run_migration 2>&1 | while/,/^rc=\${PIPESTATUS\[0\]}$/p' "$DISPATCH")
+    [ -n "$block" ]
+    run bash -c 'PROGRESS=$1; TMP=$2
+        run_migration() { echo one; printf two; return 7; }
+        eval "$3"; echo "rc=$rc"' _ "$TMP/progress" "$TMP/result" "$block"
+    [ "$output" = "rc=7" ]
+    [ "$(cat "$TMP/result")" = "$(printf 'one\ntwo')" ]
+    [ "$(wc -l <"$TMP/progress")" -eq 2 ]
+    grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z one$' "$TMP/progress"
+    grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z two$' "$TMP/progress"
+}
+
+@test "E2E bounds Phase 3 by progress, not a fixed count of polls" {
+    run grep -F 'seq 1 180' "$E2E_RUNNER"
+    [ "$status" -ne 0 ]
+    # Probe 44807218628: 6-8 minute registry stalls, a 41-minute pull.
+    grep -Fq 'P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}' "$E2E_RUNNER"
+    grep -Fq 'P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}' "$E2E_RUNNER"
+    grep -Fq "stat -c %s /run/wootc-e2e-phase3.progress" "$E2E_RUNNER"
+    grep -Fq 'rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress;' "$E2E_RUNNER"
+    grep -Fq '> "$ARTIFACT_DIR/phase3-progress.log"' "$E2E_RUNNER"
+}
+
+@test "Phase-3 asks fisherman to validate the recipe before it pulls the image" {
+    # Probe 44807218628 pulled for 41 minutes, then fisherman refused the
+    # 40 GiB target (disk_too_small) at the start of the install.
+    local validate_line staged_line
+    validate_line=$(grep -nm1 '^[^#]*fisherman validate "\$recipe"' "$GN" | cut -d: -f1)
+    staged_line=$(grep -nm1 '^    native_install_staged "\$img" "\$recipe"' "$GN" | cut -d: -f1)
+    [ -n "$validate_line" ] && [ -n "$staged_line" ]
+    [ "$validate_line" -lt "$staged_line" ]
+    grep -A1 'fisherman validate "$recipe"' "$GN" | grep -Fq '|| die "fisherman refuses this install'
 }

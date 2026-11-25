@@ -53,6 +53,11 @@
       </ComboBox>
       <PasswordBox x:Name="LinuxLuksPassphrase" AutomationProperties.Name="LUKS Passphrase" Header="LUKS Passphrase" PasswordChanged="ConfigurationChanged" AutomationProperties.AutomationId="LinuxLuksPassphrase" />
       <CheckBox x:Name="LinuxWindowsLook" Content="Use a familiar Windows appearance" Checked="ConfigurationChanged" Unchecked="ConfigurationChanged" AutomationProperties.AutomationId="LinuxWindowsLook" />
+      <StackPanel x:Name="AppsPanel" Visibility="Collapsed" Spacing="6" AutomationProperties.AutomationId="AppsPanel">
+        <TextBlock Text="Apps" FontSize="18" />
+        <TextBlock x:Name="AppsDisclosure" TextWrapping="Wrap" AutomationProperties.AutomationId="AppsDisclosure" />
+        <StackPanel x:Name="AppChoices" Spacing="4" AutomationProperties.AutomationId="AppChoices" />
+      </StackPanel>
       <TextBlock x:Name="InstallBlockedReason" TextWrapping="Wrap" AutomationProperties.AutomationId="InstallBlockedReason" />
       <StackPanel x:Name="ProfileAccountsPanel" Visibility="Collapsed" Spacing="8" AutomationProperties.AutomationId="ProfileAccountsPanel">
         <TextBlock Text="Windows profiles and Linux accounts" FontSize="18" />

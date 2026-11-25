@@ -25,6 +25,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     private IReadOnlyList<StepDefinition> configurationSteps = Array.Empty<StepDefinition>();
     private ConsumerConfiguration? configuration;
     private bool updatingConfiguration;
+    // Why the last configuration read failed, for the window and the drive
+    // report; null while a read is pending or after one succeeded.
+    private string? configurationError;
     // The image and drive whose install space is being read, if any.
     private (string ImageRef, string Drive)? installSpaceRequested;
     private long configurationGeneration;
@@ -45,6 +48,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
     public MainWindow()
     {
         InitializeComponent();
+        AppsDisclosure.Text = ConsumerConfiguration.AppsDisclosure;
         ConfigurationButton.GotFocus += (_,_) => ConfigurationButton.StartBringIntoView(new BringIntoViewOptions { AnimationDesired=false });
         if (observeFixtureInput)
         {
@@ -188,6 +192,7 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         long generation = ++configurationGeneration;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ConfigurationButton, $"ConfigurationGeneration:{generation}; State:pending");
         long flushedRequest = 0;
+        configurationError = null;
         try
         {
             var snapshot = await controller.ReadConfigurationAsync(read.Token, id =>
@@ -211,10 +216,21 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             LinuxDiskSize.Value = observed.DiskSizeGb;
             LinuxEncryption.SelectedItem = LinuxEncryption.Items.OfType<Microsoft.UI.Xaml.Controls.ComboBoxItem>().Single(item => (string)item.Tag == observed.Encryption);
             LinuxWindowsLook.IsChecked = observed.WindowsLook;
+            RenderApps(observed);
             ConfigurationObservation.Text = $"Catalogue: {snapshot.CatalogueSource}; channel: {snapshot.Policy.Channel}; storage: {snapshot.StorageStatus}; installation authorization: unavailable";
             ConfigurationPanel.Visibility = Visibility.Visible;
         }
-        catch { if (generation == configurationGeneration) { ClearConfiguration(); StartupObservations.Text = "Linux configuration observation is unavailable"; } }
+        // The reason is shown, not swallowed: probe 44863395935 stopped on
+        // this text with nothing to say which step of the read failed.
+        catch (Exception error)
+        {
+            if (generation == configurationGeneration)
+            {
+                ClearConfiguration();
+                configurationError = ConfigurationFailure(error);
+                StartupObservations.Text = configurationError;
+            }
+        }
         finally
         {
             if (ReferenceEquals(configurationRead, read)) configurationRead = null;
@@ -236,6 +252,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         ProfileAccountsPanel.Visibility = Visibility.Collapsed;
         ProfileAccountWarnings.Children.Clear();
         ProfileAccountEditors.Children.Clear();
+        AppChoices.Children.Clear();
+        AppsPanel.Visibility = Visibility.Collapsed;
         ImageChoice.SelectedItem = null; StorageChoice.SelectedItem = null;
         ImageChoice.ItemsSource = null; StorageChoice.ItemsSource = null;
         LinuxUsername.Text = ""; LinuxHostname.Text = "";
@@ -271,6 +289,8 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         configuration.Encryption = (LinuxEncryption.SelectedItem as Microsoft.UI.Xaml.Controls.ComboBoxItem)?.Tag as string ?? "";
         configuration.LuksPassphrase = LinuxLuksPassphrase.Password;
         configuration.WindowsLook = LinuxWindowsLook.IsChecked == true;
+        foreach (var box in AppChoices.Children.OfType<CheckBox>())
+            configuration.SelectApp((string)box.Tag, box.IsChecked == true);
         ImageFacts.Text = configuration.SelectedImage is null ? "Choose an observed image" :
             $"{configuration.SelectedImage.ImageRef}; admission: {configuration.SelectedImage.Admitted}; content verified: {configuration.SelectedImage.ContentVerified}; MOK enrollment required: {configuration.SelectedImage.RequiresMokEnrollment}";
         StorageFacts.Text = configuration.SelectedStorage is null ? "Choose an assessed volume; no drive is selected automatically" :
@@ -281,6 +301,24 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         // Any change to the plan on screen discards an earlier grant and its
         // install session; the new plan needs its own engine check.
         _ = DiscardInstallGrantAsync();
+    }
+
+    // The Apps section (SPEC §4.3): one checkbox per app the engine detected,
+    // all checked to start. No detected app hides the section.
+    private void RenderApps(ConsumerConfiguration model)
+    {
+        AppChoices.Children.Clear();
+        int index = 0;
+        foreach (var app in model.DetectedApps)
+        {
+            var box = new CheckBox { Content = ConsumerConfiguration.AppLabel(app), IsChecked = model.IsAppSelected(app.Flatpak), Tag = app.Flatpak };
+            AutomationProperties.SetAutomationId(box, $"AppChoice{index++}");
+            AutomationProperties.SetHelpText(box, app.Flatpak);
+            box.Checked += ConfigurationChanged;
+            box.Unchecked += ConfigurationChanged;
+            AppChoices.Children.Add(box);
+        }
+        AppsPanel.Visibility = model.DetectedApps.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     // What the selected image needs on the selected drive beside its Linux
@@ -804,6 +842,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
         var state = installGate?.State ?? InstallGateState.Idle;
         var progress = installGate?.Progress;
         string? error = state is InstallGateState.Refused or InstallGateState.Failed ? installGate!.Reason : progress?.Error;
+        // A failed configuration read leaves the form unread: the drive
+        // report says why instead of an endless loading screen.
+        if (error is null && configuration is null) error = configurationError;
         DriveScreen screen;
         if (controller.Connection != ConnectionState.Ready) screen = DriveScreen.Loading;
         else if (DonePanel.Visibility == Visibility.Visible) screen = DriveScreen.Done;
@@ -824,6 +865,15 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             : disabled == true ? (string.IsNullOrEmpty(error) ? InstallBlockedReason.Text : error) : "";
         return new(screen, disabled, hint, progress?.Step ?? "", screen == DriveScreen.Done ? null : error,
             configuration?.SelectedImage?.ImageRef ?? "", configuration?.ObservedStorage);
+    }
+
+    // The window's text for a failed configuration read: the exception type
+    // and message, bounded, without the quotes the drive report escapes.
+    private static string ConfigurationFailure(Exception error)
+    {
+        string detail = $"{error.GetType().Name}: {error.Message}".Replace("\"", "").Replace("'", "");
+        if (detail.Length > 300) detail = detail[..300];
+        return $"Linux configuration observation is unavailable ({detail})";
     }
 
     DriveMappingObservation IE2EDriveView.MapInstall(E2EDriveDirective directive)
@@ -851,6 +901,9 @@ public sealed partial class MainWindow : Window, IE2EDriveView
             LinuxLuksPassphrase.Password = mapping.LuksPassphrase;
             LinuxDiskSize.Value = model.DiskSizeGb;
             LinuxEncryption.SelectedItem = LinuxEncryption.Items.OfType<ComboBoxItem>().Single(item => (string)item.Tag == model.Encryption);
+            LinuxWindowsLook.IsChecked = model.WindowsLook;
+            foreach (var box in AppChoices.Children.OfType<CheckBox>())
+                box.IsChecked = model.IsAppSelected((string)box.Tag);
         }
         finally { updatingConfiguration = false; }
         RefreshConfiguration();

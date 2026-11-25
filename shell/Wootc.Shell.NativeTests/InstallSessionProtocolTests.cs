@@ -125,14 +125,16 @@ public sealed class InstallSessionProtocolTests
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var plan = new InstallConfig { ImageRef = "ghcr.io/tuna-os/yellowfin:gnome", DiskSizeGB = 40, Username = "linux_user", Password = "public synthetic password", Hostname = "linux-pc", Bootloader = "auto", StorageDrive = "D", Encryption = "none" };
         plan.ProfileAccounts = new() { new() { WindowsDir = "田中", LinuxUser = "tanaka" } };
+        plan.Flatpaks = new() { "org.gimp.GIMP", "org.inkscape.Inkscape" };
         var preparing = session.PrepareInstallAsync(plan, deadline.Token);
         using (var request = JsonDocument.Parse(await NativeEngineSession.ReadLineAsync(engineSide, 65536, deadline.Token)))
         {
             Assert.Equal("PrepareNativeInstall", request.RootElement.GetProperty("method").GetString());
             var parameters = request.RootElement.GetProperty("params");
-            Assert.Equal(new[] { "bootloader", "composeFs", "diskSizeGB", "encryption", "hostname", "imageRef", "luksPassphrase", "password", "profileAccounts", "storageDrive", "username", "windowsLook" },
+            Assert.Equal(new[] { "bootloader", "composeFs", "diskSizeGB", "encryption", "flatpaks", "hostname", "imageRef", "luksPassphrase", "password", "profileAccounts", "storageDrive", "username", "windowsLook" },
                 parameters.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal).ToArray());
             Assert.Equal("public synthetic password", parameters.GetProperty("password").GetString());
+            Assert.Equal(new[] { "org.gimp.GIMP", "org.inkscape.Inkscape" }, parameters.GetProperty("flatpaks").EnumerateArray().Select(id => id.GetString()).ToArray());
             var mapping = Assert.Single(parameters.GetProperty("profileAccounts").EnumerateArray());
             Assert.Equal("田中", mapping.GetProperty("windowsDir").GetString());
             Assert.Equal("tanaka", mapping.GetProperty("linuxUser").GetString());

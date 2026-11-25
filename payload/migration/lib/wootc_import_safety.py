@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Office, Steam and external-file import: preserve native files, publish complete copies.
+"""Office, Steam, developer-setup and external-file import: preserve native files, publish complete copies.
 
 All destination operations are relative to an owned, no-symlink directory fd.
 Only newly created inodes are chowned. Existing application files are never
@@ -7,6 +7,7 @@ replaced; the dictionary's append-only recovery record is the sole exception.
 """
 import argparse
 import contextlib
+import ctypes
 import fcntl
 import hashlib
 import json
@@ -18,6 +19,13 @@ import stat
 import subprocess
 import sys
 import uuid
+
+
+# useradd --create-home copies the image's skeleton into every new home before
+# any import runs; a file still byte-identical to it is the distribution's
+# placeholder, not a native edit.
+SKEL = Path('/etc/skel')
+RENAME_EXCHANGE = 2
 
 
 class Refusal(ValueError):
@@ -42,6 +50,13 @@ def source_authority():
     finally:
         if os.geteuid() != original:
             os.seteuid(original)
+
+
+def source_mounted(host):
+    """The writable host mount sits below root-only /run/initramfs (0700), so a
+    mount check run as the target user sees EACCES and reports it unmounted."""
+    with source_authority():
+        return subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode == 0
 
 
 @contextlib.contextmanager
@@ -71,6 +86,30 @@ def source_file(path):
 def source_bytes(path):
     with source_file(path) as stream:
         return stream.read()
+
+
+def skel_digest(relative):
+    """sha256 of the image's skeleton copy of a home-relative file, or None."""
+    try:
+        with source_file(SKEL / relative) as stream:
+            digest = hashlib.sha256()
+            for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                digest.update(chunk)
+            return digest.digest()
+    except FileNotFoundError:
+        return None
+
+
+def exchange(parent, first, second):
+    """Atomically swap two names in one directory: renameat2(RENAME_EXCHANGE)."""
+    rename = getattr(ctypes.CDLL(None, use_errno=True), 'renameat2', None)
+    if rename is None:
+        raise Refusal('renameat2(RENAME_EXCHANGE) is required')
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(parent, os.fsencode(first), parent, os.fsencode(second), RENAME_EXCHANGE) != 0:
+        code = ctypes.get_errno()
+        raise OSError(code, os.strerror(code), second)
 
 
 class Home:
@@ -160,8 +199,12 @@ class Home:
         finally:
             os.close(fd)
 
-    def publish(self, relative, source=None, data=None, mode=0o644):
-        """Return copied/already-present/preserved. link(2) never clobbers a race."""
+    def publish(self, relative, source=None, data=None, mode=0o644, replace_skel=False):
+        """Return copied/already-present/preserved. link(2) never clobbers a race.
+
+        replace_skel: an existing destination still byte-identical to the
+        image's /etc/skel copy is exchanged for the import. If it changed
+        before the exchange, it is exchanged back and preserved."""
         path = Path(relative)
         with self.directory(str(path.parent)) as parent:
             try:
@@ -181,7 +224,11 @@ class Home:
                         if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
                             raise Refusal('source changed during comparison: ' + str(source))
                 self.verify_directory(str(path.parent), parent)
-                return 'already-present' if existing == digest.digest() else 'preserved'
+                if existing == digest.digest():
+                    return 'already-present'
+                if not replace_skel or existing != skel_digest(relative):
+                    return 'preserved'
+            skeleton = existing
             temporary = '.wootc-import-' + uuid.uuid4().hex
             fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
                          0o600, dir_fd=parent)
@@ -208,14 +255,25 @@ class Home:
                     os.fchmod(fd, mode)
                     os.fsync(fd)
                 self.verify_directory(str(path.parent), parent)
-                try:
-                    os.link(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
-                except FileExistsError:
-                    existing = self.file_digest(relative, parent)
-                    self.verify_directory(str(path.parent), parent)
-                    if existing == digest.digest():
-                        return 'already-present'
-                    return 'preserved'
+                if skeleton is not None:
+                    exchange(parent, temporary, path.name)
+                    try:
+                        replaced = self.file_digest(str(path.parent / temporary), parent)
+                    except BaseException:
+                        exchange(parent, temporary, path.name)
+                        raise
+                    if replaced != skeleton:
+                        exchange(parent, temporary, path.name)
+                        return 'preserved'
+                else:
+                    try:
+                        os.link(temporary, path.name, src_dir_fd=parent, dst_dir_fd=parent, follow_symlinks=False)
+                    except FileExistsError:
+                        existing = self.file_digest(relative, parent)
+                        self.verify_directory(str(path.parent), parent)
+                        if existing == digest.digest():
+                            return 'already-present'
+                        return 'preserved'
                 os.fsync(parent)
                 # Read through the pinned parent, not a possibly swapped path.
                 check = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
@@ -385,21 +443,38 @@ DEFAULTS = b'''<?xml version="1.0" encoding="UTF-8"?>
 
 def office(home, host, winuser):
     source = host / 'Users' / winuser
-    if not source.is_dir() or source.is_symlink():
-        raise Refusal('missing or symlinked Windows profile')
     lo = '.config/libreoffice/4/user'
     microsoft = source / 'AppData/Roaming/Microsoft'
     result = outcome()
-    words = []
-    for path in sorted((microsoft / 'UProof').glob('*')) + sorted((microsoft / 'Spelling').glob('*/default.dic')):
-        if path.suffix.lower() != '.dic':
-            continue
-        try:
-            raw = source_bytes(path)
-            encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
-            words.extend(raw.decode(encoding).splitlines())
-        except (OSError, ValueError) as error:
-            result['failed'].append({'path': str(path), 'error': str(error)})
+    words, copies, autocorrect = [], [], None
+    # Listing and reading the source need its authority; publishing below runs
+    # without it, as the target user.
+    with source_authority():
+        if not source.is_dir() or source.is_symlink():
+            raise Refusal('missing or symlinked Windows profile')
+        for path in sorted((microsoft / 'UProof').glob('*')) + sorted((microsoft / 'Spelling').glob('*/default.dic')):
+            if path.suffix.lower() != '.dic':
+                continue
+            try:
+                raw = source_bytes(path)
+                encoding = 'utf-16' if raw.startswith((b'\xff\xfe', b'\xfe\xff')) else 'utf-8-sig'
+                words.extend(raw.decode(encoding).splitlines())
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': str(path), 'error': str(error)})
+        for directory, extensions, destination in (
+                (microsoft / 'Templates', {'.dotx', '.dotm', '.xltx', '.potx'}, lo + '/template'),
+                (source / 'AppData/Local/Microsoft/Windows/Fonts', {'.ttf', '.otf', '.ttc'}, '.local/share/fonts')):
+            copies += [(path, destination + '/' + path.name) for path in sorted(directory.glob('*'))
+                       if path.suffix.lower() in extensions]
+        for acl in sorted((microsoft / 'Office').glob('*.acl'))[:1]:
+            try:
+                strings = re.findall(rb'(?:[\x20-\x7e]\x00){2,40}', source_bytes(acl))
+                pairs = [value.decode('utf-16le') for value in strings]
+                if len(pairs) >= 2:
+                    autocorrect = '# AutoCorrect entries recovered from MS Office (review/import):\n'
+                    autocorrect += ''.join(f'{pairs[i]}\t=>\t{pairs[i+1]}\n' for i in range(0, len(pairs)-1, 2))
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': str(acl), 'error': str(error)})
     pending_raw = home.read('.config/wootc/office-dictionary-pending.json')
     pending = json.loads(pending_raw) if pending_raw is not None else {}
     if not isinstance(pending, dict):
@@ -407,24 +482,11 @@ def office(home, host, winuser):
     if words or pending.get('active'):
         destination = lo + '/wordbook/standard.dic'
         item(result, destination, lambda: dictionary(home, destination, words))
-    for directory, extensions, destination in (
-            (microsoft / 'Templates', {'.dotx', '.dotm', '.xltx', '.potx'}, lo + '/template'),
-            (source / 'AppData/Local/Microsoft/Windows/Fonts', {'.ttf', '.otf', '.ttc'}, '.local/share/fonts')):
-        for path in sorted(directory.glob('*')):
-            if path.suffix.lower() in extensions:
-                relative = destination + '/' + path.name
-                item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
-    for acl in sorted((microsoft / 'Office').glob('*.acl'))[:1]:
-        try:
-            strings = re.findall(rb'(?:[\x20-\x7e]\x00){2,40}', source_bytes(acl))
-            pairs = [value.decode('utf-16le') for value in strings]
-            if len(pairs) >= 2:
-                text = '# AutoCorrect entries recovered from MS Office (review/import):\n'
-                text += ''.join(f'{pairs[i]}\t=>\t{pairs[i+1]}\n' for i in range(0, len(pairs)-1, 2))
-                relative = lo + '/wootc-office-autocorrect.txt'
-                item(result, relative, lambda: home.publish(relative, data=text.encode('utf-8')))
-        except (OSError, ValueError) as error:
-            result['failed'].append({'path': str(acl), 'error': str(error)})
+    for path, relative in copies:
+        item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
+    if autocorrect is not None:
+        relative = lo + '/wootc-office-autocorrect.txt'
+        item(result, relative, lambda: home.publish(relative, data=autocorrect.encode('utf-8')))
     relative = lo + '/registrymodifications.xcu'
     # An existing native setting is a deliberate choice, not an imported setting.
     try:
@@ -496,17 +558,18 @@ def vdf_paths(raw):
 
 
 def steam_libraries(host):
-    default = host / 'Program Files (x86)/Steam'
-    libraries = {str(default)} if (default / 'steamapps').is_dir() else set()
-    vdf = default / 'steamapps/libraryfolders.vdf'
-    if vdf.exists() or vdf.is_symlink():
-        for path in vdf_paths(source_bytes(vdf)):
-            if re.match(r'^[cC]:[\\/]', path):
-                relative = path[3:].replace('\\', '/')
-                parts(relative)
-                library = host / relative
-                if (library / 'steamapps').is_dir():
-                    libraries.add(str(library))
+    with source_authority():
+        default = host / 'Program Files (x86)/Steam'
+        libraries = {str(default)} if (default / 'steamapps').is_dir() else set()
+        vdf = default / 'steamapps/libraryfolders.vdf'
+        if vdf.exists() or vdf.is_symlink():
+            for path in vdf_paths(source_bytes(vdf)):
+                if re.match(r'^[cC]:[\\/]', path):
+                    relative = path[3:].replace('\\', '/')
+                    parts(relative)
+                    library = host / relative
+                    if (library / 'steamapps').is_dir():
+                        libraries.add(str(library))
     return sorted(libraries)
 
 
@@ -571,33 +634,40 @@ def steam(home, libraries):
 
 def files(home, host, winuser):
     result = outcome()
-    for folder in ('Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'):
-        source = host / 'Users' / winuser / folder
-        if not source.exists() and not source.is_symlink():
-            continue
-        if source.is_symlink() or not source.is_dir():
-            result['failed'].append({'path': str(source), 'error': 'source folder must be a real directory'})
-            continue
-        def walk_error(error):
-            result['failed'].append({'path': str(source), 'error': str(error)})
-        for root, directories, names in os.walk(source, followlinks=False, onerror=walk_error):
-            relative_dir = str(Path(folder) / Path(root).relative_to(source))
-            try:
-                with home.directory(relative_dir):
-                    pass
-            except (OSError, ValueError) as error:
-                result['failed'].append({'path': relative_dir, 'error': str(error)})
-                directories[:] = []
+    # Walk the source with its authority first; directories and copies are
+    # then created without it, as the target user.
+    tree = []
+    with source_authority():
+        for folder in ('Desktop', 'Documents', 'Downloads', 'Pictures', 'Music', 'Videos'):
+            source = host / 'Users' / winuser / folder
+            if not source.exists() and not source.is_symlink():
                 continue
-            for name in directories[:]:
-                path = Path(root) / name
-                if path.is_symlink():
-                    result['failed'].append({'path': str(path), 'error': 'source symlink refused'})
-                    directories.remove(name)
-            for name in names:
-                source_file_path = Path(root) / name
-                relative = str(Path(relative_dir) / name)
-                item(result, relative, lambda p=source_file_path, r=relative: home.publish(r, source=p))
+            if source.is_symlink() or not source.is_dir():
+                result['failed'].append({'path': str(source), 'error': 'source folder must be a real directory'})
+                continue
+            def walk_error(error, source=source):
+                result['failed'].append({'path': str(source), 'error': str(error)})
+            for root, directories, names in os.walk(source, followlinks=False, onerror=walk_error):
+                for name in directories[:]:
+                    path = Path(root) / name
+                    if path.is_symlink():
+                        result['failed'].append({'path': str(path), 'error': 'source symlink refused'})
+                        directories.remove(name)
+                tree.append((Path(folder) / Path(root).relative_to(source), [Path(root) / name for name in names]))
+    refused = []
+    for relative_dir, paths in tree:
+        if any(relative_dir.is_relative_to(parent) for parent in refused):
+            continue
+        try:
+            with home.directory(str(relative_dir)):
+                pass
+        except (OSError, ValueError) as error:
+            result['failed'].append({'path': str(relative_dir), 'error': str(error)})
+            refused.append(relative_dir)
+            continue
+        for path in paths:
+            relative = str(relative_dir / path.name)
+            item(result, relative, lambda p=path, r=relative: home.publish(r, source=p))
     return finish(home, '.config/wootc/import-files.json', result)
 
 
@@ -640,6 +710,196 @@ def wsl(home, rootfs, formulae, target):
     return finish(home, '.config/wootc/wsl-bridge.json', result)
 
 
+# Destination mode per copyable ~/.ssh file. config and authorized_keys are
+# 0600 because OpenSSH refuses a config or authorized_keys others can write,
+# and a config can name private hosts; keys and known_hosts are public.
+SSH_MODES = {'config': 0o600, 'authorized_keys': 0o600, 'known_hosts': 0o644}
+# The only Git settings that describe the person rather than the machine.
+GIT_IDENTITY = (('user', 'name'), ('user', 'email'), ('user', 'signingkey'), ('init', 'defaultbranch'))
+GIT_WINDOWS_ONLY = {'credential': 'Windows credential store; sign in again on Linux',
+                    'core.autocrlf': 'Windows line-ending conversion; Linux uses LF',
+                    'core.sshcommand': 'points at a Windows SSH client',
+                    'include': 'included config files are not followed',
+                    'includeif': 'included config files are not followed'}
+WINDOWS_PATH = re.compile(r'^(?:[A-Za-z]:[\\/]|\\\\)')
+
+
+def git_entries(text):
+    """Yield (section, subsection, key, value) using git's own value rules.
+
+    A misread quote or continuation would attribute a key to the wrong
+    section, so anything git itself would reject is refused, not guessed.
+    """
+    lines = text.splitlines()
+    section = subsection = None
+    index = 0
+    while index < len(lines):
+        line = lines[index].strip()
+        index += 1
+        if line.startswith('['):
+            header = re.match(r'\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\]\s*(.*)$', line)
+            if not header:
+                raise Refusal('unparseable .gitconfig section header')
+            name, quoted, line = header.groups()
+            section, _, legacy = name.lower().partition('.')
+            subsection = re.sub(r'\\(.)', r'\1', quoted) if quoted is not None else (legacy or None)
+        if not line or line[0] in '#;':
+            continue
+        if section is None:
+            raise Refusal('.gitconfig key outside a section')
+        entry = re.match(r'([A-Za-z][A-Za-z0-9-]*)\s*(=?)(.*)$', line)
+        if not entry or (not entry.group(2) and entry.group(3).strip()[:1] not in ('', '#', ';')):
+            raise Refusal('unparseable .gitconfig line')
+        key, assigned, chars = entry.group(1).lower(), entry.group(2), entry.group(3)
+        if not assigned:
+            yield section, subsection, key, None
+            continue
+        # git's parse_value: unquoted whitespace runs collapse into spaces
+        # only between characters, #/; start a comment, \ at end continues.
+        value, space, quote, position = [], 0, False, 0
+        while True:
+            if position >= len(chars):
+                if quote:
+                    raise Refusal('unterminated quote in .gitconfig')
+                break
+            char = chars[position]
+            position += 1
+            if char in ' \t' and not quote:
+                space += 1 if value else 0
+                continue
+            if char in '#;' and not quote:
+                break
+            if space:
+                value.append(' ' * space)
+            space = 0
+            if char == '\\':
+                if position >= len(chars):
+                    if index >= len(lines):
+                        break
+                    chars, position, index = lines[index], 0, index + 1
+                    continue
+                escaped = {'n': '\n', 't': '\t', 'b': '\b', '\\': '\\', '"': '"'}.get(chars[position])
+                if escaped is None:
+                    raise Refusal('invalid escape in .gitconfig')
+                position += 1
+                value.append(escaped)
+            elif char == '"':
+                quote = not quote
+            else:
+                value.append(char)
+        yield section, subsection, key, ''.join(value)
+
+
+def git_quote(value):
+    escaped = (value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+               .replace('\t', '\\t').replace('\b', '\\b'))
+    return '"' + escaped + '"' if escaped != escaped.strip() or any(c in escaped for c in '#;') else escaped
+
+
+def git_identity(raw, result):
+    """Return a .gitconfig holding only identity keys; record every key left behind."""
+    identity, skipped = {}, {}
+    for section, subsection, key, value in git_entries(raw.decode('utf-8-sig')):
+        name = '.'.join(part for part in (section, subsection, key) if part is not None)
+        if subsection is not None or (section, key) not in GIT_IDENTITY:
+            skipped.setdefault(name, GIT_WINDOWS_ONLY.get(section + '.' + key) or GIT_WINDOWS_ONLY.get(section)
+                               or 'only the Git identity (user name, email, signing key) and init.defaultBranch are carried')
+            continue
+        # git uses the last value, so a later unusable one cancels an earlier one.
+        identity.pop((section, key), None)
+        skipped.pop(name, None)
+        if value is None or not value.strip():
+            skipped[name] = 'no value'
+        elif WINDOWS_PATH.match(value):
+            skipped[name] = 'Windows path'
+        else:
+            identity[(section, key)] = value
+    result['notCarried'] += [{'path': '.gitconfig', 'key': name, 'reason': reason}
+                             for name, reason in sorted(skipped.items())]
+    if not identity:
+        return None
+    body = ('# Git identity carried over from Windows by wootc. Only these keys were\n'
+            '# copied; ~/.config/wootc/bridge-developer.json lists what stayed behind.\n')
+    for section in ('user', 'init'):
+        keys = [(key, identity[(s, key)]) for s, key in GIT_IDENTITY if s == section and (s, key) in identity]
+        if keys:
+            body += '[' + section + ']\n'
+            body += ''.join('\t' + {'defaultbranch': 'defaultBranch'}.get(key, key) + ' = ' + git_quote(value) + '\n'
+                            for key, value in keys)
+    return body.encode('utf-8')
+
+
+def developer(home, host, winuser):
+    """Public SSH material and Git identity; private keys are refused and listed."""
+    source = host / 'Users' / winuser
+    result = outcome()
+    result.update(leftOnWindows=[], notCarried=[])
+    copies, git_raw = [], None
+    with source_authority():
+        if not source.is_dir() or source.is_symlink():
+            raise Refusal('missing or symlinked Windows profile')
+        ssh = source / '.ssh'
+        entries = []
+        if ssh.is_symlink() or (ssh.exists() and not ssh.is_dir()):
+            result['failed'].append({'path': '.ssh', 'error': 'source .ssh must be a real directory'})
+        elif ssh.is_dir():
+            entries = sorted(ssh.iterdir())
+        names = {path.name for path in entries}
+        for path in entries:
+            relative = '.ssh/' + path.name
+            wanted = path.name in SSH_MODES or path.name.endswith('.pub')
+            if path.is_dir() and not path.is_symlink():
+                result['notCarried'].append({'path': relative, 'reason': 'subdirectories are not copied'})
+                continue
+            # Name rules first: a private key is never opened just to classify it.
+            if path.name + '.pub' in names:
+                reason = 'private key: a matching .pub file exists'
+            elif path.name.startswith('id_') and '.' not in path.name:
+                reason = 'private key: id_* file without an extension'
+            elif path.suffix.lower() == '.ppk':
+                reason = 'private key: PuTTY key file'
+            else:
+                try:
+                    with source_file(path) as stream:
+                        head = stream.readline(4096)
+                except (OSError, ValueError) as error:
+                    if wanted:
+                        result['failed'].append({'path': relative, 'error': str(error)})
+                    else:
+                        result['notCarried'].append({'path': relative, 'reason': 'not a regular file'})
+                    continue
+                reason = 'private key: first line is a PRIVATE KEY header' if b'PRIVATE KEY' in head else None
+            if reason:
+                result['leftOnWindows'].append({'path': relative, 'reason': reason})
+            elif wanted:
+                copies.append((path, relative, SSH_MODES.get(path.name, 0o644)))
+            else:
+                result['notCarried'].append({'path': relative, 'reason':
+                                             'only SSH public keys, config, known_hosts and authorized_keys are copied'})
+        gitconfig = source / '.gitconfig'
+        if gitconfig.exists() or gitconfig.is_symlink():
+            try:
+                git_raw = source_bytes(gitconfig)
+            except (OSError, ValueError) as error:
+                result['failed'].append({'path': '.gitconfig', 'error': str(error)})
+    for path, relative, mode in copies:
+        item(result, relative, lambda p=path, r=relative, m=mode: home.publish(r, source=p, mode=m))
+    if git_raw is not None:
+        try:
+            body = git_identity(git_raw, result)
+            # git also reads ~/.config/git/config; a native one is the user's
+            # identity, and a new ~/.gitconfig would silently override it.
+            if body is not None and home.read('.config/git/config') is not None:
+                result['preserved'].append('.config/git/config')
+            elif body is not None:
+                item(result, '.gitconfig', lambda: home.publish('.gitconfig', data=body))
+        except (OSError, ValueError) as error:
+            result['failed'].append({'path': '.gitconfig', 'error': str(error)})
+    result['note'] = ('Private SSH keys and Windows-only Git settings stay on Windows. '
+                      'Existing Linux files are preserved, never overwritten.')
+    return finish(home, '.config/wootc/bridge-developer.json', result)
+
+
 @contextlib.contextmanager
 def target_home(account):
     original_uid, original_gid = os.geteuid(), os.getegid()
@@ -680,7 +940,7 @@ def external_categories(account, winuser, target, categories):
     with target_home(account) as home:
         home.record('.config/wootc/import-result.json', result)
     host = Path(os.environ.get('WOOTC_HOST', '/run/wootc/host'))
-    if subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode != 0:
+    if not source_mounted(host):
         result['status'] = 'failed'
         result['failed'] = list(categories)
         result['categories'] = {category: {'status': 'failed', 'migrated': [],
@@ -751,7 +1011,7 @@ def external_categories(account, winuser, target, categories):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('category', choices=('office', 'steam', 'files', 'wsl', 'external'))
+    parser.add_argument('category', choices=('office', 'steam', 'files', 'wsl', 'developer', 'external'))
     parser.add_argument('winuser', nargs='?')
     parser.add_argument('target', nargs='?')
     parser.add_argument('categories', nargs='*')
@@ -785,14 +1045,16 @@ def main():
             with home.lock():
                 record = '.config/wootc/' + {'office': 'bridge-office.json',
                          'steam': 'bridge-steam.json', 'files': 'import-files.json',
-                         'wsl': 'wsl-bridge.json'}[args.category]
+                         'wsl': 'wsl-bridge.json', 'developer': 'bridge-developer.json'}[args.category]
                 home.record(record, {**outcome(), 'status': 'partial',
                                      'note': 'Import started; no completed result yet.'})
                 try:
-                    if args.category != 'wsl' and subprocess.run(['mountpoint', '-q', str(host)], check=False).returncode != 0:
+                    if args.category != 'wsl' and not source_mounted(host):
                         raise Refusal('Windows source is not mounted')
                     if args.category == 'office':
                         result = office(home, host, args.winuser)
+                    elif args.category == 'developer':
+                        result = developer(home, host, args.winuser)
                     elif args.category == 'files':
                         result = files(home, host, args.winuser)
                     elif args.category == 'wsl':

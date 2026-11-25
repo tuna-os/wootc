@@ -75,8 +75,8 @@ The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
 WinUI default change before 1.0. Phases B and C contain native packaging,
 consumer and VM implementation, but their open trackers still require actual
 acceptance evidence. Phase D's packaging cutover merged on 2026-10-31 and
-prepares native setups plus one `wootc-legacy.exe` fallback. It has not changed
-the assets of the latest full release, `v0.1.0-alpha.1`. Phase E follows a clean
+prepares native setups plus one `wootc-legacy.exe` fallback. `v0.1.0-alpha.2`
+(2026-11-21) is the first full release with these assets. Phase E follows a clean
 native release and the docs audit; do not remove the fallback before that gate.
 
 A release cannot use old Wails passes as native UI or setup proof. Carry only
@@ -165,7 +165,7 @@ Its file-copy fallback does not prove setup installation.
 ### Artifact set
 
 The current workflows prepare the following **native artifact set**. This
-describes a future release that passes its gates, not the published `v0.1.0-alpha.1`.
+is the asset set of `v0.1.0-alpha.2`, the first release to ship it.
 Its primary GUI downloads are one Inno setup per eligible
 brand: `wootc-Installer-Setup.exe`, `TunaOS-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`, and
@@ -187,6 +187,16 @@ The set also includes `wubildr.efi` when its build succeeds.
 `native-SHA256SUMS` lists the setup assets that the workflow attaches.
 `skip_e2e` exists for emergencies and documents itself in the release notes.
 
+After the upload, the publish job downloads `SHA256SUMS`, its signature and
+every listed asset from the public URLs of the tag. These files must be the
+signed bytes and must agree with the key of the job. The job then starts the
+setup workflow.
+
+The publish job does not make a full release `latest`. The setup
+workflow attaches `TunaOS-Installer.exe` and the other setup files. Then it
+makes the release `latest` and starts winget. Until then, the `latest` link
+serves the previous release and does not give 404.
+
 ## Full-matrix evidence at the RC SHA (v1.0 criterion 3)
 
 The release notes for v1.0.0 cite one run set at the exact release SHA.
@@ -198,7 +208,10 @@ A green from an earlier commit does not count. [#240] records this set.
    `E2E matrix (full, gui)`.
 2. If a cell fails, read its flake notice. The harness writes this notice only
    for a known infra signature. Re-dispatch that cell with `grep=<cell>`, or
-   re-run the failed job. Do not re-run a red cell that has no flake notice.
+   re-run it. For a native GUI cell, use **Re-run all jobs**.
+   Each e2e run signs with a new key. Thus it cannot use a native-shell job
+   from an earlier run of the cell. Its wait stops with that message.
+   Do not re-run a red cell that has no flake notice.
    Diagnose it, because it is a real failure.
 3. Grade the run set and paste the output into [#240] and the release notes:
 
@@ -489,8 +502,8 @@ Do these steps in order:
 2. Dispatch `release.yml` with `release_tag: v1.0.0` from the final green SHA
    of the soak. Do not set `skip_e2e`. The E2E gate of the tagged channel
    runs again before the publish.
-3. Monitor the `winget-publish.yml` run that the publish job dispatches, until
-   `winget show TunaOS.wootc` reports `1.0.0`.
+3. Monitor the `winget-publish.yml` run that the setup workflow dispatches,
+   until `winget show TunaOS.wootc` reports `1.0.0`.
 4. Change `ROADMAP.md` to the post-1.0 plan. Close the milestone issues
    #210 to #213, each with links to its evidence.
 5. Announce the release in the channels that each brand agreed to

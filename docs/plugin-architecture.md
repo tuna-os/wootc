@@ -166,7 +166,10 @@ Plugins can be loaded from multiple system and user locations. The scanner walks
 2. **User Installed Plugins**:
    - Linux: `$HOME/.local/share/wootc/plugins.d/`
 3. **First-Party Built-In Distribution Plugins**:
-   - Linux: `/usr/lib/wootc/plugins.d/` or bundled in `payload/migration/plugins.d/`
+   - Linux: `/usr/lib/wootc/plugins.d/` when an image ships them; on a migrated
+     system the deployer installs them to `/var/usrlocal/lib/wootc/plugins.d/`
+     (a write into the deployment's `/usr` is hidden by the sealed composefs
+     image); or bundled in `payload/migration/plugins.d/`
 
 If a plugin identifier is duplicated across layers, the higher precedence layer completely shadows the lower precedence layer (or overrides individual scripts if configured).
 

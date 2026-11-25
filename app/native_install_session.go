@@ -147,7 +147,7 @@ func decodeNativeInstallPlan(raw json.RawMessage) (InstallConfig, error) {
 	if err != nil || token != json.Delim('{') {
 		return config, fmt.Errorf("install plan refused")
 	}
-	allowed := map[string]bool{"imageRef": true, "diskSizeGB": true, "username": true, "password": true, "hostname": true, "bootloader": true, "composeFs": true, "storageDrive": true, "encryption": true, "luksPassphrase": true, "windowsLook": true, "profileAccounts": true}
+	allowed := map[string]bool{"imageRef": true, "diskSizeGB": true, "username": true, "password": true, "hostname": true, "bootloader": true, "composeFs": true, "storageDrive": true, "encryption": true, "luksPassphrase": true, "windowsLook": true, "profileAccounts": true, "flatpaks": true}
 	seen := map[string]bool{}
 	for keys.More() {
 		token, err = keys.Token()
@@ -159,6 +159,17 @@ func decodeNativeInstallPlan(raw json.RawMessage) (InstallConfig, error) {
 		var value json.RawMessage
 		if keys.Decode(&value) != nil || bytes.Equal(bytes.TrimSpace(value), []byte("null")) {
 			return config, fmt.Errorf("install plan refused")
+		}
+		// The detected-app check (installPolicy) needs the registry; this
+		// one only refuses a list it could not hold or read once.
+		if key == "flatpaks" {
+			var ids []string
+			if json.Unmarshal(value, &ids) != nil {
+				return config, fmt.Errorf("app list refused")
+			}
+			if err := validateFlatpakSelectionShape(ids); err != nil {
+				return config, err
+			}
 		}
 		if key == "profileAccounts" {
 			var accounts []json.RawMessage

@@ -40,8 +40,10 @@ install() {
     inst_simple /usr/libexec/wootc-steps.sh
     inst_simple /usr/libexec/wootc-offline-bundle.sh
     inst_simple /usr/libexec/wootc-initramfs-lib.sh
+    inst_simple /usr/libexec/wootc-phase2-overlay.sh
     inst_simple /usr/libexec/wootc-lifecycle.sh
     inst_simple /usr/libexec/wootc-migration-diagnostics.sh
+    inst_simple /usr/libexec/wootc-flatpak-install.sh
     # dracut defines moddir before invoking module install hooks.
     # shellcheck disable=SC2154
     inst "$moddir/deploy-hook.sh" /usr/lib/dracut/hooks/initqueue/online/99-wootc-deploy.sh
@@ -152,6 +154,7 @@ install() {
     inst /usr/lib/wootc/migration/wootc-mount-user-dirs
     inst /usr/lib/wootc/migration/wootc-copy-windows-documents
     inst /usr/lib/wootc/migration/wootc-umount-user-dirs
+    inst /usr/lib/wootc/migration/wootc-folder-flags
     inst /usr/lib/wootc/migration/wootc-steam-bridge
     inst /usr/lib/wootc/migration/wootc-import-browser
     inst /usr/lib/wootc/migration/wootc-convert-dir
@@ -160,6 +163,8 @@ install() {
     inst /usr/lib/wootc/migration/wootc-esp-sync
     inst /usr/lib/wootc/migration/wootc-esp-sync.service
     inst /usr/lib/wootc/migration/wootc-esp-sync.path
+    inst /usr/lib/wootc/migration/wootc-esp-sync-shutdown.service || return 1
+    inst /usr/lib/wootc/migration/wootc-cfs-boot || return 1
     inst_simple /usr/lib/wootc/migration/wootc-shim-trust || return 1
     chmod 0644 "$initdir/usr/lib/wootc/migration/wootc-shim-trust" || return 1
     inst_simple /usr/lib/wootc/migration/wootc-esp-control || return 1
@@ -169,10 +174,16 @@ install() {
     inst /usr/lib/wootc/migration/wootc-apply-look
     inst /usr/lib/wootc/migration/wootc-apply-look.desktop
     inst /usr/lib/wootc/migration/wootc-detect-apps
+    # The Windows-app → Flatpak map: the deployer installs only IDs it lists,
+    # and wootc-detect-apps matches registry DisplayNames against it.
+    inst_simple /usr/lib/wootc/migration/lib/app-flatpaks.json || return 1
     inst /usr/lib/wootc/migration/wootc-office-bridge
     inst /usr/lib/wootc/migration/wootc-wsl-bridge
+    inst /usr/lib/wootc/migration/wootc-developer-bridge
     inst /usr/lib/wootc/migration/wootc-wifi-bridge
     inst /usr/lib/wootc/migration/wootc-wifi-import.service
+    inst /usr/lib/wootc/migration/wootc-printer-import
+    inst /usr/lib/wootc/migration/wootc-printer-import.service
     inst /usr/lib/wootc/migration/wootc-import
     inst /usr/lib/wootc/migration/wootc-import-gui
     inst /usr/lib/wootc/migration/wootc-import.desktop

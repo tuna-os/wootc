@@ -129,7 +129,7 @@ read -ra HOSTARR <<< "$HOSTS"
 # disjoint --instance in run-e2e.sh: own container name, own storage dir.
 LETTERS=(a b c d)
 SLOTS=()   # "host<TAB>instance<TAB>vm_ram_gib"
-# phase3 cases carry a 40 GiB spare disk that dockur formats at start, on top
+# phase3 cases carry a 64 GiB spare disk that dockur formats at start, on top
 # of a full Windows install. Two of those on one host is not a throughput win:
 # himachal (18 cores, 15 GiB) hit LOAD AVERAGE 100 running two, stopped
 # answering ssh, and both runs died at 14 minutes having reached only

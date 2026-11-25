@@ -341,6 +341,12 @@ The second observation also selects the state root again, and the grant contract
 Run 38857241312 passed, but it did not record the margin.
 If a slow disk causes a timeout, measure each part before you change a limit.
 
+The shell waits 110 seconds for `ConfirmNativeInstall`.
+In that time the engine observes the storage again, and `StartInstall` validates the plan again.
+This validation reads only the plan facts and does not analyze the defragmentation of C:.
+In native gate probe 44764569187, the plan check took about 85 seconds.
+A wait of 60 seconds for the confirmation then stopped the install with a cancellation error.
+
 ### Drive reports during the plan check
 
 In runs 38923119161 and 38931058878 the harness read no drive report for about two minutes.
@@ -389,7 +395,7 @@ That time is too much for each branded package job.
 | Transport | Native authenticated-peer tests; refusal of wrong SID/session/process; cancellation during mutation |
 | Build | Windows CI builds and packages every eligible brand; generated DTOs remain current |
 | UI parity | Real controls, screenshots, accessible names, keyboard flow, truthful blocked reasons |
-| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed; an install directive must name its target volume (`storageId`: an engine storage id or a drive letter such as `C:`), and a missing, unknown or ambiguous target is refused as a drive error |
+| Drive contract | Existing `e2e-drive.json` directives operate view-models; image mismatch fails closed; an install directive must name its target volume (`storageId`: an engine storage id or a drive letter such as `C:`), and a missing, unknown or ambiguous target is refused as a drive error. Optional `windowsLook` (boolean) sets the Windows look checkbox; absent keeps the engine default. Optional `flatpaks` (array of at most 64 Flatpak IDs) is the exact set of checked apps; absent keeps every detected app checked. An ID the engine did not detect, or an ID named two times, is refused as a drive error that names the ID |
 | Migration | Same plan/result fixtures on native Windows and GTK; partial results and retry stay visible |
 | Deployment | Shell-driven Windows → deployer → Linux → Windows cycle, including offline and BitLocker cohorts |
 | Recovery | Kill shell at safe test points; cancel; restart; inspect durable state; repair; uninstall |
@@ -549,7 +555,7 @@ booleans JSON booleans, and passwords strings. Never log request payloads.
 
 | Type/call | JSON object fields and constraints |
 |---|---|
-| `InstallConfig` / `StartInstall` | `imageRef:string`, `diskSizeGB:integer`, `username:string`, `password:string`, `hostname:string`, `bootloader:string` (`auto`, `grub2`, `systemd-boot`), `composeFs:boolean`, `storageDrive:string` (letter without colon; legacy empty means C), `encryption:string` (`none`, `luks-passphrase`, or currently refused `tpm2-luks`), `luksPassphrase:string`, `windowsLook:boolean`; optional `sessionConsent:object<string,boolean>` is per-app opt-in, optional `profileAccounts:array<ProfileAccount>` is the reviewed complete mapping, optional `faultInject:string` is a test-only boundary |
+| `InstallConfig` / `StartInstall` | `imageRef:string`, `diskSizeGB:integer`, `username:string`, `password:string`, `hostname:string`, `bootloader:string` (`auto`, `grub2`, `systemd-boot`), `composeFs:boolean`, `storageDrive:string` (letter without colon; legacy empty means C), `encryption:string` (`none`, `luks-passphrase`, or currently refused `tpm2-luks`), `luksPassphrase:string`, `windowsLook:boolean`, `flatpaks:array<string>` (checked detected apps; each must be in the engine's own detection, no duplicates, at most 64; empty installs none); optional `sessionConsent:object<string,boolean>` is per-app opt-in, optional `profileAccounts:array<ProfileAccount>` is the reviewed complete mapping, optional `faultInject:string` is a test-only boundary |
 | `PrepareNativeInstall` | Same install object **except** `sessionConsent` and `faultInject` are forbidden. Object only, at most 16 KiB; unknown/duplicate/null fields refused. Nonempty image, username, password and storage drive and positive disk size required. Admission further checks policy, image and physical storage observations |
 | `ProfileAccount` | `{"windowsDir":"<observed raw profile directory>","linuxUser":"<reviewed account name>"}`; only Linux account names are editable, all discovered profiles must remain represented, and duplicates/invalid/reserved names refuse |
 | `GetNativeInstallSpace` | `{"imageRef":"<observed ref>","storageDrive":"C"}`; must name one admitted image/drive from the last configuration read |
@@ -605,7 +611,7 @@ This map covers every result and nested schema used by the methods above:
 | `Image`, `InstallConfig`, `InstallStatus`, `ProgressEvent`, `ProfileAccount` | [`install_contract.go`](../app/install_contract.go), [`profiles.go`](../app/profiles.go), [golden DTO JSON](../app/testdata/dto/) |
 | `StepDefinition` (`id`, `owner`, `label`, all strings) | [`steps_gen.go`](../app/steps_gen.go); generated phase vocabulary, not prose matching |
 | `SessionCandidate` (`app`, `kind`, `portable`, `recommend`, `note`, `consentRequired`) | [`session.go`](../app/session.go), [candidate example](../app/testdata/dto/session_candidate.json) |
-| `NativeConfigurationSnapshot`, image/default/bundle/storage records | [`native_configuration.go`](../app/native_configuration.go), [configuration fixture](../tests/unit/fixtures/native-gallery/configuration.json) |
+| `NativeConfigurationSnapshot`, image/default/bundle/storage records, `DetectedApp` (`flatpak`, `name`, `displayName`; `detectedApps` is never null) | [`native_configuration.go`](../app/native_configuration.go), [`app_flatpaks.go`](../app/app_flatpaks.go), [configuration fixture](../tests/unit/fixtures/native-gallery/configuration.json) |
 | `InstallSpace` (`imageRef`, `compressedBytes`, `sizeSource`, `scratchGiB`, `bundleGiB`, `reserveGiB`) | [`install_space.go`](../app/install_space.go); reserve is space **beside** the Linux disk |
 | `NativeInstallGrant` | [`native_install_session.go`](../app/native_install_session.go) |
 | `NativeMaintenancePlan`, `NativeMaintenanceGrant` | [`native_maintenance.go`](../app/native_maintenance.go), [maintenance exchanges](../tests/unit/fixtures/native-maintenance/responses.ndjson) |

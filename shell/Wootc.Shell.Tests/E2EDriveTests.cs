@@ -19,10 +19,14 @@ public sealed class E2EDriveTests
     private static ConsumerConfiguration Model(string imageRef = Reference, params ConfigurationStorage[] volumes)
     {
         var model = new ConsumerConfiguration("fixture-brand");
+        // The apps the engine detects from tests/e2e/oem/seed-profile.ps1
+        // that the harness directive chooses between.
         model.ApplyCatalogue(new ConfigurationCatalogue(1, "fixture-brand", "embedded", new string('a', 64),
             new[] { new ConfigurationImage("yellowfin", "Yellowfin GNOME", imageRef, "green", true, "", false, "", false) },
             "alpha", false, new ConfigurationDefaults(40, "none", "auto", false, false),
-            volumes.Length == 0 ? new[] { Volume("only-volume", "C") } : volumes));
+            volumes.Length == 0 ? new[] { Volume("only-volume", "C") } : volumes,
+            new ConfigurationApp[] { new("org.gimp.GIMP", "GIMP", "GIMP 2.10.36"), new("org.inkscape.Inkscape", "Inkscape", "Inkscape 1.4.2"),
+                new("org.audacityteam.Audacity", "Audacity", "Audacity 3.7.1") }));
         return model;
     }
 
@@ -32,6 +36,10 @@ public sealed class E2EDriveTests
         var directive = E2EDriveDirective.Parse(Golden("directive-install.json"));
         Assert.Equal((1, Run, Id, "install", Reference), (directive.SchemaVersion, directive.RunId, directive.DirectiveId, directive.Action, directive.Image));
         Assert.Equal(("wootc", "wootc-test", "", "C:", 30), (directive.Username, directive.Hostname, directive.Encryption, directive.StorageId, directive.DiskSizeGb));
+        // The harness migrates the way a person would: Windows-Style Mode on,
+        // Audacity and Inkscape kept, the detected GIMP unchecked.
+        Assert.True(directive.WindowsLook);
+        Assert.Equal(new[] { "org.audacityteam.Audacity", "org.inkscape.Inkscape" }, directive.Flatpaks);
         Assert.DoesNotContain("wootc-e2e-pass", directive.ToString());
         var mapping = directive.ToInstallMapping();
         Assert.Equal("wootc-e2e-pass", mapping.Password);
@@ -60,9 +68,41 @@ public sealed class E2EDriveTests
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"uninstall\"}")]
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\"}")]
     [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"image\":7}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":\"true\"}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":1}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"windowsLook\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":\"org.gimp.GIMP\"}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[7]}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[null]}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":null}")]
+    [InlineData("{\"schemaVersion\":1,\"runId\":\"r\",\"directiveId\":\"0123456789abcdef0123456789abcdef\",\"action\":\"install\",\"flatpaks\":[],\"flatpaks\":[]}")]
     public void RefusesMalformedOrAmbiguousDirectives(string raw)
     {
         Assert.ThrowsAny<Exception>(() => E2EDriveDirective.Parse(raw));
+    }
+
+    [Fact]
+    public void ParsesTheOptionalAppearanceAndAppKeys()
+    {
+        var node = System.Text.Json.Nodes.JsonNode.Parse(Golden("directive-install.json"))!.AsObject();
+        node.Remove("windowsLook");
+        node.Remove("flatpaks");
+        var absent = E2EDriveDirective.Parse(node.ToJsonString());
+        Assert.Null(absent.WindowsLook);
+        Assert.Null(absent.Flatpaks);
+        Assert.Null(absent.ToInstallMapping().Flatpaks);
+        node["windowsLook"] = false;
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray("org.gimp.GIMP", "org.audacityteam.Audacity");
+        var named = E2EDriveDirective.Parse(node.ToJsonString());
+        Assert.False(named.WindowsLook);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.audacityteam.Audacity" }, named.Flatpaks);
+        var mapping = named.ToInstallMapping();
+        Assert.False(mapping.WindowsLook);
+        Assert.Equal(new[] { "org.gimp.GIMP", "org.audacityteam.Audacity" }, mapping.Flatpaks);
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray();
+        Assert.Empty(E2EDriveDirective.Parse(node.ToJsonString()).Flatpaks!);
+        node["flatpaks"] = new System.Text.Json.Nodes.JsonArray(Enumerable.Range(0, E2EDriveDirective.MaximumFlatpaks + 1).Select(index => (System.Text.Json.Nodes.JsonNode?)$"org.example.App{index}").ToArray());
+        Assert.Throws<InvalidDataException>(() => E2EDriveDirective.Parse(node.ToJsonString()));
     }
 
     [Fact]

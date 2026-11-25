@@ -10,7 +10,9 @@
 #
 # What IS pre-fillable (all non-secret):
 #   * username     — from the Windows profile directory name
-#   * fullName     — from the installer's slurp.json (registry display name)
+#   * fullName     — from the installer's slurp.json (Windows-Style Mode only);
+#                    the account itself already carries the Windows full name
+#                    in GECOS (vault full_name → useradd --comment)
 #   * email        — Microsoft-account email if the box was MSA-joined
 #   * avatar       — the account picture file, if present
 #   * locale / keyboardLayout / timezone — from slurp.json
@@ -105,6 +107,17 @@ def _home(user):
     try:
         return subprocess.run(["getent", "passwd", user], capture_output=True,
                               text=True, check=True).stdout.split(":")[5]
+    except Exception:
+        return ""
+
+
+def _gecos_name(user):
+    """The account's GECOS full name (its first comma subfield). From Phase 2
+    on it is the Windows full name the deployer gave useradd."""
+    try:
+        entry = subprocess.run(["getent", "passwd", user], capture_output=True,
+                               text=True, check=True).stdout
+        return entry.split(":")[4].split(",", 1)[0].strip()
     except Exception:
         return ""
 
@@ -222,6 +235,12 @@ def cmd_apply(winuser, linuxuser):
     home = os.environ.get("WOOTC_HOME") or _home(linuxuser)
     as_dir = os.environ.get("WOOTC_AS_DIR", "/var/lib/AccountsService")
     applied = []
+    # slurp.json names someone only when Windows-Style Mode collected it. The
+    # account already has the Windows full name from the vault, so without a
+    # slurp name keep that one (and show it on the login screen) instead of
+    # writing a blank over it.
+    gecos = _gecos_name(linuxuser)
+    fullname = info["fullName"] or gecos or None
 
     av = info["avatar"]
     picture = None
@@ -247,14 +266,14 @@ def cmd_apply(winuser, linuxuser):
                     _copy_picture(picture, out)
                 finally:
                     os.close(out)
-                _set_as_icon(as_dir, linuxuser, dst, info["fullName"])
+                _set_as_icon(as_dir, linuxuser, dst, fullname)
                 applied.append("accountsservice")
             except OSError:
                 pass
         finally:
             os.close(picture)
 
-    if info["fullName"]:
+    if info["fullName"] and info["fullName"] != gecos:
         # GECOS full name via chfn (root); non-fatal if unavailable.
         r = subprocess.run(["chfn", "-f", info["fullName"], linuxuser],
                            capture_output=True, text=True)
@@ -262,7 +281,7 @@ def cmd_apply(winuser, linuxuser):
             applied.append("fullname")
 
     print(json.dumps({"applied": applied, "username": info["username"],
-                      "fullName": info["fullName"], "avatar": av}, indent=2))
+                      "fullName": fullname, "avatar": av}, indent=2))
     return 0
 
 

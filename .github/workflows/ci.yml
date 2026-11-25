@@ -120,7 +120,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: app/go.mod
           # go.sum is in app/; the default (a root go.sum) caches nothing.
@@ -249,7 +249,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
         with: { submodules: recursive, persist-credentials: false }
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         # go.sum is in app/; the default (a root go.sum) caches nothing.
         with: {go-version: '1.27', cache-dependency-path: app/go.sum}
       - name: Install native fast-tier fixture dependencies
@@ -303,6 +303,10 @@ jobs:
       - uses: $/.github/actions/podman-runtime
       - name: Run containerized bridge suite
         run: bash tests/migration/test-bridge.sh
+      # Printer migration against a real cupsd and the E2E's IPP Everywhere
+      # responder: queue created, `lp` delivers, waiting retried, rerun inert.
+      - name: Run printer migration against real CUPS
+        run: bash tests/migration/test-printers.sh
 
   gui-shots:
     name: GUI screenshots render
@@ -354,7 +358,7 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - uses: actions/setup-go@v7.0.0
+      - uses: actions/setup-go@v7.1.0
         with:
           go-version-file: app/go.mod
 
@@ -371,7 +375,7 @@ jobs:
             tests/e2e/phase-ledger.sh tests/e2e/phase3-snapshot.sh \
             tests/e2e/lib/results.sh \
             tests/e2e/lib/qga-transport.sh tests/e2e/lib/host-runtime.sh tests/e2e/lib/retention.sh tests/e2e/lib/vm-start.sh tests/e2e/lib/gui-session.sh tests/e2e/lib/gui-observations.sh tests/e2e/lib/gui-native.sh tests/e2e/lib/mok.sh tests/e2e/lib/phase2-second-boot.sh \
-            tests/e2e/lib/result-runner.sh \
+            tests/e2e/lib/result-runner.sh tests/e2e/lib/migration.sh tests/e2e/lib/phase2-units.sh \
             tests/e2e/lib/snapshot-prime.sh tests/e2e/lib/offline-bundle.sh \
             payload/steps.sh
 
@@ -381,6 +385,7 @@ jobs:
             payload/migration/wootc-go-native \
             payload/migration/wootc-wifi-bridge \
             payload/migration/wootc-wsl-bridge \
+            payload/migration/wootc-developer-bridge \
             payload/migration/wootc-apply-look
 
       - name: yamllint

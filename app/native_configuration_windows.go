@@ -80,5 +80,9 @@ func observeWindowsNativeConfiguration(ctx context.Context, selectedRoot string,
 		return empty, err
 	}
 	snapshot.StorageStatus, snapshot.Storage = "observed", storage
+	// Registry reads only, through the API: milliseconds, inside the
+	// final-selection phase. The install plan revalidates the selection
+	// against a fresh detection (installPolicy.detectedApps).
+	snapshot.DetectedApps = detectInstalledApps()
 	return snapshot, nil
 }

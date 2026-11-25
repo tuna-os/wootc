@@ -22,11 +22,8 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
+    PHASE2_OVERLAY="${PHASE2_OVERLAY:-$REPO_ROOT/payload/deployer/phase2-overlay.sh}"
     MODSETUP="$REPO_ROOT/payload/deployer/module-setup.sh"
-}
-
-extract_fn() {
-    awk "/^$1\(\) \{/,/^\}/" "$DEPLOY"
 }
 
 # A PATH holding ONLY what the stagers legitimately need — deliberately
@@ -110,7 +107,7 @@ minimal_path() {
         log() { echo \"\$*\"; }
         err() { echo \"\$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(extract_fn stage_qemu_ga_into_target)
+        source '$PHASE2_OVERLAY'
         stage_qemu_ga_into_target
     "
     [ "$status" -eq 0 ]
@@ -122,13 +119,14 @@ minimal_path() {
 }
 
 @test "no call site pipes ldd into awk any more" {
-    run grep -nE '^[^#]*ldd .*\| *awk' "$DEPLOY"
+    run grep -nE '^[^#]*ldd .*\| *awk' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
     # And every closure builder goes through the one resolver, which lives in
     # initramfs-lib.sh and nowhere else.
     [ "$(grep -c '^dso_closure() {' "$INITRAMFS_LIB")" -eq 1 ]
     [ "$(grep -c '^dso_closure() {' "$DEPLOY")" -eq 0 ]
-    [ "$(grep -c '^[^#]*dso_closure "' "$DEPLOY")" -ge 3 ]
+    [ "$(grep -c '^dso_closure() {' "$PHASE2_OVERLAY")" -eq 0 ]
+    [ "$(cat "$DEPLOY" "$PHASE2_OVERLAY" | grep -c '^[^#]*dso_closure "')" -ge 3 ]
 }
 
 @test "initramfs-lib.sh is shipped into the deployer initramfs and sourced by deploy.sh" {
@@ -155,7 +153,9 @@ minimal_path() {
     # them turns a survivable condition into a dead 90-minute cell.
     for fn in stage_qemu_ga_into_target stage_ntfs3g_closure; do
         # Comments may explain the rule; code may not break it.
-        run bash -c "awk \"/^${fn}\\(\\) \\{/,/^\\}/\" '$DEPLOY' \
+        # The body must exist, or the [FAIL] check below passes on nothing.
+        [ "$(grep -c "^${fn}() {" "$PHASE2_OVERLAY")" -eq 1 ]
+        run bash -c "awk \"/^${fn}\\(\\) \\{/,/^\\}/\" '$PHASE2_OVERLAY' \
             | grep -vE '^[[:space:]]*#' | grep -n '\[FAIL\]'"
         [ "$status" -ne 0 ]
     done

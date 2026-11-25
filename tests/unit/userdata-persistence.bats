@@ -39,7 +39,10 @@ setup() {
     # existing — and Phase 2 then found seed@host empty. The seed step must
     # read the canary FILE back after either branch, and the PASS grep must
     # match the canary's content format.
-    grep -q "seed-profile.ps1' -Username.*| Out-Null" "$E2E"
+    # The profile comes from the seed staged over QGA every run
+    # (lib/migration.sh), never a C:\OEM copy an old base image may carry.
+    grep -Fq 'if migration_seed "$drive" "$guser"; then' "$E2E"
+    grep -Fq "seed-profile.ps1' -Username '\$guser' -Drive '\$drive' -RunId '\$RUN_ID'" "$(dirname "$E2E")/lib/migration.sh"
     grep -q 'Get-Content' "$E2E"
     grep -Fq 'grep -q "wootc-e2e-userdata $RUN_ID"' "$E2E"
 }
@@ -76,8 +79,10 @@ setup() {
     # images video/audio live in /usr/lib/group (systemd userdb) and useradd
     # exits 6, aborting the whole fisherman install. logind session ACLs make
     # the legacy device groups unnecessary.
-    grep -Fq '\"groups\": [\"wheel\"]' "$REPO_ROOT/payload/deployer/deploy.sh"
-    run grep -n '"wheel", "video", "audio"' "$REPO_ROOT/payload/deployer/deploy.sh"
+    eval "$(sed -n '/^recipe_user_json() {/,/^}/p' "$REPO_ROOT/payload/deployer/deploy.sh")"
+    [ "$(recipe_user_json wootc '$6$x' 'Zoë' | jq -c .groups)" = '["wheel"]' ]
+    grep -Fq 'USER_JSON=",\"user\": $(recipe_user_json ' "$REPO_ROOT/payload/deployer/deploy.sh"
+    run grep -nE '"(video|audio)"' "$REPO_ROOT/payload/deployer/deploy.sh"
     [ "$status" -ne 0 ]
 }
 

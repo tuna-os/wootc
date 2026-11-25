@@ -141,7 +141,8 @@ public sealed class GalleryTests
                 await Capture(fresh, "linux-window", "StartLinuxAgain", await fresh.Reach("StartLinuxAgain"));
                 await fresh.Press("ReadConfiguration");
                 await fresh.WaitFor("ConfigurationObservation", element => element.Name.Contains("storage: observed", StringComparison.Ordinal));
-                var reached = await fresh.Reach("ImageChoice", "StorageChoice", "LinuxUsername", "LinuxPassword", "LinuxPasswordConfirmation", "LinuxHostname", "LinuxEncryption", "LinuxWindowsLook");
+                // The recorded configuration detects three apps (native-gallery/configuration.json).
+                var reached = await fresh.Reach("ImageChoice", "StorageChoice", "LinuxUsername", "LinuxPassword", "LinuxPasswordConfirmation", "LinuxHostname", "LinuxEncryption", "LinuxWindowsLook", "AppChoice0", "AppChoice1", "AppChoice2");
                 await Capture(fresh, "configuration", "ImageChoice", reached);
                 var images = fresh.Find("ImageChoice").AsComboBox(); images.Expand(); images.Select(0); images.Collapse();
                 var storage = fresh.Find("StorageChoice").AsComboBox(); storage.Expand(); storage.Select(0); storage.Collapse();

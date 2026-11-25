@@ -30,6 +30,7 @@
 setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
+    PHASE2_OVERLAY="${PHASE2_OVERLAY:-$REPO_ROOT/payload/deployer/phase2-overlay.sh}"
     E2E="$REPO_ROOT/tests/e2e/run-e2e.sh"
     SCANNER="$BATS_TEST_TMPDIR/scan.awk"
     cat > "$SCANNER" <<'AWK'
@@ -62,6 +63,8 @@ AWK
 @test "deploy.sh is syntactically valid" {
     run bash -n "$DEPLOY"
     [ "$status" -eq 0 ]
+    run bash -n "$PHASE2_OVERLAY"
+    [ "$status" -eq 0 ]
 }
 
 @test "the premise holds: run-e2e.sh really does kill the deploy on [FAIL]" {
@@ -75,7 +78,9 @@ AWK
 }
 
 @test "every [FAIL] in deploy.sh terminates the deploy" {
-    run awk -f "$SCANNER" "$DEPLOY"
+    # phase2-overlay.sh prints on the same serial, so it is held to the same
+    # rule; scanned separately because the scanner reads line structure.
+    run bash -c "awk -f '$SCANNER' '$DEPLOY'; awk -f '$SCANNER' '$PHASE2_OVERLAY'"
     [ "$status" -eq 0 ]
     if [ -n "$output" ]; then
         printf 'non-terminating [FAIL] site(s) — each one silently kills a\n' >&2

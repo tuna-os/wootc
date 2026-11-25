@@ -36,8 +36,11 @@ for base in ("Program Files (x86)", "Program Files"):
         p = os.path.dirname(os.path.dirname(vdf)) if os.path.exists(vdf) else steam_root
         items.append({
             "id": "steam",
-            "label": "Steam",
-            "detail": "libraries + saves",
+            "label": "Steam libraries",
+            # The bridge cannot register into Linux Steam's own metadata
+            # (docs/SPEC.md §4.1): say the one step the user takes.
+            "detail": "Games play in place, no download: after Steam's first start, "
+                      "add the Windows library in Steam Settings > Storage > Add Library",
             "fileCount": count_files(p) if os.path.isdir(p) else 0,
             "sizeBytes": dir_bytes(p) if os.path.isdir(p) else 0,
         })
@@ -47,7 +50,7 @@ detected = len(items) > 0
 result = {
     "detected": detected,
     "items": items,
-    "summary": "Steam" if detected else ""
+    "summary": "Steam libraries (add them once in Steam)" if detected else ""
 }
 
 print(json.dumps(result))

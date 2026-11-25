@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 # shellcheck disable=SC1091,SC2317  # dracut-lib.sh comes from the initramfs
+# shellcheck disable=SC3043  # `local`: dracut sources this from its own sh
+#                            # (dash on some images, tunaOS#4818), which has it.
 # /usr/lib/dracut/modules.d/99wootc-boot/wootc-stage-shutdown.sh
 #
 # dracut PRE-PIVOT hook: stage a usable initramfs into /run/initramfs so that

@@ -277,6 +277,23 @@
       "maximumRootDiskSizeGB": 100
     }
   ],
+  "detectedApps": [
+    {
+      "flatpak": "org.gimp.GIMP",
+      "name": "GIMP",
+      "displayName": "GIMP 2.10.36"
+    },
+    {
+      "flatpak": "org.inkscape.Inkscape",
+      "name": "Inkscape",
+      "displayName": "Inkscape 1.4.2"
+    },
+    {
+      "flatpak": "org.audacityteam.Audacity",
+      "name": "Audacity",
+      "displayName": "Audacity 3.7.1"
+    }
+  ],
   "originalUserCaptured": false,
   "installAuthorized": false
 }

@@ -71,8 +71,12 @@ step() { :; }; fail() { echo "FAIL $*"; }
 infra_fail() { echo "INFRA $*"; }
 product_fail() { echo "PRODUCT-FAIL $*"; }
 product_pass() { echo "PRODUCT-PASS $*"; }
+deadline_in() { echo 0; }; past_deadline() { return 0; }
 qga_call() {
- if [[ "$*" == *"wootc-phase3-health check"* ]]; then printf 'OK: healthy'; return 0; fi
+ if [[ "$*" == *"/run/wootc-e2e-native-health"* ]]; then
+  printf 'HEALTH_SCHEMA=1\\nHEALTH_BOOT_ID=%s\\nHEALTH_STATUS=0\\nOK: healthy\\nHEALTH_READ=complete\\n' "$P3_NATIVE_BOOT_ID"; return 0
+ fi
+ if [[ "$*" == *"/proc/self/attr/current"* ]]; then printf 'context: virt_qemu_ga_t'; return 0; fi
  if [[ "${!#}" == native ]]; then printf '%s' "$PROOF"; return "$PROOF_RC"; fi
  printf '%s' "$DATA"; return "$DATA_RC"
 }

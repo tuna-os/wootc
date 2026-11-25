@@ -15,6 +15,7 @@ export const state = {
   categories: [],      // migration dashboard rows
   apps: [],            // detected app migrations
   sessionCandidates: [], // Windows-online DPAPI findings; never tokens
+  detectedApps: [],    // Windows apps with a Flathub counterpart (GetDetectedApps)
   office: null,        // MS Office → LibreOffice summary
   migrationProfile: null,
   look: null,
@@ -42,6 +43,8 @@ export const state = {
     // opt-out for anyone who wants the image maker's stock desktop.
     windowsLook: true,
     sessionConsent: {},
+    // Flathub IDs of detected apps the person kept checked; all to start.
+    flatpaks: [],
   },
   progress: {
     step: '',

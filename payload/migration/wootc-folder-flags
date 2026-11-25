@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""wootc-folder-flags: let the user write to bridged Windows folders while
+Linux runs, and give Windows its read-only folder flags back afterwards.
+
+    wootc-folder-flags clear <host> <folder>...
+    wootc-folder-flags restore <host>
+
+Windows flags its shell folders (Documents, Pictures, Desktop, ... and any
+folder whose icon or name the user customised) FILE_ATTRIBUTE_READONLY. On a
+directory the bit only tells Explorer to read desktop.ini; Windows does not
+stop anyone writing into the folder. The kernel ntfs3 driver turns it into a
+mode without write bits on every inode, directories included
+(fs/ntfs3/inode.c, ntfs_read_mft: "if (std5->fa & FILE_ATTRIBUTE_READONLY)
+mode &= ~0222;"), and no mount option overrides it. The bridged Documents was
+dr-xr-xr-x root, and the user got EACCES saving into it (probe 44889931801).
+
+clear removes READONLY from every directory under each folder, never from a
+file (Windows does enforce it on files) and never through a link (ntfs3
+shows junctions as symlinks). It first records each directory and its
+original attributes in <host>/wootc/folder-flags.json, written atomically;
+when the record cannot be written, nothing is cleared. restore puts READONLY
+back on every recorded directory and removes the record. It runs at shutdown
+(wootc-umount-user-dirs) and at the start of every boot
+(wootc-mount-user-dirs), so a crash costs a folder's custom name or icon in
+Explorer only until the next boot, and Windows never runs while it lasts.
+Only the READONLY bit is put back: any other attribute change made meanwhile
+is kept.
+
+Each command prints how many directories it changed, and exits 1 when it
+could not handle every one (the reasons go to stderr).
+WOOTC_NTFS_ATTRIB_XATTR exists for the unit tests only.
+"""
+import errno
+import json
+import os
+import struct
+import sys
+
+XATTR = os.environ.get("WOOTC_NTFS_ATTRIB_XATTR", "system.ntfs_attrib")
+READONLY = 0x1
+STATE_NAME = "folder-flags.json"
+
+
+def say(message):
+    print("wootc-folder-flags: " + message, file=sys.stderr)
+
+
+def attributes(path):
+    return struct.unpack("<I", os.getxattr(path, XATTR))[0]
+
+
+def set_attributes(path, value):
+    os.setxattr(path, XATTR, struct.pack("<I", value))
+
+
+def state_path(host):
+    return os.path.join(host, "wootc", STATE_NAME)
+
+
+def load(path):
+    """Recorded folders as {path relative to the host: original attributes}."""
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except FileNotFoundError:
+        return {}
+    return {entry["path"]: int(entry["attributes"], 16) for entry in data["folders"]}
+
+
+def save(path, entries):
+    """Replace the record atomically: a crash leaves the old one or the new one."""
+    directory = os.path.dirname(path)
+    if not entries:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            return
+    else:
+        data = {
+            "about": "Windows folders whose read-only flag wootc cleared while Linux runs; "
+                     "wootc puts the flag back at shutdown and at the next boot.",
+            "folders": [{"path": rel, "attributes": "0x%08x" % fa} for rel, fa in sorted(entries.items())],
+        }
+        partial = path + ".partial"
+        with open(partial, "w", encoding="utf-8") as stream:
+            json.dump(data, stream, indent=1)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(partial, path)
+    fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    except OSError as error:
+        if error.errno != errno.EINVAL:  # some drivers cannot fsync a directory
+            raise
+    finally:
+        os.close(fd)
+
+
+def inside(host, path):
+    """path relative to host, or None when it leaves the host volume."""
+    rel = os.path.relpath(path, host)
+    if rel == os.curdir or rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        return None
+    return rel
+
+
+def clear(host, folders):
+    host = os.path.realpath(host)
+    record = state_path(host)
+    found = []
+    for folder in folders:
+        folder = os.path.realpath(folder)
+        if inside(host, folder) is None:
+            say("%s is not on the Windows volume; left alone" % folder)
+            continue
+        for top, _, _ in os.walk(folder):
+            try:
+                fa = attributes(top)
+            except (OSError, struct.error):
+                continue  # no NTFS attributes here: nothing of Windows to keep
+            if fa & READONLY:
+                found.append((top, fa))
+    if not found:
+        return 0, True
+    if not os.path.isdir(os.path.dirname(record)):
+        say("no wootc directory on the Windows volume to record folder flags in; nothing cleared")
+        return 0, False
+    try:
+        entries = load(record)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        say("cannot read %s (%s); nothing cleared" % (record, error))
+        return 0, False
+    for top, fa in found:
+        # A folder still listed from an earlier run keeps its first record.
+        entries.setdefault(inside(host, top), fa)
+    try:
+        save(record, entries)
+    except OSError as error:
+        say("cannot record folder flags in %s (%s); nothing cleared" % (record, error))
+        return 0, False
+    cleared, complete = 0, True
+    for top, fa in found:
+        try:
+            set_attributes(top, fa & ~READONLY)
+            cleared += 1
+        except OSError as error:
+            say("cannot clear the read-only flag on %s: %s" % (top, error))
+            complete = False
+    return cleared, complete
+
+
+def restore(host):
+    host = os.path.realpath(host)
+    record = state_path(host)
+    try:
+        entries = load(record)
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        say("cannot read %s (%s); nothing restored" % (record, error))
+        return 0, False
+    remaining = {}
+    restored = 0
+    for rel, original in entries.items():
+        path = os.path.join(host, rel)
+        if os.path.isabs(rel) or inside(host, path) is None or os.path.realpath(path) != os.path.normpath(path):
+            say("ignoring %r in %s: not a folder on the Windows volume" % (rel, record))
+            continue
+        if not os.path.isdir(path):
+            say("%s is gone; nothing to restore there" % path)
+            continue
+        try:
+            current = attributes(path)
+            if original & READONLY and not current & READONLY:
+                set_attributes(path, current | READONLY)
+                restored += 1
+        except (OSError, struct.error) as error:
+            say("cannot restore the read-only flag on %s: %s" % (path, error))
+            remaining[rel] = original
+    try:
+        save(record, remaining)
+    except OSError as error:
+        say("cannot update %s (%s)" % (record, error))
+        return restored, False
+    return restored, not remaining
+
+
+def main(argv):
+    if len(argv) >= 3 and argv[1] == "clear":
+        changed, complete = clear(argv[2], argv[3:])
+    elif len(argv) == 3 and argv[1] == "restore":
+        changed, complete = restore(argv[2])
+    else:
+        print(__doc__.split("\n\n")[1], file=sys.stderr)
+        return 2
+    print(changed)
+    return 0 if complete else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

@@ -12,7 +12,8 @@ import (
 // The native screen gallery (shell/Wootc.Shell.Gallery) shows the
 // configuration screen from this recorded engine snapshot: the embedded
 // catalogue as the engine reads it with no installation root, plus one
-// synthetic observed volume. The catalogue changes with releases, so the
+// synthetic observed volume and the apps the embedded app-flatpaks.json maps
+// from three synthetic DisplayNames. The catalogue changes with releases, so the
 // fixture is not compared byte for byte; it must keep the exact wire shape
 // of NativeConfigurationSnapshot, which this test checks on every run.
 // Update: WOOTC_UPDATE_NATIVE_GALLERY_FIXTURE=1 go test -run TestNativeGalleryConfigurationFixture .
@@ -29,6 +30,11 @@ func TestNativeGalleryConfigurationFixture(t *testing.T) {
 		snapshot.StorageStatus = "observed"
 		snapshot.Storage = []NativeConfigurationStorage{{ID: "gallery-volume-d", DriveLetter: "D", DiskGUID: "11111111-1111-1111-1111-111111111111",
 			PartitionGUID: "22222222-2222-2222-2222-222222222222", NtfsSerial: "0123456789abcdef", FreeBytes: 128 << 30, MaximumRootDiskSizeGB: 100}}
+		table, err := embeddedAppFlatpaks()
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot.DetectedApps = detectAppsFromDisplayNames(table, []string{"GIMP 2.10.36", "Inkscape 1.4.2", "Audacity 3.7.1"})
 		server := newConfigurationAssessmentServer(NewApp(), &synchronizedWriter{out: &bytes.Buffer{}}, func(context.Context) (NativeConfigurationSnapshot, error) { return snapshot, nil })
 		result, failure := server.dispatch(context.Background(), jsonrpcRequest{Method: "GetNativeConfiguration"})
 		if failure != nil {
@@ -59,7 +65,7 @@ func TestNativeGalleryConfigurationFixture(t *testing.T) {
 	if !jsonShapeEqual(recorded, current) {
 		t.Fatal("gallery configuration lacks fields the engine now sends; regenerate it")
 	}
-	if snapshot.StorageStatus != "observed" || len(snapshot.Storage) != 1 || len(snapshot.Images) == 0 || len(snapshot.Steps) == 0 || snapshot.BrandID != "wootc" {
+	if snapshot.StorageStatus != "observed" || len(snapshot.Storage) != 1 || len(snapshot.Images) == 0 || len(snapshot.Steps) == 0 || snapshot.BrandID != "wootc" || len(snapshot.DetectedApps) == 0 {
 		t.Fatalf("gallery configuration cannot drive the configuration screen: %+v", snapshot.Storage)
 	}
 }

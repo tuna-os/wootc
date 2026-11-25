@@ -65,6 +65,10 @@ type InstallConfig struct {
 	// over on first login. Default false — we honor the image maker's desktop
 	// defaults unless the user asks to make it feel like Windows.
 	WindowsLook bool `json:"windowsLook"`
+	// Flatpaks are the Flathub IDs of detected Windows apps the person kept
+	// checked (SPEC §4.3). Each must be one the engine detected on this
+	// computer; the deployer pre-installs them. Empty installs none.
+	Flatpaks []string `json:"flatpaks"`
 	// SessionConsent is opt-in per app because it authorizes moving auth
 	// material. An absent or false entry never stages a session envelope.
 	SessionConsent map[string]bool `json:"sessionConsent,omitempty"`

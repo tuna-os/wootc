@@ -255,6 +255,18 @@ sel_on() {
     return 0
 }
 
+# Developer setup (§4.6): public SSH files + Git identity, never private keys.
+# A function, not inline in the per-user loop, so the chooser gate is testable.
+# developer_bridge <windows-profile> <linux-user>
+developer_bridge() {
+    command -v wootc-developer-bridge >/dev/null || return 0
+    if sel_on "$2" developer; then
+        wootc-developer-bridge "$1" "$2" || log "developer bridge failed for $1 → $2 (non-fatal)"
+    else
+        log "developer: skipped for $2 (turned off in the migration chooser)"
+    fi
+}
+
 bound=0
 copied=0
 matched=0
@@ -341,10 +353,26 @@ safe_folder_source() {
     return 1
 }
 
+# Windows flags its shell folders FILE_ATTRIBUTE_READONLY, and the kernel
+# ntfs3 driver turns that into a folder mode without write bits: the user
+# could read the bridged Documents but not save into it (probe 44889931801).
+# wootc-folder-flags clears the flag on folders, never on files, while Linux
+# runs, records what it changed on the Windows volume first, and puts the
+# flags back at shutdown (wootc-umount-user-dirs) and at the next boot.
+# Not chmod: ntfs3 would also store Linux permissions in the folder ($LXMOD).
+folder_flags() {
+    local helper=/var/usrlocal/bin/wootc-folder-flags
+    if [[ ! -x "$helper" ]] && ! helper=$(command -v wootc-folder-flags 2>/dev/null); then
+        warn "wootc-folder-flags is missing: Windows folders flagged read-only stay read-only"
+        return 1
+    fi
+    "$helper" "$@"
+}
+
 # Bind one Windows profile into one Linux home. Shared by the exact-name path
 # and the single-user fallback so the two can never diverge.
 bind_profile() {
-    local winprofile="$1" luser="$2" home="$3" folder src dst
+    local winprofile="$1" luser="$2" home="$3" folder src dst cleared
     if ! sel_on "$luser" files; then
         log "files: skipped for $luser (turned off in the migration chooser)"
         return 0
@@ -415,6 +443,14 @@ bind_profile() {
             continue
         fi
 
+        # The unlocked BitLocker C: stays read-only: leave its flags alone.
+        if [[ -z "$BITLOCKER_PROFILES" || "$src" != "$BITLOCKER_PROFILES"/* ]]; then
+            cleared=$(folder_flags clear "$HOST" "$src") ||
+                warn "files/$folder: not every read-only Windows folder under $src could be made writable"
+            if [[ "${cleared:-0}" != 0 ]]; then
+                log "files/$folder: cleared the Windows read-only flag on $cleared folder(s) until shutdown"
+            fi
+        fi
         mkdir -p "$dst"
         if ! mountpoint -q "$dst"; then
             mount --bind "$src" "$dst"
@@ -489,6 +525,14 @@ add_host_bookmark_kde() {
     fi
     chown --reference="$home" "${xbel%/*}" "$xbel" 2>/dev/null || true
 }
+
+# A boot that ended without a clean shutdown left Windows' read-only folder
+# flags cleared. Put them back before bind_profile clears them again.
+restored=$(folder_flags restore "$HOST") ||
+    warn "not every Windows folder flag an earlier boot cleared could be restored; retried at shutdown"
+if [[ "${restored:-0}" != 0 ]]; then
+    log "restored the Windows read-only flag on $restored folder(s) an earlier boot left cleared"
+fi
 
 # Attempt BitLocker unlock before scanning for profiles when the host
 # mount has no Users/ directory (the encrypted-C: signature, #61).
@@ -648,12 +692,30 @@ if command -v wootc-detect-apps >/dev/null; then
                 log "office: skipped for $uname (turned off in the migration chooser)"
             fi
         fi
+        developer_bridge "$winuser" "$uname"
         # Copy the account picture + full name over (never the password).
         if command -v wootc-identity >/dev/null; then
             if sel_on "$uname" identity; then
                 wootc-identity apply "$winuser" "$uname" >/dev/null || log "identity copy failed for $winuser → $uname (non-fatal)"
             else
                 log "identity: skipped for $uname (turned off in the migration chooser)"
+            fi
+        fi
+        # Browser bookmarks/history/profile (copy-only, never clobbers): run
+        # until one attempt completes, so the browser opens with the
+        # Windows bookmarks on first use. It used to be reachable only from
+        # the CLI for the internal Windows disk (wootc-import scan excludes
+        # the boot disk), so no user ever got it. A failed attempt retries
+        # next boot; the per-browser chooser items are honoured inside.
+        if command -v wootc-import-browser >/dev/null; then
+            browser_record="$userhome.config/wootc/bridge-browser.json"
+            browser_state=$(jq -r '.state // empty' "$browser_record" 2>/dev/null || true)
+            if ! sel_on "$uname" browsers; then
+                log "browsers: skipped for $uname (turned off in the migration chooser)"
+            elif [[ "$browser_state" == native || "$browser_state" == unchanged ]]; then
+                :
+            else
+                wootc-import-browser "$winuser" "$uname" || log "browser import failed for $winuser → $uname (non-fatal; retried next boot)"
             fi
         fi
     done

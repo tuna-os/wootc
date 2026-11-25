@@ -104,7 +104,22 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 		{StepInstallerPreparingTheStartupMenu, 55, func() error { return writeGrubConfig(cfg) }},
 		{StepInstallerGettingLinuxPrepared, 65, func() error { return setupESP(cfg) }},
 		{StepInstallerMakingLinuxBootableOnYourMachine, 80, func() error { return configureBCD(cfg) }},
-		{StepInstallerSavingYourSettings, 85, func() error { return writeVault(cfg) }},
+		{StepInstallerSavingYourSettings, 85, func() error {
+			if err := writeVault(cfg); err != nil {
+				return err
+			}
+			// The apps the person kept checked (SPEC §4.3), for the deployer
+			// to install from Flathub. Written on every install, empty when
+			// none were kept, beside the vault on the storage root.
+			if err := writeAppsHandoff(wootcDir(), cfg.Flatpaks); err != nil {
+				return err
+			}
+			// How Windows keeps the hardware clock, so the deployer's
+			// timestamps and the installed system's clock are not off by
+			// the Windows time zone (ClockHandoff).
+			rtcUniversal, zone := windowsClock()
+			return writeClockHandoff(wootcDir(), clockHandoffFor(rtcUniversal, zone, time.Now()))
+		}},
 		{StepInstallerSavingYourBitLockerRecoveryKey, 87, func() error {
 			// When C: is BitLocker-protected, capture the numerical recovery
 			// password so Phase 2 (Linux) can unlock C: and the User Data
@@ -176,6 +191,13 @@ func productionInstallSteps(ctx context.Context, cfg InstallConfig, emit func(Pr
 			// install over either collection.
 			if err := collectWifi(); err != nil {
 				fmt.Fprintf(os.Stderr, "[wootc] wifi export skipped: %v\n", err)
+			}
+			// Printers (§4.6) are recorded unconditionally too: names and
+			// connections only, never drivers. The Linux importer turns the
+			// network ones into driverless queues and the chooser shows the
+			// rest with the reason they cannot move.
+			if err := collectPrinters(); err != nil {
+				fmt.Fprintf(os.Stderr, "[wootc] printer inventory skipped: %v\n", err)
 			}
 			// Windows-Style Mode (SPEC §4.4) is on by default and opt-out in
 			// the GUI. When declined we collect nothing and the deployed

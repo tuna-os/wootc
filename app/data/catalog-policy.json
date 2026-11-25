@@ -22,10 +22,10 @@
     "base": "Universal Blue (Fedora, composefs)",
     "desktop": "gnome",
     "desktopName": "GNOME",
-    "description": "Bluefin's next-generation composefs desktop. Newly proven end-to-end.",
+    "description": "Bluefin's next-generation composefs desktop. Experimental: not yet proven end-to-end.",
     "bootloader": "systemd-boot",
     "family": "fedora",
-    "status": "green",
+    "status": "experimental",
     "source": {
       "image": "Dakota stable"
     }
@@ -291,6 +291,41 @@
     "status": "experimental",
     "source": {
       "image": "Flounder GNOME"
+    }
+  },
+  {
+    "id": "grouper-gnome",
+    "name": "Grouper",
+    "emoji": "🐠",
+    "base": "Ubuntu 26.04 LTS",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "description": "GNOME on Ubuntu 26.04 LTS with composefs.",
+    "bootloader": "systemd-boot",
+    "family": "debian",
+    "status": "green",
+    "source": {
+      "image": "Grouper GNOME"
+    },
+    "evidence": {
+      "run": 44798646505
+    }
+  },
+  {
+    "id": "flounder-gnome-sid",
+    "name": "Flounder (sid)",
+    "emoji": "🐡",
+    "base": "Debian sid",
+    "desktop": "gnome",
+    "desktopName": "GNOME",
+    "imageRef": "ghcr.io/tuna-os/flounder:gnome-sid",
+    "description": "GNOME on Debian unstable (sid) with composefs.",
+    "bootloader": "systemd-boot",
+    "composeFs": true,
+    "family": "debian",
+    "status": "green",
+    "evidence": {
+      "run": 44798653922
     }
   }
 ]

@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 
-CATEGORIES = ("files", "browsers", "office", "games", "wifi", "wsl", "look", "identity")
+CATEGORIES = ("files", "browsers", "office", "games", "wifi", "printers", "wsl", "look", "identity", "developer")
 
 
 def _home(user):

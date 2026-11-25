@@ -6,7 +6,8 @@
 #          red-green loop for TDD on new features and bug fixes.
 #   slow   containerized integration (test-bridge.sh): the User Data Bridge,
 #          browser/office/steam import, look mapping, WSL, go-native gates
-#          proven end-to-end inside one privileged Fedora container. Needs
+#          proven end-to-end inside one privileged Fedora container, and
+#          printer migration against a real cupsd (test-printers.sh). Needs
 #          podman.
 #
 # Usage:
@@ -135,6 +136,7 @@ run_slow() {
     echo "══ slow tier (containerized integration) ═════════════════════════════"
     if command -v podman >/dev/null; then
         bash tests/migration/test-bridge.sh || rc=1
+        bash tests/migration/test-printers.sh || rc=1
     else
         echo "!! podman not installed — skipping integration suite" >&2
     fi

@@ -5,21 +5,79 @@ RELEASE=.github/workflows/release.yml
 WINGET=.github/workflows/winget-publish.yml
 WINUI=.github/workflows/winui-preview.yml
 
-@test "full releases hand the tag to winget-publish themselves" {
-    # winget-publish.yml listens on release:published, but every release this
-    # pipeline cuts is created with GITHUB_TOKEN — and GitHub never triggers
-    # workflows from events its own token caused (recursion guard). The
-    # v0.1.0-alpha.1 publish proved the failure mode: release live, zero
-    # winget runs. The publish job must therefore dispatch winget-publish
-    # explicitly, and only for full releases (prerelease channels stay out
-    # of winget by design).
-    grep -q 'gh workflow run winget-publish.yml' "$RELEASE"
-    grep -q "prerelease == 'false'" "$RELEASE"
+@test "a full release becomes latest and goes to winget only after its native setup is attached" {
+    # v0.1.0-alpha.2: release.yml published the boot artifacts as the new
+    # latest release, and releases/latest/download/TunaOS-Installer.exe gave
+    # 404 until winui-preview.yml attached the native setup about an hour
+    # later; the winget run it dispatched gave up on the setup after 30 min.
+    grep -q 'make_latest: false' "$RELEASE"
+    ! grep -q 'gh workflow run winget-publish.yml' "$RELEASE"
     grep -q 'actions: write' "$RELEASE"
-    # The receiving side must accept a tag over workflow_dispatch, or the
-    # hand-off dispatches into a workflow that cannot use it.
+    # winui-preview.yml makes it latest after the upload, for full production
+    # releases, then dispatches winget (GitHub never triggers workflows from
+    # GITHUB_TOKEN events: v0.1.0-alpha.1 had 0 winget runs).
+    awk '/^  publish-preview:/,0' "$WINUI" | grep -q 'actions: write'
+    grep -q "steps.tag.outputs.prerelease == 'false'" "$WINUI"
+    upload=$(grep -n -- '- name: Upload beside the existing release assets' "$WINUI" | cut -d: -f1)
+    latest=$(grep -n -- '- name: Make the full release latest and dispatch winget' "$WINUI" | cut -d: -f1)
+    [ "$upload" -lt "$latest" ]
+    # The receiving side must accept a tag over workflow_dispatch.
     grep -q 'workflow_dispatch' "$WINGET"
     grep -q "inputs.tag" "$WINGET"
+}
+
+# Run winui-preview.yml's "make latest" step with gh and curl recording their
+# calls in $work/calls. FAKE_LATEST is what releases/latest answers.
+run_make_latest() {  # <work dir> <event name> <latest tag>
+    local script
+    script=$(awk '/- name: Make the full release latest and dispatch winget/{f=1; next}
+                  f && /^      - /{exit}
+                  f && /^        run: \|/{r=1; next}
+                  r && /^          /{sub(/^          /, ""); print}' "$WINUI")
+    [ -n "$script" ]
+    mkdir -p "$1/bin"
+    cat > "$1/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "gh $*" >> "$CALLS"
+case "$*" in
+    *releases/tags/*) echo 42 ;;
+    *releases/latest*) echo "$FAKE_LATEST" ;;
+esac
+EOF
+    printf '#!/usr/bin/env bash\necho "curl ${*: -1}" >> "$CALLS"\n' > "$1/bin/curl"
+    chmod +x "$1/bin/gh" "$1/bin/curl"
+    (PATH="$1/bin:$PATH" CALLS="$1/calls" FAKE_LATEST=$3 GITHUB_EVENT_NAME=$2 \
+        GITHUB_REPOSITORY=o/r TAG=v9 bash -c "set -euo pipefail; $script")
+}
+
+@test "make latest: the tag's setup is checked, then latest, then winget is dispatched" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" workflow_dispatch v9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    run cat "$work/calls"
+    [ "${lines[0]}" = "curl https://github.com/o/r/releases/download/v9/TunaOS-Installer.exe" ]
+    [[ "${lines[2]}" == "gh api -X PATCH repos/o/r/releases/42 -f make_latest=true" ]]
+    [ "${lines[4]}" = "curl https://github.com/o/r/releases/latest/download/TunaOS-Installer.exe" ]
+    [ "${lines[5]}" = "gh workflow run winget-publish.yml --repo o/r -f tag=v9" ]
+    rm -rf "$work"
+}
+
+@test "make latest: a release a person published does not dispatch winget a second time" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" release v9
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    grep -q 'make_latest=true' "$work/calls"
+    ! grep -q 'winget-publish' "$work/calls"
+    rm -rf "$work"
+}
+
+@test "make latest: latest still naming another release fails before winget" {
+    work=$(mktemp -d)
+    run run_make_latest "$work" workflow_dispatch v8
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"releases/latest is v8, not v9"* ]]
+    ! grep -q 'winget-publish' "$work/calls"
+    rm -rf "$work"
 }
 
 @test "phase D publishes native setup assets and one Wails fallback" {
@@ -162,6 +220,69 @@ notes_root() {
     # In the publish body, so the narrative reaches the release page.
     awk '/Record what gated this build/,/body_path/' "$RELEASE" \
         | grep -q 'check-notes.sh "\$RELEASE_TAG"'
+}
+
+# Run the post-publish verification step of release.yml with curl answering
+# from $1 (the "published" release) instead of github.com.
+run_published_set_check() {  # <published dir> <work dir with release-assets/ and signing/>
+    local script
+    script=$(awk '/- name: Verify the published boot-artifact set from its public URLs/{f=1; next}
+                  f && /^      - /{exit}
+                  f && /^        run: \|/{r=1; next}
+                  r && /^          /{sub(/^          /, ""); print}' "$RELEASE")
+    [ -n "$script" ]
+    mkdir -p "$2/bin"
+    printf '#!/usr/bin/env bash\nwhile [ "$#" -gt 1 ]; do [ "$1" = -o ] && out=$2; shift; done\ncp "%s/${1##*/}" "$out"\n' "$1" > "$2/bin/curl"
+    chmod +x "$2/bin/curl"
+    ln -sfn "$PWD/app" "$2/app"
+    (cd "$2" && PATH="$2/bin:$PATH" RUNNER_TEMP="$2" GITHUB_REPOSITORY=o/r RELEASE_TAG=v9 \
+        WOOTC_SIGNING_DIR="$2/signing" bash -c "set -euo pipefail; $script")
+}
+
+# A signed release set as the publish job leaves it, plus its published copy.
+make_signed_release() {  # <work dir>
+    local work=$1
+    mkdir -p "$work/release-assets" "$work/signing" "$work/published"
+    echo kernel > "$work/release-assets/deployer-vmlinuz"
+    echo shim > "$work/release-assets/shimx64.efi"
+    (cd app && go run ./tools/signmanifest generate "$work/signing/seed" "$work/signing/public.hex")
+    (cd "$work/release-assets" && sha256sum -- * > SHA256SUMS)
+    (cd app && go run ./tools/signmanifest sign "$work/signing/seed" "$work/release-assets/SHA256SUMS" "$work/release-assets/SHA256SUMS.sig")
+    cp "$work/signing/public.hex" "$work/release-assets/artifact-public-key.hex"
+    cp "$work/release-assets/"* "$work/published/"
+}
+
+@test "the published boot-artifact set is verified from its URLs before the dispatches" {
+    publish=$(grep -n 'softprops/action-gh-release' "$RELEASE" | cut -d: -f1)
+    verify=$(grep -n -- '- name: Verify the published boot-artifact set from its public URLs' "$RELEASE" | cut -d: -f1)
+    dispatch=$(grep -n -- '- name: Dispatch native setup packaging' "$RELEASE" | cut -d: -f1)
+    [ "$publish" -lt "$verify" ] && [ "$verify" -lt "$dispatch" ]
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    rm -rf "$work"
+}
+
+@test "a published manifest signed with another key fails the publish job" {
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    other=$(mktemp -d)
+    (cd app && go run ./tools/signmanifest generate "$other/seed" "$other/public.hex")
+    (cd app && go run ./tools/signmanifest sign "$other/seed" "$work/published/SHA256SUMS" "$work/published/SHA256SUMS.sig")
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -ne 0 ]
+    rm -rf "$work" "$other"
+}
+
+@test "a published asset that does not match the manifest fails the publish job" {
+    work=$(mktemp -d)
+    make_signed_release "$work"
+    echo other-kernel > "$work/published/deployer-vmlinuz"
+    run run_published_set_check "$work/published" "$work"
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"deployer-vmlinuz: FAILED"* ]]
+    rm -rf "$work"
 }
 
 @test "release exes are signed after they are built and before the checksums (#230)" {

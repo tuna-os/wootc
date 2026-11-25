@@ -28,6 +28,14 @@ export interface InstallConfig {
   windowsLook?: boolean;
   sessionConsent?: Record<string, boolean>;
   profileAccounts?: ProfileAccount[];
+  flatpaks?: string[];
+}
+
+/** A detected Windows app with a Flathub counterpart (app_flatpaks.go). */
+export interface DetectedApp {
+  flatpak: string;
+  name: string;
+  displayName: string;
 }
 
 export interface ProfileAccount {
@@ -127,6 +135,7 @@ export function GetMigrationCategories(): Promise<BridgeCategory[]>;
 export function ConvertCategory(id: string): Promise<void>;
 export function ImportBrowserData(): Promise<string>;
 export function GetSessionCandidates(): Promise<SessionCandidate[]>;
+export function GetDetectedApps(): Promise<DetectedApp[]>;
 export function GetAppMigrations(): Promise<AppMigration[]>;
 export function GetOfficeMigration(): Promise<any>;
 export function SetSessionConsent(app: string, consent: boolean): Promise<void>;

@@ -14,17 +14,12 @@ setup() {
     REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     DEPLOY="${DEPLOY:-$REPO_ROOT/payload/deployer/deploy.sh}"
     INITRAMFS_LIB="${INITRAMFS_LIB:-$REPO_ROOT/payload/deployer/initramfs-lib.sh}"
-}
-
-# Extract a top-level function from deploy.sh so it can be exercised for real.
-# Returns the function text; empty output fails the caller loudly.
-extract_fn() {
-    awk "/^$1\(\) \{/,/^\}/" "$DEPLOY"
+    PHASE2_OVERLAY="${PHASE2_OVERLAY:-$REPO_ROOT/payload/deployer/phase2-overlay.sh}"
 }
 
 @test "no early-cpio branch references the phantom /mnt/sysroot" {
     # Comments may tell the story; code may not resurrect the path.
-    run grep -nE '^[^#]*/mnt/sysroot' "$DEPLOY"
+    run grep -nE '^[^#]*/mnt/sysroot' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
 }
 
@@ -32,39 +27,61 @@ extract_fn() {
     # Hand-copied variants drifted (one staged libs, one did not, one staged
     # the deployer's libs at the TARGET's library paths). The helpers must be
     # defined once and called from every branch.
-    [ "$(grep -c '^stage_wootc_overlay() {' "$DEPLOY")" -eq 1 ]
-    [ "$(grep -c '^stage_ntfs3g_closure() {' "$DEPLOY")" -eq 1 ]
-    [ "$(grep -c '^build_phase2_initrd() {' "$DEPLOY")" -eq 1 ]
+    # phase2-overlay.sh, sourced by deploy.sh, holds the one copy.
+    for fn in stage_wootc_overlay stage_ntfs3g_closure build_phase2_initrd; do
+        [ "$(grep -c "^$fn() {" "$PHASE2_OVERLAY")" -eq 1 ]
+        [ "$(grep -c "^$fn() {" "$DEPLOY")" -eq 0 ]
+    done
+    grep -qF 'source "${WOOTC_PHASE2_OVERLAY_FILE:-/usr/libexec/wootc-phase2-overlay.sh}"' "$DEPLOY"
     [ "$(grep -c '^[^#]*stage_wootc_overlay "\$OVL"' "$DEPLOY")" -ge 3 ]
     [ "$(grep -c '^[^#]*stage_ntfs3g_closure "\$OVL"' "$DEPLOY")" -ge 3 ]
     [ "$(grep -c 'build_phase2_initrd "\$OVL"' "$DEPLOY")" -ge 3 ]
     # No branch may keep a private copy of the packing pipeline.
-    [ "$(grep -c 'cpio -o -H newc' "$DEPLOY")" -eq 1 ]
+    [ "$(grep -c 'cpio -o -H newc' "$DEPLOY")" -eq 0 ]
+    [ "$(grep -c 'cpio -o -H newc' "$PHASE2_OVERLAY")" -eq 1 ]
+}
+
+@test "phase2-overlay.sh is shipped into the deployer initramfs and sourced by deploy.sh" {
+    # deploy.sh sources the module at its installed path. If the Containerfile
+    # or module-setup.sh stops shipping it, every Phase-2 staging branch dies
+    # on "command not found" after fisherman has already written the disk.
+    local cfile="$REPO_ROOT/payload/deployer/Containerfile"
+    local modsetup="$REPO_ROOT/payload/deployer/module-setup.sh"
+    grep -qF 'COPY payload/deployer/phase2-overlay.sh /usr/libexec/wootc-phase2-overlay.sh' "$cfile"
+    grep -qE '^[[:space:]]*for module in .*wootc-phase2-overlay\.sh' "$cfile"
+    grep -qE '^[[:space:]]*inst_simple /usr/libexec/wootc-phase2-overlay.sh$' "$modsetup"
+    # The module is a library: sourcing it defines functions and runs nothing.
+    run env -i PATH=/nonexistent "$(type -P bash)" -c "set -euo pipefail; source '$PHASE2_OVERLAY'; declare -F"
+    [ "$status" -eq 0 ]
+    [ "${#lines[@]}" -eq 4 ]
+    for fn in stage_wootc_overlay stage_ntfs3g_closure stage_qemu_ga_into_target build_phase2_initrd; do
+        printf '%s\n' "${lines[@]}" | grep -qx "declare -f $fn"
+    done
 }
 
 @test "the deployer-sourced fallback ships the loader and is exec-verified" {
     # agent-lessons §8: full closure = binary + every NEEDED lib + the
     # loader, invoked via the staged loader — and proven by RUNNING it (ldd
     # reports only the first missing library).
-    grep -q -- '--library-path' "$DEPLOY"
-    grep -q 'usr/lib/wootc/ntfs3g' "$DEPLOY"
-    grep -q 'staged ntfs-3g closure does not execute' "$DEPLOY"
+    grep -q -- '--library-path' "$PHASE2_OVERLAY"
+    grep -q 'usr/lib/wootc/ntfs3g' "$PHASE2_OVERLAY"
+    grep -q 'staged ntfs-3g closure does not execute' "$PHASE2_OVERLAY"
     # The wrapper pins the private closure; the target's libraries are never
     # mixed in — so nothing may install deployer libs at target lib paths.
-    run grep -nE 'install -D [^ ]+ "\$OVL/\$lib"' "$DEPLOY"
+    run grep -nE 'install -D [^ ]+ "\$(OVL|ovl)/\$lib"' "$DEPLOY" "$PHASE2_OVERLAY"
     [ "$status" -ne 0 ]
 }
 
 @test "the built Phase-2 initrd is verified by listing, not by size" {
-    grep -qF 'listing=$(list_initrd_members "$base")' "$DEPLOY"
+    grep -qF 'listing=$(list_initrd_members "$base")' "$PHASE2_OVERLAY"
     grep -q 'cpio -it' "$INITRAMFS_LIB"
-    grep -q 'the target.s base initrd lacks' "$DEPLOY"
+    grep -q 'the target.s base initrd lacks' "$PHASE2_OVERLAY"
     # Overlay completeness is asserted BEFORE packing (dangling wants was a
     # proven silent no-op).
-    grep -q 'early-cpio overlay is incomplete' "$DEPLOY"
+    grep -q 'early-cpio overlay is incomplete' "$PHASE2_OVERLAY"
     # An unlistable base initrd WARNs (unknown compression is not proof of a
     # defect), it does not kill a possibly-good deploy.
-    grep -q 'could not list the base initrd' "$DEPLOY"
+    grep -q 'could not list the base initrd' "$PHASE2_OVERLAY"
 }
 
 @test "a missing mountable installed root is fatal, with evidence (#45)" {
@@ -88,14 +105,13 @@ extract_fn() {
 
 # ── Behavioral: the helpers, run for real ───────────────────────────────────
 
-run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
+run_helpers() { # <bash-snippet> — with the overlay module + stubs loaded
     bash -c "
         set -e
         log() { echo \"LOG: \$*\"; }
         err() { echo \"ERR: \$*\" >&2; }
         source '$INITRAMFS_LIB'
-        $(extract_fn stage_ntfs3g_closure)
-        $(extract_fn build_phase2_initrd)
+        source '$PHASE2_OVERLAY'
         $1
     "
 }
@@ -125,13 +141,13 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     # kernels lack ntfs3 AND whose target ntfs-3g install failed, so only
     # they exercise this fallback).
     #
-    # The '@' must be HARDCODED, not propagated: `exec -a "\$0"` looked
-    # right and run 32538672432 proved it wrong — shebang handling replaces
-    # argv[0] with the script path before the wrapper runs, so \$0 never
-    # carries the caller's '@mount.ntfs-3g'. The assertion is textual
-    # because the honest end-to-end check needs a real binary loader: a
-    # script stand-in would itself go through shebang argv replacement and
-    # could not demonstrate the '@' reaching /proc/PID/cmdline.
+    # The '@' must be set IN the wrapper, not propagated: `exec -a "\$0"`
+    # looked right and run 32538672432 proved it wrong — shebang handling
+    # replaces argv[0] with the script path before the wrapper runs, so \$0
+    # never carries the caller's '@mount.ntfs-3g'. The wrapper is POSIX sh
+    # (no `exec -a`): it reaches the loader through a symlink named
+    # '@ntfs-3g'. tests/unit/phase2-hook-posix.bats runs it under dash with
+    # a real loader and reads the '@' back from /proc/PID/cmdline.
     tmp="$BATS_TEST_TMPDIR/fallback"
     mkdir -p "$tmp/root" "$tmp/ovl" "$tmp/bin"
     printf '#!/bin/sh\necho fake\n' > "$tmp/bin/ntfs-3g"
@@ -148,9 +164,10 @@ run_helpers() { # <bash-snippet> — with the extracted helpers + stubs loaded
     [ "$status" -eq 0 ]
     wrapper="$tmp/ovl/usr/bin/ntfs-3g"
     [ -x "$wrapper" ]
-    # bash, not sh: `exec -a` is a bashism, and /bin/sh may be dash.
-    head -1 "$wrapper" | grep -q bash
-    grep -q 'exec -a "@ntfs-3g" ' "$wrapper"
+    # sh, not bash: the base initrd may ship only dash (tunaOS#4818).
+    head -1 "$wrapper" | grep -qx '#!/bin/sh'
+    grep -q '^exec @ntfs-3g ' "$wrapper"
+    [ "$(readlink "$tmp/ovl/usr/lib/wootc/ntfs3g/argv0/@ntfs-3g")" = ../ld-linux-fake.so.2 ]
     # The trap this test exists to block: never "propagate" \$0 again.
     run grep 'exec -a "\$0"' "$wrapper"
     [ "$status" -ne 0 ]
@@ -164,12 +181,12 @@ make_overlay() { # <dir> — a complete wootc overlay tree
     echo unit > "$1/usr/lib/systemd/system/wootc-attach.service"
     ln -sf ../wootc-attach.service \
         "$1/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-    printf '#!/bin/bash\n' > "$1/usr/lib/wootc/wootc-attach-loop.sh"
+    printf '#!/bin/sh\n' > "$1/usr/lib/wootc/wootc-attach-loop.sh"
     chmod +x "$1/usr/lib/wootc/wootc-attach-loop.sh"
     # The Phase-2 shutdown pair, without which build_phase2_initrd refuses to
     # pack — a Phase 2 that boots but hands Windows back a mounted rw NTFS.
     # See tests/unit/phase2-clean-ntfs-umount.bats.
-    printf '#!/bin/bash\n' > "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
+    printf '#!/bin/sh\n' > "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh"
     printf '#!/bin/sh\n' > "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
     chmod +x "$1/usr/lib/dracut/hooks/pre-pivot/99-wootc-stage-shutdown.sh" \
              "$1/usr/lib/dracut/hooks/shutdown/50-wootc-umount-host.sh"
@@ -187,27 +204,63 @@ make_base_initrd() { # <out> [tools...] — a gzip cpio shipping the named tools
 @test "behavioral: a complete overlay + complete base initrd builds and verifies" {
     command -v cpio >/dev/null || skip "cpio unavailable"
     ovl="$BATS_TEST_TMPDIR/ovl-ok"; make_overlay "$ovl"
-    make_base_initrd "$BATS_TEST_TMPDIR/base.img" bash losetup udevadm mount
+    make_base_initrd "$BATS_TEST_TMPDIR/base.img" sh losetup udevadm mount
     run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base.img' '$BATS_TEST_TMPDIR/out.img'"
     [ "$status" -eq 0 ]
     # Output must start with the overlay's uncompressed newc cpio magic.
     head -c 6 "$BATS_TEST_TMPDIR/out.img" | grep -q 070701
 }
 
-@test "behavioral: a base initrd without bash is REFUSED (mutation test)" {
+@test "behavioral: --overlay-only packs the overlay alone, for a loader given two initrds" {
     command -v cpio >/dev/null || skip "cpio unavailable"
-    ovl="$BATS_TEST_TMPDIR/ovl-nobash"; make_overlay "$ovl"
-    make_base_initrd "$BATS_TEST_TMPDIR/base-nobash.img" losetup udevadm mount
-    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-nobash.img' '$BATS_TEST_TMPDIR/out2.img'"
+    # The composefs GRUB menu loads phase2-overlay.cpio ahead of each bootc
+    # entry's own initrd (payload/migration/wootc-cfs-boot).
+    ovl="$BATS_TEST_TMPDIR/ovl-only"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-only.img" sh losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-only.img' '$BATS_TEST_TMPDIR/overlay.cpio' --overlay-only"
+    [ "$status" -eq 0 ]
+    head -c 6 "$BATS_TEST_TMPDIR/overlay.cpio" | grep -q 070701
+    cpio -it --quiet < "$BATS_TEST_TMPDIR/overlay.cpio" | grep -qE '^(\./)?usr/lib/wootc/wootc-attach-loop\.sh$'
+    # No gzip member of the base inside (`! cmd` cannot fail a bats test).
+    [ "$(od -An -tx1 "$BATS_TEST_TMPDIR/overlay.cpio" | tr -d ' \n' | grep -c '1f8b08')" -eq 0 ]
+}
+
+@test "behavioral: --overlay-only still refuses a base initrd without sh" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    ovl="$BATS_TEST_TMPDIR/ovl-only-nosh"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-only-nosh.img" bash losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-only-nosh.img' '$BATS_TEST_TMPDIR/overlay2.cpio' --overlay-only"
     [ "$status" -ne 0 ]
-    echo "$output" | grep -q 'lacks: bash'
+    echo "$output" | grep -q 'lacks: sh'
+}
+
+@test "behavioral: a base initrd without sh is REFUSED (mutation test)" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    ovl="$BATS_TEST_TMPDIR/ovl-nosh"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-nosh.img" bash losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-nosh.img' '$BATS_TEST_TMPDIR/out2.img'"
+    [ "$status" -ne 0 ]
+    echo "$output" | grep -q 'lacks: sh'
+}
+
+@test "behavioral: a dash-only base initrd without bash builds and verifies (tunaOS#4818)" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    # grouper and flounder-sid: dash provides /usr/bin/sh, and there is no
+    # bash. The old gate refused these images although the hook needs only sh.
+    ovl="$BATS_TEST_TMPDIR/ovl-dash"; make_overlay "$ovl"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-dash.img" dash losetup udevadm mount
+    ln -s dash "$BATS_TEST_TMPDIR/base-tree/usr/bin/sh"
+    ( cd "$BATS_TEST_TMPDIR/base-tree" && find . | cpio -o -H newc --quiet ) | gzip > "$BATS_TEST_TMPDIR/base-dash.img"
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-dash.img' '$BATS_TEST_TMPDIR/out-dash.img'"
+    [ "$status" -eq 0 ]
+    echo "$output" | grep -q 'base initrd verified'
 }
 
 @test "behavioral: an overlay with a missing wants edge is refused before packing" {
     command -v cpio >/dev/null || skip "cpio unavailable"
     ovl="$BATS_TEST_TMPDIR/ovl-dangling"; make_overlay "$ovl"
     rm "$ovl/usr/lib/systemd/system/initrd-root-device.target.wants/wootc-attach.service"
-    make_base_initrd "$BATS_TEST_TMPDIR/base3.img" bash losetup udevadm mount
+    make_base_initrd "$BATS_TEST_TMPDIR/base3.img" sh losetup udevadm mount
     run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base3.img' '$BATS_TEST_TMPDIR/out3.img'"
     [ "$status" -ne 0 ]
     [ ! -e "$BATS_TEST_TMPDIR/out3.img" ]
@@ -238,12 +291,12 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     # every dakota deploy (run 30700616717) on an initrd holding all four.
     ovl="$BATS_TEST_TMPDIR/ovl-uc"; make_overlay "$ovl"
     base="$BATS_TEST_TMPDIR/base-uc.img"
-    make_base_initrd "$base" bash losetup udevadm mount
+    make_base_initrd "$base" sh losetup udevadm mount
     prepend_microcode "$base"
     # Guard the premise: the naive single-archive listing really is blind here.
     run bash -c "cpio -it --quiet < '$base'"
     [ "$status" -eq 0 ]
-    ! echo "$output" | grep -q bash
+    ! echo "$output" | grep -q 'bin/sh'
     echo "$output" | grep -q microcode
 
     run run_helpers "build_phase2_initrd '$ovl' '$base' '$BATS_TEST_TMPDIR/out-uc.img'"
@@ -260,7 +313,7 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     prepend_microcode "$base"
     run run_helpers "build_phase2_initrd '$ovl' '$base' '$BATS_TEST_TMPDIR/out-uc2.img'"
     [ "$status" -ne 0 ]
-    echo "$output" | grep -q 'lacks: bash'
+    echo "$output" | grep -q 'lacks: sh'
 }
 
 @test "behavioral: a microcode-only image is unverifiable, not a failure" {
@@ -283,4 +336,22 @@ prepend_microcode() { # <initrd> — make it a real-world image: uncompressed
     run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-unknown.img' '$BATS_TEST_TMPDIR/out4.img'"
     [ "$status" -eq 0 ]
     echo "$output" | grep -q 'could not list the base initrd'
+}
+
+@test "behavioral: an overlay with a top-level lib/ is refused (it would hide the base's /lib)" {
+    command -v cpio >/dev/null || skip "cpio unavailable"
+    # Run 44742028340 (grouper): the composefs path staged modules at
+    # lib/modules, the base's lib -> usr/lib symlink could not replace it, and
+    # /lib/dracut-lib.sh vanished from Phase 2.
+    ovl="$BATS_TEST_TMPDIR/ovl-lib"; make_overlay "$ovl"
+    mkdir -p "$ovl/lib/modules/7.3.4"
+    make_base_initrd "$BATS_TEST_TMPDIR/base-lib.img" sh losetup udevadm mount
+    run run_helpers "build_phase2_initrd '$ovl' '$BATS_TEST_TMPDIR/base-lib.img' '$BATS_TEST_TMPDIR/out-lib.img'"
+    [ "$status" -ne 0 ]
+    echo "$output" | grep -q 'top-level /lib'
+    [ ! -e "$BATS_TEST_TMPDIR/out-lib.img" ]
+    # And the composefs staging writes the module tree under usr/lib.
+    grep -q 'cp -a "/lib/modules/$_dkver" "$OVL/usr/lib/modules/"' "$DEPLOY"
+    run grep -n 'mkdir -p "$OVL/lib/modules"' "$DEPLOY"
+    [ "$status" -ne 0 ]
 }

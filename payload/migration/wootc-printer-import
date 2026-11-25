@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+# /usr/local/bin/wootc-printer-import — Windows printers → driverless CUPS
+# queues (SPEC §4.6, "Printers/scanners").
+#
+# The Windows installer records every printer and how it is connected in
+# <storage root>\wootc\install\printers.json (app/printers.go). Run as root by
+# wootc-printer-import.service on every boot, this:
+#   * adds each NETWORK printer (Standard TCP/IP port, or an IPP/HTTP URL port)
+#     as an IPP Everywhere queue: `lpadmin -p <queue> -E -v <uri> -m everywhere`.
+#     CUPS builds the queue from what the printer itself reports, so no Windows
+#     driver is copied (it could not run here anyway);
+#   * leaves a printer it could not reach "waiting" and tries again next boot:
+#     a laptop often boots away from the office network;
+#   * reports every other printer as "not-migrated" with the reason in plain
+#     language (a USB cable, a Windows-only virtual printer, a WSD discovery
+#     port).
+# A queue wootc added is never touched again, even if the user removed or
+# changed it, and a queue that already exists under the same name is left
+# alone. The migration chooser's "printers" category gates new additions.
+#
+# State + report: /var/lib/wootc/printers.json
+#   {"schemaVersion":1,"printers":[{"name","queue","status","uri","reason",
+#    "default","lastTried"}]}   status: added | waiting | not-migrated
+#
+#   wootc-printer-import            import (root)
+#   wootc-printer-import --report   print the merged state/plan as JSON and
+#                                   change nothing (wootc-manifest uses this)
+#
+# Env: WOOTC_HOST (Windows volume, default /run/initramfs/wootc-host),
+#      WOOTC_PRINTER_STATE (default /var/lib/wootc/printers.json),
+#      WOOTC_PRINTER_PROBE_TIMEOUT (seconds, default 10),
+#      WOOTC_LPADMIN_TIMEOUT (seconds, default 90).
+
+import datetime
+import json
+import os
+import pwd
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+
+HOST = os.environ.get("WOOTC_HOST", "/run/initramfs/wootc-host")
+SOURCE = os.path.join(HOST, "wootc", "install", "printers.json")
+STATE = os.environ.get("WOOTC_PRINTER_STATE", "/var/lib/wootc/printers.json")
+PROBE_TIMEOUT = float(os.environ.get("WOOTC_PRINTER_PROBE_TIMEOUT", "10"))
+LPADMIN_TIMEOUT = int(os.environ.get("WOOTC_LPADMIN_TIMEOUT", "90"))
+
+NETWORK_KINDS = ("tcpip", "ipp")
+REASON_VIRTUAL = "Windows-only virtual printer"
+REASON_CABLE = ("connected by cable to this PC: plug it in, and a driverless USB "
+                "printer is set up automatically; others need their Linux driver")
+REASON_WSD = ("found by Windows on the network (WSD); if it supports driverless "
+              "printing, Settings → Printers lists it")
+REASON_OFF = "switched off in Bring over from Windows"
+REASONS = {
+    "virtual": REASON_VIRTUAL,
+    "file": REASON_VIRTUAL,
+    "usb": REASON_CABLE,
+    "lpt": REASON_CABLE,
+    "com": REASON_CABLE,
+    "wsd": REASON_WSD,
+}
+
+# CUPS answers in the user's language otherwise, and these are parsed.
+C_ENV = dict(os.environ, LC_ALL="C", LANG="C")
+
+
+def log(name, what):
+    print(f"wootc-printer-import: {name}: {what}", flush=True)
+
+
+def now():
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def sanitize(name):
+    """A CUPS queue name: [A-Za-z0-9_-], runs of anything else become one _."""
+    q = re.sub(r"[^A-Za-z0-9_-]+", "_", name).strip("_")[:127]
+    return q or "printer"
+
+
+def queue_names(printers):
+    """Stable, unique (CUPS compares case-insensitively) queue per printer."""
+    seen, out = set(), []
+    for p in printers:
+        base = sanitize(p.get("name", ""))
+        q, n = base, 1
+        while q.lower() in seen:
+            n += 1
+            suffix = f"-{n}"
+            q = base[:127 - len(suffix)] + suffix
+        seen.add(q.lower())
+        out.append(q)
+    return out
+
+
+def target_uri(p):
+    """The driverless IPP URI wootc tries for a network printer, or ""."""
+    kind = p.get("portKind")
+    if kind == "tcpip":
+        host = (p.get("host") or "").strip()
+        if not host:
+            return ""
+        if ":" in host and not host.startswith("["):
+            host = f"[{host}]"              # IPv6 literal
+        # The Windows port is RAW 9100 or LPR 515; the same device's IPP
+        # service is on 631 at the path IPP Everywhere mandates.
+        return f"ipp://{host}:631/ipp/print"
+    if kind == "ipp":
+        u = urllib.parse.urlsplit(p.get("uri") or "")
+        scheme = {"http": "ipp", "https": "ipps", "ipp": "ipp", "ipps": "ipps"}.get(u.scheme.lower())
+        if not scheme or not u.hostname:
+            return ""
+        netloc = u.netloc
+        # ipp:// defaults to 631: keep an http URL's implied port explicit.
+        if u.port is None and u.scheme.lower() in ("http", "https"):
+            netloc += ":80" if u.scheme.lower() == "http" else ":443"
+        return urllib.parse.urlunsplit((scheme, netloc, u.path, u.query, ""))
+    return ""
+
+
+def load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def load_windows():
+    data = load_json(SOURCE)
+    if not isinstance(data, dict) or not isinstance(data.get("printers"), list):
+        return None
+    return [p for p in data["printers"] if isinstance(p, dict) and p.get("name")]
+
+
+def load_state():
+    data = load_json(STATE)
+    recs = data.get("printers") if isinstance(data, dict) else None
+    return {r["name"]: r for r in (recs or []) if isinstance(r, dict) and r.get("name")}
+
+
+def write_state(records):
+    os.makedirs(os.path.dirname(STATE) or ".", mode=0o755, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".printers.", dir=os.path.dirname(STATE) or ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"schemaVersion": 1, "printers": records}, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+        # The migration chooser reads this as the user.
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, STATE)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+
+
+def record(p, queue, status, uri="", reason="", tried=False):
+    r = {"name": p["name"], "queue": queue, "status": status,
+         "default": bool(p.get("default"))}
+    if uri:
+        r["uri"] = uri
+    if reason:
+        r["reason"] = reason
+    if tried:
+        r["lastTried"] = now()
+    return r
+
+
+def other_reason(p):
+    port = p.get("portName") or "unknown"
+    return (f"connected through Windows port {port}, which wootc cannot carry "
+            "over; add it in Settings → Printers")
+
+
+def plan(p, queue):
+    """The record for a printer before any CUPS work: not-migrated or pending."""
+    kind = p.get("portKind")
+    if kind in NETWORK_KINDS:
+        uri = target_uri(p)
+        if uri:
+            return record(p, queue, "pending", uri)
+    return record(p, queue, "not-migrated", reason=REASONS.get(kind) or other_reason(p))
+
+
+# ── CUPS ──────────────────────────────────────────────────────────────────────
+
+def run(argv, timeout=30):
+    try:
+        r = subprocess.run(argv, env=C_ENV, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+    except FileNotFoundError:
+        return 127, f"{argv[0]} is not installed"
+    except subprocess.TimeoutExpired:
+        return 124, f"{argv[0]} did not finish within {timeout} s"
+
+
+def cups_running():
+    rc, out = run(["lpstat", "-r"])
+    return rc == 0 and "scheduler is running" in out
+
+
+def existing_queues():
+    _rc, out = run(["lpstat", "-v"])
+    names = set()
+    for line in out.splitlines():
+        m = re.match(r"device for (\S+):", line)
+        if m:
+            names.add(m.group(1).lower())
+    return names
+
+
+def linux_default():
+    _rc, out = run(["lpstat", "-d"])
+    m = re.search(r"system default destination: (\S+)", out)
+    return m.group(1) if m else ""
+
+
+def reachable(uri):
+    u = urllib.parse.urlsplit(uri)
+    port = u.port or 631          # IANA: ipp and ipps both default to 631
+    try:
+        with socket.create_connection((u.hostname, port), timeout=PROBE_TIMEOUT):
+            return True, ""
+    except OSError as e:
+        return False, (f"no answer from {u.hostname}:{port} ({e.strerror or e}); the "
+                       "printer may be on another network, or may not support "
+                       "driverless (IPP) printing")
+
+
+def add_queue(queue, uri):
+    rc, out = run(["timeout", str(LPADMIN_TIMEOUT), "lpadmin", "-p", queue, "-E",
+                   "-v", uri, "-m", "everywhere"], timeout=LPADMIN_TIMEOUT + 10)
+    if rc == 124:
+        return f"lpadmin did not finish within {LPADMIN_TIMEOUT} s"
+    if rc != 0:
+        return " ".join(out.split()) or f"lpadmin exited {rc}"
+    return ""
+
+
+# ── migration chooser ────────────────────────────────────────────────────────
+
+def chooser_user():
+    """The person migrating: the first real (uid ≥ 1000) account."""
+    for pw in sorted(pwd.getpwall(), key=lambda p: p.pw_uid):
+        if 1000 <= pw.pw_uid < 65534:
+            return pw.pw_name
+    return ""
+
+
+def chooser_allows(user, *what):
+    """Only an explicit off (rc 1) blocks; a missing/broken helper fails open."""
+    helper = shutil.which("wootc-selection")
+    if not user or not helper:
+        return True
+    try:
+        return subprocess.run([helper, user, "printers", *what],
+                              capture_output=True, timeout=30).returncode != 1
+    except (OSError, subprocess.TimeoutExpired):
+        return True
+
+
+# ── main ─────────────────────────────────────────────────────────────────────
+
+def report():
+    windows = load_windows()
+    state = load_state()
+    if windows is None:
+        records = list(state.values())
+    else:
+        records = [state[p["name"]] if p["name"] in state else plan(p, q)
+                   for p, q in zip(windows, queue_names(windows))]
+    json.dump({"schemaVersion": 1, "printers": records}, sys.stdout, indent=2, ensure_ascii=False)
+    print()
+    return 0
+
+
+def migrate():
+    windows = load_windows()
+    if windows is None:
+        print(f"wootc-printer-import: no Windows printer list at {SOURCE}; nothing to do", flush=True)
+        return 0
+    state = load_state()
+    user = chooser_user()
+    category_on = chooser_allows(user)
+    cups = None          # probed lazily: no network printer, no CUPS needed
+    existing = set()
+    records = []
+
+    for p, queue in zip(windows, queue_names(windows)):
+        name = p["name"]
+        prev = state.get(name)
+        if prev and prev.get("status") == "added":
+            # wootc added this queue once; whatever the user did with it since
+            # (removed it, renamed the device URI, changed options) is theirs.
+            records.append(prev)
+            log(name, f"added {prev.get('uri', '')}")
+            continue
+        r = plan(p, queue)
+        if r["status"] == "not-migrated":
+            pass
+        elif not (category_on and chooser_allows(user, name)):
+            r = record(p, queue, "not-migrated", reason=REASON_OFF)
+        else:
+            uri = r["uri"]
+            if cups is None:
+                cups = cups_running()
+                existing = existing_queues() if cups else set()
+            if not cups:
+                r = record(p, queue, "waiting", uri,
+                           "the print service (CUPS) is not running", tried=True)
+            elif queue.lower() in existing:
+                r = record(p, queue, "not-migrated", uri,
+                           f"a printer named {queue} is already set up here; wootc left it alone")
+            else:
+                ok, why = reachable(uri)
+                if ok:
+                    why = add_queue(queue, uri)
+                if why:
+                    r = record(p, queue, "waiting", uri, why, tried=True)
+                else:
+                    r = record(p, queue, "added", uri, tried=True)
+                    existing.add(queue.lower())
+                    if p.get("default") and not linux_default():
+                        rc, out = run(["lpadmin", "-d", queue])
+                        if rc != 0:
+                            print(f"wootc-printer-import: {name}: could not make it the default: "
+                                  f"{' '.join(out.split())}", flush=True)
+        records.append(r)
+        if r["status"] == "added":
+            log(name, f"added {r['uri']}")
+        elif r["status"] == "waiting":
+            log(name, f"waiting: {r['reason']}")
+        else:
+            log(name, f"not migrated: {r['reason']}")
+
+    # Keep the record of a queue wootc added even if Windows no longer lists
+    # the printer: it is what tells a later run never to touch that queue.
+    names = {p["name"] for p in windows}
+    records += [r for n, r in state.items() if n not in names and r.get("status") == "added"]
+    write_state(records)
+    return 0
+
+
+def main(argv):
+    if argv[1:] == ["--report"]:
+        return report()
+    if argv[1:]:
+        print("usage: wootc-printer-import [--report]", file=sys.stderr)
+        return 2
+    return migrate()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

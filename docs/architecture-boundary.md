@@ -96,7 +96,10 @@ material; the protected journal/lifecycle records remain the recovery authority.
 A diagnostic sink failure must not change the privileged operation's outcome.
 
 The deployer packages sourceable `/usr/libexec/wootc-initramfs-lib.sh`
-(`find_ldso`, `dso_closure`) and `/usr/libexec/wootc-lifecycle.sh`
+(`find_ldso`, `dso_closure`), `/usr/libexec/wootc-phase2-overlay.sh`
+(`stage_wootc_overlay`, `stage_ntfs3g_closure`, `stage_qemu_ga_into_target`,
+`build_phase2_initrd`; it reads `DEPLOY_ROOT` and never sets it) and
+`/usr/libexec/wootc-lifecycle.sh`
 (`write_ntfs_state`, `write_deployer_started`, with explicit image identity).
 Container and initramfs packages must carry these modules.
 A source test on the host alone does not prove they exist in the boot image.

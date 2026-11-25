@@ -1,0 +1,41 @@
+#!/bin/bash
+# Windows developer setup -> Linux account: public SSH files and Git identity.
+#   wootc-developer-bridge <windows-profile> [linux-user]
+# The Python implementation copies as the target user (never root), refuses
+# private keys and never overwrites a Linux file. This wrapper adds the one
+# root-only step: a SELinux relabel. Files the passthrough service creates
+# inherit the home's label, and sshd under enforcing policy only reads
+# ~/.ssh/authorized_keys labelled ssh_home_t.
+set -Eeuo pipefail
+base="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+library=""
+for candidate in "$base/lib/wootc_import_safety.py" \
+    "$base/../lib/wootc/wootc_import_safety.py" \
+    /usr/lib/wootc/migration/lib/wootc_import_safety.py; do
+    if [[ -f "$candidate" ]]; then
+        library="$candidate"
+        break
+    fi
+done
+if [[ -z "$library" ]]; then
+    printf '%s\n' '[wootc-developer-bridge] ERROR: safe import library is not installed' >&2
+    exit 1
+fi
+rc=0
+python3 "$library" developer "$@" || rc=$?
+
+target="${2:-${1:-}}"
+home=$(getent passwd "$target" 2>/dev/null | cut -d: -f6) || home=""
+if [[ -n "$home" ]] && command -v selinuxenabled >/dev/null \
+    && command -v restorecon >/dev/null && selinuxenabled; then
+    for path in "$home/.ssh" "$home/.gitconfig"; do
+        # Never relabel through a link the user (or anyone) planted.
+        [[ -e "$path" && ! -L "$path" ]] || continue
+        if restorecon -RF "$path"; then
+            printf '[wootc-developer-bridge] restored SELinux labels on %s\n' "$path" >&2
+        else
+            printf '[wootc-developer-bridge] WARN: restorecon failed for %s\n' "$path" >&2
+        fi
+    done
+fi
+exit "$rc"

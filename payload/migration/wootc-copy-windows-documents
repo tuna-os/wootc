@@ -150,7 +150,10 @@ if ! find "$source_dir" -type f -print0 |
     while IFS= read -r -d '' item; do
         relative=${item#"$source_dir"/}
         mkdir -p -- "$(dirname -- "$stage/$relative")" || exit 1
-        cp -- "$item" "$stage/$relative" || exit 1
+        # Keep the Windows modification time: a document's date is part of
+        # the document (sorting, "last edited", backups), and a plain cp
+        # stamped every file with the moment of the first Linux boot.
+        cp --preserve=timestamps -- "$item" "$stage/$relative" || exit 1
     done; then
     refuse "could not copy every document; the partial copy was removed"
 fi

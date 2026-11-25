@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "apps": [
+    {
+      "key": "firefox",
+      "name": "Firefox",
+      "flatpak": "org.mozilla.firefox",
+      "match": [
+        "firefox"
+      ],
+      "session": "portable",
+      "note": "Everything moves: bookmarks, history, passwords, extensions, open tabs."
+    },
+    {
+      "key": "chrome",
+      "name": "Google Chrome",
+      "flatpak": "com.google.Chrome",
+      "match": [
+        "google chrome"
+      ],
+      "session": "signin",
+      "note": "Bookmarks and history move. Sign in once and sync brings the rest."
+    },
+    {
+      "key": "brave",
+      "name": "Brave",
+      "flatpak": "com.brave.Browser",
+      "match": [
+        "brave"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Sign in to Brave Sync."
+    },
+    {
+      "key": "vivaldi",
+      "name": "Vivaldi",
+      "flatpak": "com.vivaldi.Vivaldi",
+      "match": [
+        "vivaldi"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Sign in to Vivaldi to sync."
+    },
+    {
+      "key": "opera",
+      "name": "Opera",
+      "flatpak": "com.opera.Opera",
+      "match": [
+        "opera"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Sign in to Opera to sync."
+    },
+    {
+      "key": "gimp",
+      "name": "GIMP",
+      "flatpak": "org.gimp.GIMP",
+      "match": [
+        "gimp"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Brushes and settings can be copied from AppData."
+    },
+    {
+      "key": "krita",
+      "name": "Krita",
+      "flatpak": "org.kde.krita",
+      "match": [
+        "krita"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Brushes and configs are plain files."
+    },
+    {
+      "key": "inkscape",
+      "name": "Inkscape",
+      "flatpak": "org.inkscape.Inkscape",
+      "match": [
+        "inkscape"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Preferences are plain files."
+    },
+    {
+      "key": "blender",
+      "name": "Blender",
+      "flatpak": "org.blender.Blender",
+      "match": [
+        "blender"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Config folder copies straight over."
+    },
+    {
+      "key": "audacity",
+      "name": "Audacity",
+      "flatpak": "org.audacityteam.Audacity",
+      "match": [
+        "audacity"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Settings are plain files."
+    },
+    {
+      "key": "vlc",
+      "name": "VLC",
+      "flatpak": "org.videolan.VLC",
+      "match": [
+        "vlc media player"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Playlists and settings can be copied."
+    },
+    {
+      "key": "handbrake",
+      "name": "HandBrake",
+      "flatpak": "fr.handbrake.ghb",
+      "match": [
+        "handbrake"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Presets can be exported."
+    },
+    {
+      "key": "obs",
+      "name": "OBS Studio",
+      "flatpak": "com.obsproject.Studio",
+      "match": [
+        "obs studio"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Scenes and profiles can be copied."
+    },
+    {
+      "key": "qbittorrent",
+      "name": "qBittorrent",
+      "flatpak": "org.qbittorrent.qBittorrent",
+      "match": [
+        "qbittorrent"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Settings are plain files."
+    },
+    {
+      "key": "discord",
+      "name": "Discord",
+      "flatpak": "com.discordapp.Discord",
+      "match": [
+        "discord"
+      ],
+      "session": "signin",
+      "note": "Servers and messages live in your account."
+    },
+    {
+      "key": "slack",
+      "name": "Slack",
+      "flatpak": "com.slack.Slack",
+      "match": [
+        "slack"
+      ],
+      "session": "signin",
+      "note": "Workspaces return on sign-in."
+    },
+    {
+      "key": "spotify",
+      "name": "Spotify",
+      "flatpak": "com.spotify.Client",
+      "match": [
+        "spotify"
+      ],
+      "session": "signin",
+      "note": "Playlists and library are in your account."
+    },
+    {
+      "key": "telegram",
+      "name": "Telegram",
+      "flatpak": "org.telegram.desktop",
+      "match": [
+        "telegram desktop"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Session data can be copied."
+    },
+    {
+      "key": "signal",
+      "name": "Signal",
+      "flatpak": "org.signal.Signal",
+      "match": [
+        "signal"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Re-link with your phone."
+    },
+    {
+      "key": "zoom",
+      "name": "Zoom",
+      "flatpak": "us.zoom.Zoom",
+      "match": [
+        "zoom"
+      ],
+      "session": "signin",
+      "note": "Meetings and settings are account-side."
+    },
+    {
+      "key": "element",
+      "name": "Element",
+      "flatpak": "im.riot.Riot",
+      "match": [
+        "element"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Sign in and rooms are back."
+    },
+    {
+      "key": "teams",
+      "name": "Microsoft Teams",
+      "flatpak": "com.microsoft.Teams",
+      "match": [
+        "teams"
+      ],
+      "session": "signin",
+      "note": "Installed on Windows. Sign in once."
+    },
+    {
+      "key": "bitwarden",
+      "name": "Bitwarden",
+      "flatpak": "com.bitwarden.desktop",
+      "match": [
+        "bitwarden"
+      ],
+      "session": "signin",
+      "note": "Vault is server-side."
+    },
+    {
+      "key": "vscode",
+      "name": "Visual Studio Code",
+      "flatpak": "com.visualstudio.code",
+      "match": [
+        "visual studio code"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Settings and keybindings can be copied."
+    },
+    {
+      "key": "notepad++",
+      "name": "Notepadqq",
+      "flatpak": "com.notepadqq.Notepadqq",
+      "match": [
+        "notepad++"
+      ],
+      "session": "none",
+      "note": "Notepad++ has no native Linux port; Notepadqq is the closest equivalent."
+    },
+    {
+      "key": "sublime",
+      "name": "Sublime Text",
+      "flatpak": "com.sublimetext.three",
+      "match": [
+        "sublime text"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Settings are plain files."
+    },
+    {
+      "key": "steam",
+      "name": "Steam",
+      "flatpak": "com.valvesoftware.Steam",
+      "match": [
+        "steam"
+      ],
+      "session": "signin",
+      "note": "Game files are bridged — sign in once."
+    },
+    {
+      "key": "epic",
+      "name": "Heroic Games Launcher",
+      "flatpak": "com.heroicgameslauncher.hgl",
+      "match": [
+        "epic games launcher"
+      ],
+      "session": "signin",
+      "note": "Use Heroic Games Launcher to access your Epic library on Linux."
+    },
+    {
+      "key": "minecraft",
+      "name": "Minecraft",
+      "flatpak": "com.mojang.Minecraft",
+      "match": [
+        "minecraft"
+      ],
+      "session": "signin",
+      "note": "Sign in and your Minecraft account is back."
+    },
+    {
+      "key": "thunderbird",
+      "name": "Thunderbird",
+      "flatpak": "org.mozilla.Thunderbird",
+      "match": [
+        "mozilla thunderbird"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Mail accounts can be copied."
+    },
+    {
+      "key": "libreoffice",
+      "name": "LibreOffice",
+      "flatpak": "org.libreoffice.LibreOffice",
+      "match": [
+        "libreoffice"
+      ],
+      "session": "portable",
+      "note": "Installed on Windows. Documents are plain files."
+    },
+    {
+      "key": "acrobat",
+      "name": "Evince",
+      "flatpak": "org.gnome.Evince",
+      "match": [
+        "adobe acrobat",
+        "adobe reader"
+      ],
+      "session": "none",
+      "note": "Adobe Acrobat has no Linux version. Evince opens PDFs."
+    },
+    {
+      "key": "7zip",
+      "name": "File Roller",
+      "flatpak": "org.gnome.FileRoller",
+      "match": [
+        "7-zip",
+        "winrar"
+      ],
+      "session": "none",
+      "note": "Built into Linux; File Roller handles archives."
+    },
+    {
+      "key": "putty",
+      "name": "Ptyxis",
+      "flatpak": "org.gnome.Ptyxis",
+      "match": [
+        "putty"
+      ],
+      "session": "none",
+      "note": "Linux terminals are built in; Ptyxis is a modern graphical terminal."
+    }
+  ]
+}

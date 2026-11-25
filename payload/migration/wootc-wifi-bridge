@@ -15,12 +15,24 @@
 #                 for the dashboard, never copied (secrets + identity material).
 #
 # Env: WOOTC_WIFI_SRC (export dir, default /run/wootc/host/wootc/install/wifi),
-#      WOOTC_WIFI_DST (NM dir, default /etc/NetworkManager/system-connections).
+#      WOOTC_WIFI_DST (NM dir, default /etc/NetworkManager/system-connections),
+#      WOOTC_WIFI_ORIGIN (optional: the Windows-side export the deployer
+#      staged SRC from — <storage>\wootc\install\wifi on the NTFS volume.
+#      It holds the same cleartext keys and is destroyed with SRC).
 
 set -Eeuo pipefail
 log() { printf '[wootc-wifi-bridge] %s\n' "$*"; }
 
 SRC="${1:-${WOOTC_WIFI_SRC:-/run/wootc/host/wootc/install/wifi}}"
+ORIGIN="${WOOTC_WIFI_ORIGIN:-}"
+
+# Securely destroy a cleartext export (SPEC §4.6: removed right after import).
+destroy_export() {
+    [[ -n "$1" && -d "$1" ]] || return 0
+    find "$1" -maxdepth 1 -name '*.xml' -exec shred -u {} + 2>/dev/null \
+        || rm -f "$1"/*.xml 2>/dev/null || true
+    rmdir "$1" 2>/dev/null || true
+}
 DST="${WOOTC_WIFI_DST:-/etc/NetworkManager/system-connections}"
 STATE_DIR="${WOOTC_WIFI_STATE:-/var/lib/wootc}"
 
@@ -36,6 +48,9 @@ if command -v wootc-selection >/dev/null 2>&1; then
     # fails OPEN: never silently drop a migration because a helper broke.
     if [ "$_sel_rc" -eq 1 ]; then
         log "wifi: skipped (turned off in the migration chooser)"
+        # Opting out of the import is not consent to keep the keys on disk.
+        destroy_export "$SRC"
+        destroy_export "$ORIGIN"
         exit 0
     fi
 fi
@@ -113,10 +128,10 @@ PYEOF
     log "imported: $ssid ($keymgmt)"
 done
 
-# Securely destroy the transient cleartext export.
-find "$SRC" -maxdepth 1 -name '*.xml' -exec shred -u {} + 2>/dev/null \
-    || rm -f "$SRC"/*.xml 2>/dev/null || true
-rmdir "$SRC" 2>/dev/null || true
+# Securely destroy the transient cleartext export, and the Windows-side copy
+# it was staged from: both hold every passphrase in clear.
+destroy_export "$SRC"
+destroy_export "$ORIGIN"
 
 # Ask NetworkManager to pick up the new connections (best-effort).
 command -v nmcli >/dev/null && nmcli connection reload 2>/dev/null || true

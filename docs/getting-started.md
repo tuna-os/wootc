@@ -6,27 +6,18 @@ Their appearance and available choices depend on your Windows settings.
 
 ## 1. Download
 
-<!-- Remove this note when the first release with the native setup is published. -->
-> **No published release has the native setup yet.** The files on this page
-> come with the first release after the native shell cutover (#661). The latest
-> release, `v0.1.0-alpha.1` (2026-08-22), is older. It has `wootc.exe`, the
-> branded `*-Installer.exe` files and `SHA256SUMS`.
+**[⬇ Download TunaOS-Installer.exe](https://github.com/tuna-os/wootc/releases/latest/download/TunaOS-Installer.exe)**
+from the latest release, `v0.1.0-alpha.2`. It is the native setup for the
+WinUI shell and its protected engine. The engine downloads the boot files during
+the install, so this one file is enough. The native shell does not need WebView2.
 
-Grab the latest `wootc-Installer-Setup.exe` from the
-[Releases page](https://github.com/tuna-os/wootc/releases/latest). Save it
-anywhere — Downloads is fine. Run the Inno setup as Administrator; it installs
-the native WinUI shell and protected engine.
-The native shell does not need WebView2.
-
-Main's release workflow now prepares native
-`wootc-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`,
-`Bluefin-Installer-Setup.exe`, `Aurora-Installer-Setup.exe` and
-`TunaOS-Installer-Setup.exe`, with `native-SHA256SUMS` and a one-release
-`wootc-legacy.exe` compatibility artifact.
-**Do not assume those files are available in an older tag.**
-A matching native package installs the WinUI shell and protected engine.
-That shell does not need WebView2. See the
-[native shell status](winui-shell.md) and [verification matrix](status.md)
+The release also has `wootc-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`,
+`Bluefin-Installer-Setup.exe` and `Aurora-Installer-Setup.exe`, with
+`native-SHA256SUMS`. Each setup is also there under the name that earlier
+releases used, for example `TunaOS-Installer.exe` and `wootc.exe`.
+`wootc-legacy.exe` is the Wails build for this release only. It needs WebView2.
+**Older tags such as `v0.1.0-alpha.1` have only the Wails executables.**
+See the [native shell status](winui-shell.md) and [verification matrix](status.md)
 before you test a preview or source build.
 
 Save the chosen executable anywhere — Downloads is fine. Verify it before

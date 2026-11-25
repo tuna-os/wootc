@@ -43,6 +43,8 @@ source "$SCRIPT_DIR/phase-ledger.sh"
 source "$SCRIPT_DIR/lib/diagnostics.sh"
 # shellcheck source=tests/e2e/lib/fixture-bitlocker.sh
 source "$SCRIPT_DIR/lib/fixture-bitlocker.sh"
+# shellcheck source=tests/e2e/lib/migration.sh
+source "$SCRIPT_DIR/lib/migration.sh"
 # shellcheck source=tests/e2e/lib/results.sh
 source "$SCRIPT_DIR/lib/results.sh"
 # shellcheck source=tests/e2e/lib/layer-evidence.sh
@@ -122,9 +124,11 @@ IMAGE_REF="${IMAGE_REF:-ghcr.io/tuna-os/yellowfin:gnome}"
 # disk. Make the command-line contract self-contained: `--phase3` must create
 # that disk unless the caller explicitly chose another size. Previously only a
 # compose comment claimed the harness did this, so every Phase-3 run had no
-# target and aborted immediately after the safe status probe.
+# target and aborted immediately after the safe status probe. 64G: fisherman
+# refuses a disk under 50 GiB (disk_too_small), and a 40G spare failed probe
+# 44807218628 that way after the whole image pull.
 if [ "${RUN_PHASE3:-false}" = true ]; then
-    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-40G}"
+    export WOOTC_E2E_DISK2_SIZE="${WOOTC_E2E_DISK2_SIZE:-64G}"
     # Only phase3 wants a second disk. See compose.yml: dockur keys off the
     # PRESENCE of /storage2, so non-phase3 runs mount it somewhere harmless.
     export WOOTC_E2E_DISK2_MOUNT=/storage2
@@ -640,6 +644,8 @@ source "$SCRIPT_DIR/lib/gui-session.sh"
 source "$SCRIPT_DIR/lib/mok.sh"
 # shellcheck source=tests/e2e/lib/phase2-second-boot.sh
 source "$SCRIPT_DIR/lib/phase2-second-boot.sh"
+# shellcheck source=tests/e2e/lib/phase2-units.sh
+source "$SCRIPT_DIR/lib/phase2-units.sh"
 
 # Run by phase2_second_boot_check while the BitLocker cell's second Phase-2
 # boot is up: the edit the ordinary user saved to the Documents copy on the
@@ -1156,27 +1162,29 @@ seed_user_data() {
     local guser; guser=$(guest_windows_user)
     local seed_dir="${drive}\\Users\\${guser}\\Documents"
     for attempt in 1 2 3; do
-        # Use seed-profile.ps1 if available in C:\OEM, otherwise seed directly via PowerShell
-        # The PASS below greps $RUN_ID: seed-profile.ps1 prints "(RunId: ...)"
-        # in its banner, so matching script chatter alone would pass without
-        # the canary existing (proxy status). Always read the canary FILE back
-        # after either branch; a silent script failure then fails honestly here
-        # instead of in Phase 2.
-        out=$(qga_powershell "if (Test-Path 'C:\OEM\seed-profile.ps1') { & 'C:\OEM\seed-profile.ps1' -Username '${guser}' -Drive '${drive}' -RunId '${RUN_ID}' | Out-Null }; \$ErrorActionPreference='Stop'; \$d = '${drive}\\Users\\${guser}\\Documents'; if (-not (Test-Path 'C:\OEM\seed-profile.ps1')) { if (-not (Test-Path \$d)) { New-Item -ItemType Directory -Path \$d -Force | Out-Null }; Set-Content -Path \"\$d\\wootc-e2e-userdata.txt\" -Value 'wootc-e2e-userdata $RUN_ID' -Encoding ASCII }; Get-Content \"\$d\\wootc-e2e-userdata.txt\"" 2>&1)
-        # Match the canary's exact content format, not the bare RUN_ID:
-        # seed-profile.ps1 echoes "(RunId: ...)" in its banner, which the old
-        # grep accepted as proof without the file existing.
-        if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
-            pass "User data seeded: ${drive}\\Users\\${guser}\\Documents\\wootc-e2e-userdata.txt ($RUN_ID)"
-            return 0
+        # The full migration profile (tests/e2e/lib/migration.sh): staged over
+        # QGA every run, it writes the canary, the corpus and the manifest.
+        # The PASS below reads the canary FILE back, never script chatter
+        # (seed-profile.ps1 echoes "(RunId: ...)" in its banner).
+        if migration_seed "$drive" "$guser"; then
+            out=$(qga_powershell "Get-Content -LiteralPath '${seed_dir}\\wootc-e2e-userdata.txt'" 2>&1 || true)
+            if printf '%s' "$out" | grep -q "wootc-e2e-userdata $RUN_ID"; then
+                [ "${WOOTC_E2E_BITLOCKER:-off}" = on ] && migration_header documentsSubdir "From Windows"
+                # The GUI path seeds before the installer runs, so what the
+                # installer collects (full name, printers, apps) can be held
+                # to the seed; the OEM path seeds after it.
+                [ "${1:-storage-ready}" = before-storage ] && migration_header seededBeforeInstall 1
+                pass "User data seeded: ${drive}\\Users\\${guser} — canary, migration corpus and manifest ($RUN_ID)"
+                return 0
+            fi
         fi
-        warn "Seeding attempt $attempt/3 did not confirm the marker; guest said: ${out:-<no output>}"
+        warn "Seeding attempt $attempt/3 did not confirm the migration profile; guest said: $(tail -5 "$ARTIFACT_DIR/seed-profile.log" 2>/dev/null | tr '\r\n' '  ' | cut -c1-400)"
         sleep 10
     done
     # Make the cause name itself rather than costing another run to find.
     qga_powershell "Get-ChildItem ${drive}\\Users -Force -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name" 2>&1 \
         | sed "s/^/    ${drive}\\Users entry: /" || true
-    fail "Could not seed user data in the Windows profile — data-persistence checks will be meaningless"
+    fail "Could not seed the migration profile in Windows — data-persistence checks will be meaningless"
     return 1
 }
 
@@ -1222,6 +1230,13 @@ snapshot_before_deployer() {
     # survived. Failure is recorded (the downstream checks then fail too, on
     # their own evidence) but must not wedge the barrier below.
     seed_user_data || true
+    # The installer has run its collectors; add what it cannot collect on a
+    # VM (saved Wi-Fi) and record what it collected.
+    _mig_root=$(guest_wootc_root || true)
+    if [ -n "$_mig_root" ]; then
+        migration_seed_wifi "$_mig_root" || warn "Migration Wi-Fi profiles were not staged"
+        migration_record_windows_handoff "$_mig_root"
+    fi
 
     if [ "$WOOTC_E2E_SNAPSHOT" != "1" ]; then
         info "Pre-deployer snapshot disabled (WOOTC_E2E_SNAPSHOT=1 to enable)"
@@ -1548,12 +1563,6 @@ if [ -f "$SCRIPT_DIR/assert-recovery.ps1" ]; then
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$OEM_DIR/assert-recovery.ps1"
     printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
     sed 's/$/\r/' "$SCRIPT_DIR/assert-recovery.ps1" >> "$SCRIPT_DIR/wootc-files/assert-recovery.ps1"
-fi
-if [ -f "$SCRIPT_DIR/seed-profile.ps1" ]; then
-    printf '\xEF\xBB\xBF' > "$OEM_DIR/seed-profile.ps1"
-    sed 's/$/\r/' "$SCRIPT_DIR/seed-profile.ps1" >> "$OEM_DIR/seed-profile.ps1"
-    printf '\xEF\xBB\xBF' > "$SCRIPT_DIR/wootc-files/seed-profile.ps1"
-    sed 's/$/\r/' "$SCRIPT_DIR/seed-profile.ps1" >> "$SCRIPT_DIR/wootc-files/seed-profile.ps1"
 fi
 cp "$SCRIPT_DIR/wootc-files/deployer-vmlinuz" "$OEM_PAYLOAD/deployer-vmlinuz"
 cp "$SCRIPT_DIR/wootc-files/deployer-initramfs.img" "$OEM_PAYLOAD/deployer-initramfs.img"
@@ -3165,10 +3174,17 @@ else {
     step "Driving the REAL install through the live form (drive directive)..."
     local drive_directive_id drive_payload drive_ack
     drive_directive_id=$(python3 -c 'import uuid; print(uuid.uuid4().hex)') || return 1
-    # The native shell's directive names its target volume (storageId "C:");
-    # the Wails directive is unchanged. See gui-drive-directive.py.
+    # The native shell's directive names its target volume (storageId "C:"),
+    # turns Windows-Style Mode on and keeps two of the detected apps; the
+    # Wails directive is unchanged. See gui-drive-directive.py.
     drive_payload=$(python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF") \
         || { infra_fail "Could not construct this run's GUI directive"; return 1; }
+    # What the directive chose is what the migration checks hold the
+    # installed system to (look applied, kept apps installed, unchecked absent).
+    if [ -s "$MIGRATION_EXPECTED" ]; then
+        python3 "$SCRIPT_DIR/gui-drive-directive.py" --manifest "$GUI_FRONTEND" >> "$MIGRATION_EXPECTED" \
+            || { infra_fail "Could not record this run's GUI choices in the migration manifest"; return 1; }
+    fi
     # BOM-LESS write, verified byte-exact. Set-Content -Encoding UTF8 on the
     # guest's PowerShell 5.1 emits a UTF-8 BOM, and NEITHER consumer tolerates
     # one: Go's encoding/json rejects a leading BOM (so E2EDriveDirective
@@ -3510,6 +3526,15 @@ if (Test-Path $cfg) { Write-Output "grub.cfg first line:"; Write-Output ("  " + 
         exit 1
     fi
 
+    # The installer has run its collectors; add what it cannot collect on a
+    # VM (saved Wi-Fi) and record what it collected, before the deployer
+    # consumes the handoff.
+    local mig_root
+    mig_root=$(guest_wootc_root || true)
+    [ -n "$mig_root" ] || mig_root="C:"
+    migration_seed_wifi "$mig_root" || warn "Migration Wi-Fi profiles were not staged"
+    migration_record_windows_handoff "$mig_root"
+
     # Hand control to the deployer exactly as a user would: the app's own
     # Reboot binding, triggered by the reboot directive on the done screen.
     local reboot_payload
@@ -3727,7 +3752,20 @@ if [ ! -f "$PTY" ]; then
 fi
 LAST_BYTE=$(stat -c%s "$PTY" 2>/dev/null || echo 0)
 DEPLOYER_STARTED=false
-if [ -f "$PTY" ] && grep -q '\[wootc\]' "$PTY" 2>/dev/null; then
+# Serial evidence that the deployer is running. [fisherman] counts: only the
+# deployer runs fisherman. The first [wootc] line on the serial is whatever
+# deploy.sh writes to stderr, and on bazzite-deck that used to be the ntfs-3g
+# injection [WARN]. Without injection, run 38839917797 pulled for six silent
+# minutes, started fisherman ("[fisherman] version: dev" at t=385s), and was
+# still failed as "Deployer did NOT start" at the 10-minute mark.
+# The phase events count too: deploy.sh writes one to stderr at every phase
+# boundary (migration-diagnostics.sh), from the first second of its run. Run
+# 44733595826 (release gate) booted the deployer, printed ntfs-mounted,
+# scratch-setup and registry-preflight by t=24s, and was still in
+# registry-preflight on screen at 10m51s, yet it was failed as "Deployer did
+# NOT start" and filed as a lost serial feed.
+DEPLOYER_START_RE='\[wootc\]|\[fisherman\]|"attemptId":"[a-f0-9-]+","phase":"[a-z0-9-]+","event":"phase_'
+if [ -f "$PTY" ] && tr -d '\000' < "$PTY" 2>/dev/null | grep -aqE "$DEPLOYER_START_RE"; then
     DEPLOYER_STARTED=true
 fi
 
@@ -3818,13 +3856,7 @@ while ! past_deadline "$DEPLOY_DEADLINE"; do
         echo "$NEW_OUTPUT" | strings | grep -aE "\[wootc\]|fisherman|VERIFICATION_SUMMARY|\[FAIL\]" \
             | sed "s/^/$(date -u +%FT%TZ) /" >> "$STORAGE_DIR/e2e-timeline.log" 2>/dev/null || true
 
-        # [fisherman] counts too: only the deployer runs fisherman. The first
-        # [wootc] line on the serial is whatever deploy.sh writes to stderr,
-        # and on bazzite-deck that used to be the ntfs-3g injection [WARN].
-        # Without injection, run 38839917797 pulled for six silent minutes,
-        # started fisherman ("[fisherman] version: dev" at t=385s), and was
-        # still failed as "Deployer did NOT start" at the 10-minute mark.
-        echo "$NEW_OUTPUT" | grep -qE "\[wootc\]|\[fisherman\]" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
+        echo "$NEW_OUTPUT" | grep -aqE "$DEPLOYER_START_RE" && { DEPLOYER_STARTED=true; info "wootc: deployer active"; }
         echo "$NEW_OUTPUT" | grep -q "fisherman.*Partitioning" && info "fisherman: partitioning"
         echo "$NEW_OUTPUT" | grep -qE "Deploying|Pulling container|Installing OS" && info "fisherman: deploying OS"
         echo "$NEW_OUTPUT" | grep -qE "\[PASS\]" && info "wootc: $(echo "$NEW_OUTPUT" | grep -E '\[PASS\]' | tail -1)"
@@ -4167,6 +4199,13 @@ else
     capture_lifecycle_failure deployed
     product_fail "wootc.exe status did not report deployed after deploy (got: '$_state_raw')"
 fi
+# Phase 3 stages its image in a scratch beside root.disk (wootc-go-native),
+# so its space refusal reads against what the deploy left on C:. Gate probe
+# 44771739639 refused with "0 GiB free" after "58 GiB free before the
+# install" and a 30 GiB root.disk, with no record of C: in between.
+# shellcheck disable=SC2016
+C_AFTER_DEPLOY=$(qga_powershell '$d=Get-PSDrive C; "{0} GiB free of {1} GiB" -f [math]::Floor($d.Free/1GB), [math]::Floor(($d.Free+$d.Used)/1GB); Get-ChildItem -LiteralPath C:\wootc -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object Length -gt 1GB | ForEach-Object { "  {0} {1} bytes" -f $_.FullName, $_.Length }' 2>/dev/null | tr -d '\r' || true)
+info "C: after the deploy: ${C_AFTER_DEPLOY:-unreadable}"
 
 # Match the existing 1800-second fixture drive-preparation deadline. Every
 # external QGA call and polling sleep consumes this same wall-clock budget.
@@ -4546,10 +4585,9 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     fi
     pass "Phase 3: Linux guest agent reachable inside Phase 2"
 
-    # Capture the generic health baseline before graduation. /etc/wootc is
-    # copied into the fresh native install, so the final probe can distinguish
-    # label drift and a lost display-manager configuration from pre-existing
-    # image state.
+    # Capture the generic health baseline before graduation, so the final
+    # check can distinguish label drift and a lost display-manager
+    # configuration from pre-existing image state.
     if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
         infra_fail "Could not read Phase 3 health script"
         exit 1
@@ -4567,6 +4605,45 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         infra_fail "Could not capture the Phase 3 pre-graduation health baseline"
         exit 1
     fi
+    # Stage the check and its baseline where wootc-go-native picks them up:
+    # it copies them into the native /etc/wootc, and a boot-time unit there
+    # runs the check from init's context. The confined agent on the enforcing
+    # native system cannot query systemd (probe 44833993709).
+    if ! WOOTC_QGA_CALL_TIMEOUT=60 qga_call exec /bin/sh -c \
+        'umask 022 && printf "%s\n" "$1" > /run/wootc-e2e-phase3-health.sh && printf "%s\n" "$2" > /run/wootc-e2e-phase3-health.baseline' \
+        wootc-phase3-health-stage "$P3_HEALTH_SCRIPT" "$P3_HEALTH_BASELINE" >/dev/null; then
+        infra_fail "Could not stage the Phase 3 health check for the native system"
+        exit 1
+    fi
+    # Failed units in Phase 2 fail the run as they do on the native system:
+    # only the reviewed known-failure list in phase3-health.sh is exempt.
+    # Phase 2 is permissive, so the agent can query systemd here.
+    # The check exits 3 while Phase 2 is still booting (bluefin:stable's
+    # bootc-unified-storage.service held its boot for 6+ minutes).
+    P3_P2_DEADLINE=$(deadline_in "${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}")
+    while :; do
+        P3_P2_UNITS_STATUS=0
+        P3_P2_UNITS=$(qga_call exec /bin/sh -c "$P3_HEALTH_SCRIPT" wootc-phase3-health phase2-units 2>&1) || P3_P2_UNITS_STATUS=$?
+        [ "$P3_P2_UNITS_STATUS" -eq 3 ] || break
+        past_deadline "$P3_P2_DEADLINE" && break
+        sleep 10
+    done
+    printf '%s\n' "$P3_P2_UNITS" | tee "$ARTIFACT_DIR/phase2-units.log"
+    case "$(phase2_units_verdict "$P3_P2_UNITS_STATUS" "$P3_P2_UNITS")" in
+        failed-units)
+            product_fail "Phase 2 has failed units outside the known-failure list" ;;
+        still-booting)
+            product_fail "Phase 2 did not finish booting within ${WOOTC_E2E_P2_BOOT_WAIT_SECS:-1200}s" ;;
+        check-error)
+            infra_fail "Phase 2 failed-unit check failed without a product finding"
+            exit 1 ;;
+        *)
+            pass "Phase 2 has no failed units outside the known-failure list" ;;
+    esac
+
+    # Measure the Phase-2 migration BEFORE graduation changes anything, and
+    # leave the checker in /run for wootc-go-native to carry to the native disk.
+    migration_check_phase2 || true
 
     info "Phase 3: go-native status"
     # QGA starts commands with a minimal service-manager PATH that does not
@@ -4590,7 +4667,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     P3_TARGET=$(qga_call exec /bin/sh -c "$(cat "$SCRIPT_DIR/pick-blank-disk.sh")" \
         2>/dev/null | tr -d '\r\n ' || true)
     if [ -z "$P3_TARGET" ]; then
-        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=40G)"
+        fail "Phase 3: no BLANK spare disk found (run with WOOTC_E2E_DISK2_SIZE=64G)"
         exit 1
     fi
     # Belt-and-braces: never hand a disk with data on it to --wipe.
@@ -4609,23 +4686,76 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # --phase3 builds and activates a narrow systemd path unit. PID 1 performs
     # the same guarded migration and publishes an explicit result under /run.
     qga_call exec /bin/sh -c \
-        "rm -f /run/wootc-e2e-phase3.result; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
+        "rm -f /run/wootc-e2e-phase3.result /run/wootc-e2e-phase3.progress; printf '%s\\n' '$P3_TARGET' > /run/wootc-e2e-phase3.request" \
         >/dev/null
+    # The migration pulls the image over the guest's network, then installs
+    # it; how long that takes depends on the runner and the image. A fixed
+    # count of polls (180 x 5 s) failed gate probe 44791710524 with no way to
+    # tell a slow pull from a hang. Bound it by progress instead: the
+    # dispatcher appends every line the migration prints to the progress
+    # file, and go-native logs the scratch and target-disk totals each 30 s
+    # while either moves. No new progress for P3_STALL_SECS is a hang;
+    # P3_MAX_SECS caps a migration that keeps moving and never finishes.
+    #
+    # Measured on a hosted runner (probe 44807218628, bluefin:stable): the
+    # pull alone took 41 minutes. ghcr.io blob reads stalled three times for
+    # 6-8 minutes, and then the expired signed blob URL failed with 403. That
+    # restarted the attempt, which kept the layers already copied. The third
+    # attempt finished. The deployer's pull of the same image in the same run
+    # took 26 minutes, with the same 403s. fisherman's install then takes
+    # about 5 minutes. Hence 15 minutes of silence and 75 minutes in total.
+    P3_STALL_SECS=${WOOTC_E2E_P3_STALL_SECS:-900}
+    P3_MAX_SECS=${WOOTC_E2E_P3_MAX_SECS:-4500}
+    P3_START=$(date +%s)
+    P3_DEADLINE=$(deadline_in "$P3_MAX_SECS")
     P3_RESULT=""
-    for i in $(seq 1 180); do
+    P3_SIZE=""
+    P3_MOVED=$P3_START
+    P3_WHY=""
+    i=0
+    while :; do
+        i=$((i + 1))
         P3_RESULT=$(qga_call exec /bin/sh -c \
             'cat /run/wootc-e2e-phase3.result 2>/dev/null || true' 2>/dev/null || true)
         echo "$P3_RESULT" | grep -q '^EXIT=' && break
+        P3_NOW_SIZE=$(qga_call exec /bin/sh -c \
+            'stat -c %s /run/wootc-e2e-phase3.progress 2>/dev/null || echo 0' 2>/dev/null \
+            | tr -d '\r\n ' || true)
+        if [[ "$P3_NOW_SIZE" =~ ^[0-9]+$ && "$P3_NOW_SIZE" != "$P3_SIZE" ]]; then
+            P3_SIZE=$P3_NOW_SIZE
+            P3_MOVED=$(date +%s)
+        fi
         if [ $((i % 6)) -eq 0 ]; then
             P3_PROG=$(qga_call exec /bin/sh -c \
                 'tail -n 1 /run/wootc-e2e-phase3.progress 2>/dev/null || systemctl is-active wootc-e2e-phase3.service 2>/dev/null || true' 2>/dev/null || true)
-            info "Phase 3: waiting for graduation... (${i}x5s) status: ${P3_PROG:-polling}"
+            info "Phase 3: waiting for graduation... ($(( $(date +%s) - P3_START ))s) status: ${P3_PROG:-polling}"
+        fi
+        if [ $(( $(date +%s) - P3_MOVED )) -ge "$P3_STALL_SECS" ]; then
+            P3_WHY="the migration printed nothing for ${P3_STALL_SECS}s"
+            break
+        fi
+        if past_deadline "$P3_DEADLINE"; then
+            P3_WHY="the migration was still running after ${P3_MAX_SECS}s"
+            break
         fi
         sleep 5
     done
+    # Keep the whole progress log, pass or fail: its timestamps are the
+    # throughput record for this runner.
+    qga_call exec /bin/sh -c 'cat /run/wootc-e2e-phase3.progress 2>/dev/null || true' \
+        2>/dev/null > "$ARTIFACT_DIR/phase3-progress.log" || true
+    info "Phase 3: finished waiting after $(( $(date +%s) - P3_START ))s; progress log: $ARTIFACT_DIR/phase3-progress.log"
+    if [ -n "$P3_WHY" ]; then
+        tail -n 40 "$ARTIFACT_DIR/phase3-progress.log" 2>/dev/null || true
+        qga_call exec /bin/sh -c \
+            'systemctl status --no-pager -l wootc-e2e-phase3.service 2>&1 | head -40; ps -eo pid,ppid,etime,stat,args --forest 2>&1 | grep -E "wootc|podman|fisherman|bootc|skopeo|mkfs|unshare" | grep -v grep' \
+            2>/dev/null || true
+        fail "Phase 3: privileged migration service timed out: $P3_WHY"
+        exit 1
+    fi
     printf '%s\n' "$P3_RESULT" | tail -40
     if ! echo "$P3_RESULT" | grep -q '^EXIT=0$'; then
-        fail "Phase 3: privileged migration service failed or timed out"
+        fail "Phase 3: privileged migration service failed ($(echo "$P3_RESULT" | grep '^EXIT=' | tail -1))"
         exit 1
     fi
     if qga_call exec /bin/sh -c \
@@ -4899,6 +5029,10 @@ if [ "${WOOTC_E2E_BITLOCKER:-off}" = "on" ]; then
     fi
 fi
 
+# The rest of the migration (account, folders, apps, Wi-Fi, look...) against
+# the seeded manifest. A Phase-3 run already did this before graduating.
+migration_check_phase2 || true
+
 # ── HARD GATE: prove Phase 2 actually ran ───────────────────────────────────
 # Everything above passes on the ABSENCE of error strings, and the reboot step
 # below sends ctrl-alt-delete — which an emergency shell obeys just as happily
@@ -4958,36 +5092,11 @@ fi
 # Compare the persisted product record with facts collected from this running
 # installed Linux. Neither a lifecycle word nor a previous record proves this boot.
 FIRSTBOOT_RECORD_FILE="$ARTIFACT_DIR/installed-linux-boot-check.json"
-# The product collector is re-run here, now, and every identity field must
-# agree with what the first boot recorded. writtenAt is the measurement time;
-# failedUnits is reported, not identity, but no wootc unit may have failed at
-# either reading.
-if qga_call exec /usr/bin/python3 -c '
-import importlib.util,json,pathlib,sys
-host=pathlib.Path("/run/initramfs/wootc-host")
-sys.path.insert(0,"/var/usrlocal/lib/wootc")
-helper=pathlib.Path("/var/usrlocal/lib/wootc/wootc_firstboot_evidence.py")
-spec=importlib.util.spec_from_file_location("firstboot_observer",helper)
-module=importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-current=module.collect(host)
-path=host/"wootc/install/installed-linux-boot.json"
-with path.open(encoding="utf-8-sig") as stream:
-    raw=stream.read(65537)
-if len(raw)>65536: raise ValueError("oversized firstboot record")
-persisted=json.loads(raw)
-for key in current:
-    if key not in ("writtenAt","failedUnits") and persisted.get(key) != current[key]:
-        raise ValueError("persisted firstboot record differs from current boot: "+key)
-for record in (persisted,current):
-    failed=[unit for unit in record.get("failedUnits",[]) if unit.startswith("wootc-")]
-    if failed: raise ValueError("wootc units failed: "+", ".join(failed))
-state=json.loads((host/"wootc/state.json").read_text(encoding="utf-8-sig"))
-if state.get("state") != "healthy": raise ValueError("firstboot state is not healthy")
-if not (host/"wootc/install/installed-linux-boot.complete").is_file():
-    raise ValueError("firstboot publication did not complete")
-print(json.dumps({"persisted":persisted,"current":current},indent=2))
-' > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
+# lib/firstboot_record_check.py re-runs the product collector now; every
+# identity field must agree with the first boot's record, the bridge net of
+# folders converted since (the migration suite converts one before this).
+if qga_call exec /usr/bin/python3 -c "$(cat "$SCRIPT_DIR/lib/firstboot_record_check.py")" \
+    > "$FIRSTBOOT_RECORD_FILE" 2> "$ARTIFACT_DIR/installed-linux-boot-check.stderr"; then
     pass "Installed Linux first-boot record matches this boot, disk, image, ESP and bridge"
     native_proof_capture_linux || { capture_vm_diagnostics; exit 1; }
 else
@@ -5048,15 +5157,41 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
     # Phase 3 generic post-boot health gate. The script reports every observed
     # product finding before it exits. Gate on both channels: any explicit
     # FAIL line is a product failure even if a future script bug returns zero;
-    # a non-zero guest command without a finding is infrastructure-unknown.
-    if ! P3_HEALTH_SCRIPT=$(cat "$SCRIPT_DIR/phase3-health.sh"); then
-        infra_fail "Could not read Phase 3 health script"
+    # a non-zero check without a finding is infrastructure-unknown.
+    #
+    # The check runs on the native system from wootc-e2e-native-health.service
+    # (wootc-go-native), which exports its output to /run; this only reads
+    # the export. Run through the agent, every systemctl call answered
+    # "Access denied" (probe 44833993709). Keep the agent's own view beside
+    # the export as the record of why.
+    WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+        'echo "context: $(cat /proc/self/attr/current)"; echo "getenforce: $(getenforce 2>&1)"; echo "is-system-running: $(systemctl is-system-running 2>&1)"' \
+        > "$ARTIFACT_DIR/phase3-agent-view.log" 2>&1 || true
+    sed 's/^/  agent view: /' "$ARTIFACT_DIR/phase3-agent-view.log" || true
+    # The check waits up to 300 s for the boot to finish, then inspects
+    # labels under /etc and /var/home. The trailer proves the guest read the
+    # whole export; a failed or cut-off read is asked again.
+    P3_HEALTH_DEADLINE=$(deadline_in "${WOOTC_E2E_P3_HEALTH_WAIT_SECS:-600}")
+    while :; do
+        P3_HEALTH_EXPORT=$(WOOTC_QGA_CALL_TIMEOUT=30 qga_call exec /bin/sh -c \
+            'cat /run/wootc-e2e-native-health && echo HEALTH_READ=complete' 2>/dev/null || true)
+        if [ "${P3_HEALTH_EXPORT##*$'\n'}" = HEALTH_READ=complete ]; then
+            P3_HEALTH_EXPORT=${P3_HEALTH_EXPORT%$'\n'HEALTH_READ=complete}
+            break
+        fi
+        P3_HEALTH_EXPORT=""
+        past_deadline "$P3_HEALTH_DEADLINE" && break
+        sleep 5
+    done
+    if [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 1p)" != HEALTH_SCHEMA=1 ] \
+        || [ "$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 2p)" != "HEALTH_BOOT_ID=$P3_NATIVE_BOOT_ID" ] \
+        || ! printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 3p | grep -Eq '^HEALTH_STATUS=[0-9]+$'; then
+        printf '%s\n' "$P3_HEALTH_EXPORT" | head -5
+        infra_fail "Phase 3 health export is absent, malformed or not from this boot ($P3_NATIVE_BOOT_ID)"
         exit 1
     fi
-    P3_HEALTH_STATUS=0
-    P3_HEALTH_OUTPUT=$(WOOTC_QGA_CALL_TIMEOUT=360 qga_call exec /bin/sh -c \
-        "$P3_HEALTH_SCRIPT" wootc-phase3-health check "$P3_HEALTH_BASELINE" 2>&1) \
-        || P3_HEALTH_STATUS=$?
+    P3_HEALTH_STATUS=$(printf '%s\n' "$P3_HEALTH_EXPORT" | sed -n 's/^HEALTH_STATUS=//p;3q')
+    P3_HEALTH_OUTPUT=$(printf '%s\n' "$P3_HEALTH_EXPORT" | tail -n +4)
     printf '%s\n' "$P3_HEALTH_OUTPUT"
     if ! printf '%s\n' "$P3_HEALTH_OUTPUT" > "$ARTIFACT_DIR/phase3-health.log"; then
         infra_fail "Could not retain the Phase 3 health observations"
@@ -5071,6 +5206,7 @@ if [ "${RUN_PHASE3:-false}" = true ]; then
         exit 1
     fi
     product_pass native-health "Phase 3 native system passed the generic post-boot health gate"
+    migration_check_native "$P3_NATIVE_BOOT_ID" || true
 
     # The point of it all: the file seeded in Windows before the deployer ever
     # ran must now live on the NATIVE disk — no NTFS, no loopback, no bind in
@@ -5156,6 +5292,7 @@ else
     # went down would satisfy a bare QGA wait instantly and fake the return.
     qga_wait_windows 600
     product_pass windows-return "One-shot Phase 2 boot consumed; Windows returned successfully"
+    migration_check_windows_intact
     # The product's own evidence of the Phase-2 boot, read back from the
     # Windows volume (#332). An extra assertion beside the North Star file:
     # the user-data proof above stays the harness's own observation.

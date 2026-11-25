@@ -23,8 +23,8 @@
 
 wootc installs a real Linux desktop from a [bootc](https://github.com/containers/bootc)
 image into `root.disk`, a file beside your Windows files. The latest full release,
-`v0.1.0-alpha.1`, uses Wails. Native WinUI packaging is implemented on `main`,
-but a released native setup and its acceptance evidence remain outstanding.
+`v0.1.0-alpha.2`, installs the native WinUI shell. Before the publish, this
+build installed from its GUI in a Windows 11 VM. Hardware, offline and soak acceptance remain open.
 [Verification status](docs/status.md) distinguishes these builds and their limits.
 
 The setup form asks for **a password**. The app suggests your username and
@@ -35,9 +35,9 @@ Wi-Fi networks, wallpaper, and taskbar choices. Results depend on the image and 
 ## Get it
 
 **[⬇ Download TunaOS-Installer.exe](https://github.com/tuna-os/wootc/releases/latest/download/TunaOS-Installer.exe)**
-(12 MB) from the latest release, `v0.1.0-alpha.1`. The installer downloads its
-boot files during the install, so this one file is enough. This release uses
-the Wails UI and needs WebView2. Windows 11 includes WebView2.
+(70 MB) from the latest release, `v0.1.0-alpha.2`. It is the native setup for
+the WinUI shell and its engine. The engine downloads the boot files during
+the install, so this one file is enough. The native shell does not need WebView2.
 
 Before you start:
 
@@ -62,18 +62,15 @@ uninstaller can leave files or a start-up entry behind; see the
 [First steps](docs/getting-started.md) shows each Windows prompt. For a
 hardware trial, read the [manual test guide](docs/manual-testing.md) first.
 
-The same release has `wootc.exe` and the branded `Bazzite-Installer.exe`,
-`Bluefin-Installer.exe` and `Aurora-Installer.exe` on the
-[release page](https://github.com/tuna-os/wootc/releases/latest). A branded
-build is not evidence of upstream endorsement; see
-[the approval record](docs/upstream-blessings.md).
-
-<!-- Remove this note when the first release with the native setup is published. -->
-> **No published release has the native setup yet.** The code on `main`
-> prepares the native WinUI shell as `wootc-Installer-Setup.exe` and branded
-> `*-Installer-Setup.exe` assets. They come with the first release after the
-> native shell cutover (#661). There is no winget package yet
-> ([#221](https://github.com/tuna-os/wootc/issues/221)).
+The same release has `wootc-Installer-Setup.exe` and the branded
+`Bazzite-Installer-Setup.exe`, `Bluefin-Installer-Setup.exe` and
+`Aurora-Installer-Setup.exe` on the
+[release page](https://github.com/tuna-os/wootc/releases/latest). Each setup is
+also there under its earlier name, for example `Bluefin-Installer.exe`.
+`wootc-legacy.exe` is the Wails build for this release only; it needs WebView2.
+A branded build is not evidence of upstream endorsement; see
+[the approval record](docs/upstream-blessings.md). There is no winget package
+yet ([#221](https://github.com/tuna-os/wootc/issues/221)).
 
 <!-- hive-contribute-plea: donated-compute appeal, keep in sync across repos -->
 ## Contribute compute — no code needed

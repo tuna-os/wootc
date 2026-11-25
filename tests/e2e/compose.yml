@@ -50,7 +50,7 @@ services:
       DISK_SIZE: "${WOOTC_E2E_DISK_SIZE:-80G}"
       DISK_FMT: "qcow2"
       # Optional spare disk for the Phase-3 graduate-to-native target (rung 3).
-      # Empty by default; the rung-3 harness sets WOOTC_E2E_DISK2_SIZE=40G so
+      # Empty by default; the rung-3 harness sets WOOTC_E2E_DISK2_SIZE=64G so
       # guest gets a blank second drive that `wootc-go-native migrate --to-disk`
       # installs onto — no shrink of the running NTFS required.
       DISK2_SIZE: "${WOOTC_E2E_DISK2_SIZE:-}"

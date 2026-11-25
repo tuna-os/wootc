@@ -139,6 +139,7 @@ func recoveryTaskSpecs(exePath string) []recoveryTaskIdentity {
 			Executable:   exePath,
 			Arguments:    "recover --startup",
 			Principal:    "SYSTEM",
+			PrincipalSID: "S-1-5-18",
 			RunLevel:     "Highest",
 			Trigger:      "MSFT_TaskBootTrigger",
 			ActionCount:  1,
@@ -149,6 +150,7 @@ func recoveryTaskSpecs(exePath string) []recoveryTaskIdentity {
 			Executable:   exePath,
 			Arguments:    "recover --prompt",
 			Principal:    `BUILTIN\Users`,
+			PrincipalSID: "S-1-5-32-545",
 			RunLevel:     "Highest",
 			Trigger:      "MSFT_TaskLogonTrigger",
 			ActionCount:  1,
@@ -174,11 +176,20 @@ $principal = "$($task.Principal.UserId)"
 if ([string]::IsNullOrWhiteSpace($principal)) {
     $principal = "$($task.Principal.GroupId)"
 }
+$principalSid = ''
+if ($principal -match '^S-1-[0-9-]+$') {
+    $principalSid = $principal
+} elseif (-not [string]::IsNullOrWhiteSpace($principal)) {
+    try {
+        $principalSid = (New-Object System.Security.Principal.NTAccount($principal)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+    } catch { $principalSid = '' }
+}
 [ordered]@{
     name = "$($task.TaskName)"
     executable = "$($action.Execute)"
     arguments = "$($action.Arguments)"
     principal = $principal
+    principalSid = $principalSid
     runLevel = "$($task.Principal.RunLevel)"
     trigger = "$($trigger.CimClass.CimClassName)"
     actionCount = $actions.Count
@@ -247,7 +258,8 @@ Register-ScheduledTask -TaskName %s -TaskPath '\' -Action $action -Trigger $trig
 		return fmt.Errorf("scheduled task %q was not observable after registration", spec.Name)
 	}
 	if !recoveryTaskIdentityMatches(*actual, spec) {
-		return fmt.Errorf("scheduled task %q did not match its requested identity after registration", spec.Name)
+		return fmt.Errorf("scheduled task %q did not match its requested identity after registration (observed principal %q, SID %q, run level %q, trigger %q)",
+			spec.Name, actual.Principal, actual.PrincipalSID, actual.RunLevel, actual.Trigger)
 	}
 	return nil
 }

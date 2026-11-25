@@ -34,7 +34,8 @@ RemainAfterExit=yes
 KillMode=process
 # The script is re-entrant (returns 0 once /run/wootc-loop-attached exists) and
 # self-diagnosing (writes every exit reason to /dev/console and kmsg).
-ExecStart=/usr/bin/bash /usr/lib/wootc/wootc-attach-loop.sh
+# /bin/sh, not bash: some target initrds ship only dash (tunaOS#4818).
+ExecStart=/bin/sh /usr/lib/wootc/wootc-attach-loop.sh
 # The script's inner wall-clock budget: 60s host-NTFS discovery + 30s loop
 # partition udev settle + 15s btrfs readiness settle + ~10s mount/losetup/retriggers
 # ≈ 115s worst case. The service deadline must be STRICTLY above that with

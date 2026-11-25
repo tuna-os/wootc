@@ -90,11 +90,19 @@ This guide asserts no RC SHA for the retained image.*
    [release policy](RELEASING.md#alpha-now).
 2. **Set a password.** The app proposes your username, computer name, disk size, and encryption choice.
    Review them under **Advanced**. You can also change the Windows look option there.
+   Your Linux account gets the full name of your Windows account, also when the
+   Windows look option is off. The account keeps this name when you move to a native
+   disk. The app removes colons, commas and control characters from the name and cuts
+   it to 256 bytes. If Windows has no full name for the account, the Linux account has none.
 3. **Review “Make it feel like Windows.”** Defaults differ between frontends;
    do not assume the frontend selects this box. On supported Wayland desktops, the
    helpers transfer your selected wallpaper, accent, keyboard layout, and shortcuts.
    Saved Wi-Fi networks use a separate path.
-4. Click **Install**. The app creates the Linux disk file and stages boot files.
+4. **Review “Apps.”** The app lists the Windows apps that have a Linux version on
+   Flathub, for example GIMP or Audacity. All of them start checked. Clear a box
+   to not install that app. The section is not shown when no app is found.
+   [SPEC §4.3](SPEC.md#43-app-detection) has the list and the rules.
+5. Click **Install**. The app creates the Linux disk file and stages boot files.
    It also configures a one-time boot into the deployer and disables Fast Startup and hibernation.
 
 ![Install progress](screenshots/03-progress.png)
@@ -131,19 +139,64 @@ The helpers cover these categories:
 
 - **Files:** Documents, Desktop, Pictures, Downloads, Music, and Videos.
   A folder can initially share its Windows contents. Conversion makes a separate Linux copy.
-- **Browsers:** Firefox imports a complete profile, which can include saved passwords.
-  Chrome and Edge can import bookmarks and history. Their encrypted Windows
+- **Browsers:** imported at the first Linux start, each into its own Linux
+  browser profile. Firefox imports a complete profile, which can include saved
+  passwords. Chrome and Edge import bookmarks and history. Their encrypted Windows
   stores and login tokens have separate consent, keyring and service-specific
   limits; see [session migration](session-migration.md). A copied or rewritten
   database is not proof that the browser opens signed in.
-- **Steam:** a library bridge can use games in place, without another download.
+- **Steam:** your Windows games play in place, without another download.
+  Open Steam on Linux once. Then add each Windows library in Steam
+  **Settings → Storage → Add Library**. The migration chooser shows this step.
 - **Office:** the helper copies your selected styles, dictionaries, and preferences for LibreOffice.
-- **Apps:** the dashboard lists apps from Windows and suggests alternatives for Linux.
+- **Apps:** the Windows installer lists your Windows programs that have a
+  Linux Flatpak. The installer installs the apps that you keep selected
+  from Flathub before the first boot. This step needs a network
+  connection. If one app fails, the other apps and the install continue.
+  The result is in `/etc/wootc/flatpak-install.json`. The dashboard shows
+  which apps are installed.
 - **WSL:** selected dotfiles and package lists can help rebuild tools, not clone
   an entire WSL system or transfer its accounts. Follow the
   [WSL migration guide](wsl-migration.md) and keep a separate export/backup.
+- **Developer setup:** from your Windows `C:\Users\<you>\.ssh` folder, Linux
+  copies your public keys (`*.pub`), `config`, `known_hosts` and
+  `authorized_keys` into `~/.ssh`. The copies are byte for byte, private to
+  your account, and have the permissions OpenSSH expects. Linux does **not**
+  copy your private keys. They stay on Windows, and
+  `~/.config/wootc/bridge-developer.json` gives each one with its reason under
+  `leftOnWindows`. To use one
+  on Linux, copy it yourself or create a new key with `ssh-keygen`. From
+  `C:\Users\<you>\.gitconfig`, Linux takes only your Git name, email, commit
+  signature key and default branch name, and writes them to `~/.gitconfig`. It does
+  this only if you have no `~/.gitconfig` or `~/.config/git/config` yet.
+  Linux does not copy credential helpers, `core.autocrlf`, `core.sshCommand`,
+  included files or Windows paths; the same file gives them under `notCarried`. The copy runs on
+  each Windows-backed boot and never overwrites a file you changed on Linux.
+  To turn it off, uncheck **Developer setup** in **Bring Over From Windows**.
+  Files already copied stay until you delete them. The copied files, with
+  their permissions and SELinux labels, move with `/home` when you move to
+  Linux only.
 - **Wi-Fi:** the helper creates NetworkManager connections from saved networks.
   Enterprise networks can need a fresh sign-in.
+- **Printers:** the installer records the name and connection of each Windows
+  printer, but never its driver. At every start-up, Linux sets up each network
+  printer as a driverless queue at `ipp://<address>:631/ipp/print`. A network
+  printer uses a Standard TCP/IP port or an IPP web address in Windows. Your
+  Windows default printer becomes the Linux default if Linux has no default.
+  If a printer does not answer, its status is `waiting`. This can occur when
+  you are away from the office. Linux tries again at the next start-up. A
+  printer without driverless support also stays `waiting`. Add it in
+  **Settings → Printers**. Linux does not set up these printers:
+  - Printers on a USB, parallel or serial cable. Plug in a driverless USB
+    printer and Linux sets it up. The other printers need their Linux driver.
+  - Printers that Windows found through WSD. If one of them has driverless
+    support, Settings → Printers shows it.
+  - Windows-only virtual printers, for example Microsoft Print to PDF.
+
+  **Bring Over From Windows** shows each printer with its status and the
+  reason. If you turn printers off there, Linux adds no new queue. It removes
+  no queue. If you remove or change a queue that wootc set up, wootc does not
+  change it again. The report is in `/var/lib/wootc/printers.json`.
 - **Windows look:** the helpers transfer your selected preferences and shortcuts on supported desktops.
 
 A category's presence does not prove every account or application will transfer.
@@ -181,7 +234,7 @@ automatically.
 The Steam bridge keeps an existing library VDF byte-for-byte. If Steam has not
 registered the Windows library, use Steam's **Add Library** UI. The bridge does not
 silently rewrite the configuration of native libraries. WSL dotfiles, `.ssh`
-and Brewfile imports will also preserve bytes that differ from those at the source.
+files and Brewfile imports will also preserve bytes that differ from those at the source.
 Manually merge the configuration/formulae you want; do not assume a retry
 replaces them.
 
@@ -192,7 +245,9 @@ VS Code, Telegram, Signal, Thunderbird and OBS file/profile imports also
 preserve existing destinations. They publish new files or complete new profiles
 exclusively as the target user. The helper does not recursively take ownership
 of unrelated native content. The helper creates metadata for Thunderbird only
-inside its new bundle.
+inside its new bundle. The one exception is a VS Code `settings.json` or
+`keybindings.json` that is identical to the image's `/etc/skel` copy. That file
+is a default from the image, not a Linux edit, so the Windows file replaces it.
 
 Read per-app copied, preserved and failed outcomes in `bridge-apps.json`;
 failed imports return nonzero. A copy of a messenger profile or a synthetic
@@ -300,6 +355,13 @@ Native graduation and Windows removal are different operations.
 The current execution path can graduate Linux onto a separate disk that the harness verifies as blank in the test harness.
 It retains Windows and the original `root.disk`.
 This proof does not establish an install onto free space on the same disk.
+The native disk keeps the name, time zone, language, keyboard layout and
+saved Wi-Fi networks of the Linux system that you graduate.
+It also keeps the system Flatpak apps, which include your Windows apps.
+
+The native disk also keeps the printer queues that wootc set up. A `waiting`
+printer stays `waiting`, because the native system does not read the Windows
+drive. Add it in Settings → Printers.
 
 The helper also prints plans for an in-place move and Windows removal.
 The app cannot execute those plans for normal use.
