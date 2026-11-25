@@ -2,7 +2,7 @@
 
 This page has automated screenshot walkthroughs for each brand build
 (`docs/branding-and-distribution.md`). A test makes these images; nobody
-selects them by hand. `tests/gui/branded-walkthrough.spec.js` assembles each
+selects them by hand. `tests/gui/branded-walkthrough.spec.js` assembled each
 brand's real embedded assets from `app/branding/<brand>/`. These are the same
 brand.json, logo, typeface and theme that a `-X main.brandID=<brand>` binary
 compiles in.

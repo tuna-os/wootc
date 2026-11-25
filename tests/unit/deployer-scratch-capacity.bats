@@ -220,3 +220,12 @@ exit 125'
     grep -Eq '^\s+mkfs\.ext4 resize2fs ' "$REPO_ROOT/payload/deployer/module-setup.sh"
     grep -Eq '^RUN for bin in .*resize2fs' "$REPO_ROOT/payload/deployer/Containerfile"
 }
+
+# #753: a small Win10 guest cannot hold even the 20G floor. The first scratch
+# creation must name the shortage ([FAIL], which the harness relays) instead of
+# dying in a bare `truncate` that set -e turns into a silent ABORT.
+@test "initial scratch creation refuses by name when the Windows drive is too small" {
+    run awk '/Initializing new scratch filesystem/{f=1} f&&/scratch_too_small "\$SCRATCH_MIN_GIB"/{n++} /mkfs.ext4/{f=0} END{print n+0}' "$REPO_ROOT/payload/deployer/deploy.sh"
+    [ "$status" -eq 0 ]
+    [ "$output" -ge 2 ]
+}

@@ -118,8 +118,8 @@ E2E=tests/e2e/run-e2e.sh
     # screen before the user ever sees it.
     grep -q '"mokEnroll": "universalblue"' app/data/images.json
     grep -q 'MokEnroll string' app/install_contract.go
-    grep -q 'mokEnroll' app/frontend/src/screens/done.js
-    grep -q 'Enroll MOK' app/frontend/src/screens/done.js
+    grep -q 'MokEnrollment' shell/Wootc.Shell.Core/InstallProgress.cs
+    grep -q 'Enroll MOK' shell/Wootc.Shell.Core/InstallProgress.cs
 }
 
 @test "the enrolled kernel actually gets a boot: re-arm after MokManager lands in Windows" {

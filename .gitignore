@@ -22,8 +22,6 @@ __pycache__/
 # Stray terminal-session captures (accidental saves)
 20[0-9]{2}-[0-9]{2}-[0-9]{2}-*.txt
 
-# Playwright test output (regenerated every run)
-app/frontend/test-results/
 
 # wootc#87: the E2E timelapse lives on the pages-assets branch (fetched by
 # pages.yml at deploy time), never committed to main -- see

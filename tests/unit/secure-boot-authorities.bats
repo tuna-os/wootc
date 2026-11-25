@@ -39,16 +39,10 @@ setup() {
 @test "the exe is stamped from the extracted shim, never from a second copy of the pin" {
     # A hardcoded stamp is how an exe starts describing a binary nobody
     # ships. It must be derived from shim-authorities.json.
-    grep -q 'X main.shimAuthorities=\$SHIM_AUTHORITIES' "$RELEASE"
-    grep -q "SHIM_AUTHORITIES=\$(python3 -c" "$RELEASE"
+    # The release no longer builds the Wails exe that carried the stamp
+    # (#346); a hardcoded copy of the pin must not come back in its place.
     run grep -E 'SHIM_AUTHORITIES="2011' "$RELEASE"
     [ "$status" -ne 0 ]
-    # ...which requires the artifacts to be built BEFORE the exes.
-    local artifacts brands
-    artifacts=$(grep -n 'name: Build deployer boot artifacts' "$RELEASE" | cut -d: -f1)
-    brands=$(grep -n 'name: Build brand installers' "$RELEASE" | cut -d: -f1)
-    [ -n "$artifacts" ] && [ -n "$brands" ]
-    [ "$artifacts" -lt "$brands" ]
 }
 
 @test "MokManager is NOT graded against the Microsoft CAs" {

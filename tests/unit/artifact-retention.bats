@@ -262,12 +262,9 @@ SH
     # runs whatever is newest today, and the fail-closed SHA256SUMS check
     # cannot catch it: the manifest comes from the same moved release, so
     # mismatched-but-consistent artifacts verify perfectly (#335).
-    grep -q -- '--version "$RELEASE_TAG"' "$REPO_ROOT/.github/workflows/release.yml"
+    # The release no longer builds a Wails exe (#346); the remaining exe
+    # builder still stamps the tag it is given.
     grep -q 'X main.releaseTag={version}' "$REPO_ROOT/packaging/build-windows.py"
-    grep -q 'RELEASE_TAG: \${{ steps.chan.outputs.tag }}' "$REPO_ROOT/.github/workflows/release.yml"
-    # A release that cannot name its own tag must fail rather than ship an
-    # exe that silently floats.
-    grep -q 'no release tag to pin the boot artifacts to' "$REPO_ROOT/.github/workflows/release.yml"
     # The rule lives in a cross-platform file so the Linux test tier runs it.
     [ -f "$REPO_ROOT/app/deployer_url.go" ]
     run grep -q 'go:build windows' "$REPO_ROOT/app/deployer_url.go"

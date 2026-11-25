@@ -223,10 +223,9 @@ setup() {
     # installed bluefin-lts; every image-agnostic assertion passed). Three
     # layers now close it:
     # 1. The drive loop refuses to click Install on a selection mismatch...
-    grep -q 'state.selected?.imageRef !== directive.image) return' \
-        app/frontend/src/lib/e2e.js
+    grep -q 'ImageMismatch = true' shell/Wootc.Shell.Core/ConsumerConfiguration.cs
     # 2. ...reports the mismatch so the harness can see it...
-    grep -q 'imageMismatch' app/frontend/src/lib/e2e.js
+    grep -q 'ImageMismatch' shell/Wootc.Shell.Core/ConsumerConfiguration.cs
     # ...and the harness fails FAST with both refs instead of timing out.
     # The scenario consumes a validated field; text in hint/error cannot
     # impersonate it. The actual consumer/parser countercontrols execute below.

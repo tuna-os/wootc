@@ -80,9 +80,9 @@ EOF
     rm -rf "$work"
 }
 
-@test "phase D publishes native setup assets and one Wails fallback" {
+@test "release publishes native setup assets and no Wails fallback (#346)" {
     grep -q 'gui_frontend: native' "$RELEASE"
-    grep -q 'wootc-legacy.exe' "$RELEASE"
+    ! grep -q 'wootc-legacy.exe' "$RELEASE"
     grep -q 'gh workflow run winui-preview.yml' "$RELEASE"
     grep -q '<Product>-Installer-Setup.exe' "$RELEASE"
     grep -q 'native-SHA256SUMS' "$RELEASE"

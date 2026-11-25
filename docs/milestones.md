@@ -110,6 +110,4 @@ this rung: custom-OCI refs guessed systemd-boot (backend-contract
 violation), the Go installer still made a VHDX Phase 2 can no longer
 attach, missing bcd-guid.txt, missing elevation, missing console=ttyS0,
 and the missing BCD one-shot seen at reboot in run 20260723T1144 (the Go
-pipeline was aligned with setup-wootc.ps1 in `6961461`). CDP is
-impossible in stock wails (both WebView2 loaders discard the env var once
-the framework passes its own browser args) — hence drive mode.
+pipeline was aligned with setup-wootc.ps1 in `6961461`). Drive mode, not CDP, drives the GUI.

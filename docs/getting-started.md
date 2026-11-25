@@ -15,7 +15,7 @@ The release also has `wootc-Installer-Setup.exe`, `Bazzite-Installer-Setup.exe`,
 `Bluefin-Installer-Setup.exe` and `Aurora-Installer-Setup.exe`, with
 `native-SHA256SUMS`. Each setup is also there under the name that earlier
 releases used, for example `TunaOS-Installer.exe` and `wootc.exe`.
-`wootc-legacy.exe` is the Wails build for this release only. It needs WebView2.
+`wootc-legacy.exe`, the Wails build, shipped in this release only and is gone from source (#346).
 **Older tags such as `v0.1.0-alpha.1` have only the Wails executables.**
 See the [native shell status](winui-shell.md) and [verification matrix](status.md)
 before you test a preview or source build.

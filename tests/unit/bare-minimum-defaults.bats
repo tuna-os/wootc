@@ -14,8 +14,7 @@ REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     # the backend gated look collection on a value that always arrived false,
     # so no real GUI install ever brought the look (or Wi-Fi) along. The
     # field must travel with the config.
-    grep -q 'windowsLook:.*state\.config\.windowsLook' \
-        "$REPO_ROOT/app/frontend/src/screens/launchpad.js"
+    grep -q 'WindowsLook' "$REPO_ROOT/shell/Wootc.Shell.Core/ConsumerConfiguration.cs"
 }
 
 wifi_precedes_look_gate() {

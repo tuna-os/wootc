@@ -9,8 +9,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // ── Data types ────────────────────────────────────────────────────────────────
@@ -202,8 +200,8 @@ type DataPartition struct {
 
 // ── App struct ────────────────────────────────────────────────────────────────
 
-// App is the Wails application backend. All exported methods are callable
-// from the frontend via the generated wailsjs bindings.
+// App is the install engine backend. The native shell drives it over the
+// JSON-RPC transport (serve.go).
 type App struct {
 	ctx       context.Context
 	emitter   EventEmitter
@@ -254,11 +252,6 @@ func (a *App) mutateStatus(fn func(s *InstallStatus)) {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	a.mu.Lock()
-	if a.emitter == nil {
-		a.emitter = &wailsEmitter{ctx: ctx}
-	}
-	a.mu.Unlock()
 	// Check for existing install on startup — routes to Control Panel screen.
 	existing := a.existingInstallFound()
 	a.mutateStatus(func(s *InstallStatus) { s.Existing = existing })
@@ -562,7 +555,7 @@ func (a *App) Reboot() error {
 // unless WOOTC_E2E_DRIVE=1 is set in the app's environment.
 
 func e2eDrivePath(name string) string {
-	// filepath.Separator, not runtime.GOOS: "runtime" is the wails runtime here.
+	// filepath.Separator, not runtime.GOOS:
 	if filepath.Separator == '\\' {
 		return `C:\wootc\` + name
 	}
@@ -757,8 +750,6 @@ func (a *App) emit(e ProgressEvent) {
 	a.mu.Unlock()
 	if em != nil {
 		em.Emit("install:progress", e)
-	} else if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "install:progress", e)
 	}
 }
 
@@ -769,8 +760,6 @@ func (a *App) emitVM(e VMEvent) {
 	a.mu.Unlock()
 	if em != nil {
 		em.Emit("vm:progress", e)
-	} else if a.ctx != nil {
-		runtime.EventsEmit(a.ctx, "vm:progress", e)
 	}
 }
 

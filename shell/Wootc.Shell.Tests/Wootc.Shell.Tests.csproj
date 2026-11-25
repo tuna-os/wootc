@@ -14,8 +14,6 @@
   <ItemGroup>
     <!-- Shared with app/e2e_drive_receipt_test.go and tests/unit/test_gui_drive_receipt.py. -->
     <None Include="../../tests/unit/fixtures/e2e-drive/*.json" LinkBase="Fixtures/e2e-drive" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../app/frontend/src/screens/progress.js" Link="Fixtures/progress.js" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../app/frontend/src/screens/done.js" Link="Fixtures/done.js" CopyToOutputDirectory="PreserveNewest" />
     <!-- VMGateTests replays the engine's recorded vm:progress stream. -->
     <None Include="../../tests/unit/fixtures/native-vm/*.ndjson" LinkBase="Fixtures/native-vm" CopyToOutputDirectory="PreserveNewest" />
     <!-- GalleryEngineTests exercise recorded configuration and event streams. -->

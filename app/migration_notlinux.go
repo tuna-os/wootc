@@ -1,5 +1,3 @@
-//go:build !linux
-
 package main
 
 import (
@@ -52,8 +50,4 @@ func lookMigration() (LookMigration, error) {
 
 func officeMigration() (OfficeMigration, error) {
 	return OfficeMigration{}, fmt.Errorf("migration dashboard is only available on the installed Linux system")
-}
-
-func importSelectedSession(context.Context, SessionImportRequest) (SessionImportResult, error) {
-	return SessionImportResult{}, fmt.Errorf("session import is only available in the installed Linux user's desktop")
 }

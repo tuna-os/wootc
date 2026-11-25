@@ -52,8 +52,8 @@ on:
       gui_install: { type: boolean, default: false }
       # Ordinary-user editor acceptance, separate from the Windows installer GUI.
       gui_documents: { type: boolean, default: false }
-      # Which GUI gui_install drives: 'native' (the shipped WinUI shell) or
-      # 'wails' (the one-release compatibility build). Native publishes the shell
+      # Which GUI gui_install drives: 'native', the shipped WinUI shell (the
+      # only frontend since the Wails build was removed, #346). Native publishes the shell
       # on a Windows runner (the XAML compiler needs Windows), then the E2E job
       # builds the engine beside it with this run's manifest-signing key and
       # installs the pair as a protected package in the guest.
@@ -357,18 +357,8 @@ jobs:
         with:
           require-podman-major: ${{ inputs.require_podman_major }}
 
-      # Every cell needs the real CLI for lifecycle and recovery assertions. Ubuntu runners
-      # ship Go + Node; the wails frontend is a plain vite build, and the
-      # binary cross-compiles GOOS=windows. Drive mode needs no CDP/webview
-      # loader tag, so this is a stock production build.
-      - name: Set up Node for lifecycle CLI
-        uses: actions/setup-node@v7.1.0
-        with:
-          # Disk reclaim removes the runner's preinstalled global Node modules.
-          # GUI runs build the real Wails frontend, so explicitly restore a
-          # supported Node toolchain before invoking npm.
-          node-version: '26'
-
+      # Every cell needs the real CLI for lifecycle and recovery assertions.
+      # Ubuntu runners ship Go; the binary cross-compiles GOOS=windows.
       - name: Set up Go for lifecycle CLI
         uses: actions/setup-go@v7.1.0
         with:
@@ -384,7 +374,6 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get install -y -qq librsvg2-bin
-          ( cd app/frontend && npm ci --silent && npm run build )
           # Wear the brand that matches the image under test (see the
           # script). Preload is separately forced off in the guest via
           # WOOTC_PRELOAD=0 until the offline axis (#217) is green.

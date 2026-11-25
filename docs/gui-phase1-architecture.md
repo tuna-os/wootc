@@ -5,18 +5,19 @@ compiles, drives the E2E install in drive mode (`WOOTC_E2E_DRIVE=1`), and
 green GUI-driven runs are published in the docs/status.md build/test matrix.
 Companion to `docs/SPEC.md` §3 and the E2E
 learnings accumulated on runner-a. Scope: everything that runs on Windows —
-the Wails GUI (`app/`), the install pipeline it drives, and the contract
+the install engine (`app/`), its WinUI shell (`shell/`), the install
+pipeline it drives, and the contract
 between the GUI and the deployer across reboots. Phase-2 boot internals are
 out of scope (owned by the E2E track).
 
 ## 1. Current state
 
-`app/` is a Wails v2 app (fixed 820×620, vanilla-JS frontend, 4 screens:
-launchpad → progress → done, plus a control screen when `root.disk`
-already exists). The Go backend exposes `GetImages`, `GetSystemInfo`,
+`app/` is the Go install engine behind the native WinUI shell. #346 removed
+the Wails v2 app. The shell has the same journey: launchpad, progress, done,
+and a control screen. The engine exposes `GetImages`, `GetSystemInfo`,
 `StartInstall` (9-step pipeline), `CancelInstall`, `Uninstall`, `Reboot`.
-Vault handling (sha512-crypt hash, ACL-restricted `vault.json`, deployer
-shreds after ingest) is designed correctly and matches SPEC §2.3.
+The vault (sha512-crypt hash, ACL-restricted `vault.json`, deployer
+shreds after ingest) is correct and matches SPEC §2.3.
 
 Hard facts to anchor planning:
 
@@ -47,7 +48,7 @@ Hard facts to anchor planning:
 
 ```
 ┌────────────────────────────  Windows  ─────────────────────────────┐
-│  wootc.exe (Wails)                                                 │
+│  wootc.exe (engine)                                                │
 │  ├─ ui/            screens: launchpad, progress, done, control     │
 │  ├─ catalog        embedded images.json + C:\wootc\images.json     │
 │  ├─ preflight      SystemInfo + hazard checks (§2.4)               │

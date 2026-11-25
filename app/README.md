@@ -1,19 +1,13 @@
-# README
+# app/ — the wootc install engine
 
-## About
+Go engine behind the native WinUI shell (`shell/`). The graphical installer is
+the shell; this module is the engine it drives.
 
-This is the official Wails Vanilla template.
+- `wootc install|status|uninstall` run the pipeline headless (`headless.go`).
+- `--native-serve` is the authenticated JSON-RPC transport the shell uses
+  (`serve.go`).
+- Build the branded Windows executable with `packaging/build-windows.py`.
+- Tests: `cd app && go test ./...`.
 
-You can configure the project by editing `wails.json`. More information about the project settings can be found
-here: https://wails.io/docs/reference/project-config
-
-## Live Development
-
-To run in live development mode, run `wails dev` in the project directory. This will run a Vite development
-server that will provide very fast hot reload of your frontend changes. If you want to develop in a browser
-and have access to your Go methods, there is also a dev server that runs on http://localhost:34115. Connect
-to this in your browser, and you can call your Go code from devtools.
-
-## Building
-
-To build a redistributable, production mode package, use `wails build`.
+The Wails app, its web frontend and the Playwright GUI tests were removed in
+#346; see [docs/winui-shell.md](../docs/winui-shell.md).

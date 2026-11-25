@@ -10,8 +10,7 @@ undisturbed.
 
 ## What it exercises
 
-1. Cross-compiles the real product (`wails` frontend build + `GOOS=windows
-   go build -tags desktop,production`) — the binary users run, not a
+1. Cross-compiles the real product (`GOOS=windows go build`) — the binary users run, not a
    parallel script.
 2. Pre-stages deployer artifacts into `C:\wootc\install\` via the Samba
    share (`downloadDeployer` skips files that already exist, so the
@@ -37,42 +36,12 @@ scripts first).
 
 ## Driving the actual GUI (UI automation)
 
-**CDP does not work with stock wails v2 — measured, not assumed** (runs
-20260723T1044/1115): wails always passes its own
-`AdditionalBrowserArguments`, and BOTH WebView2 loaders (pure-Go and
-`native_webview2loader`) discard
-`WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` once options args exist. The GUI
-renders perfectly; the debug endpoint never appears.
-
-The working mechanism is **drive mode**: run `wootc.exe` with
-`WOOTC_E2E_DRIVE=1` and it polls `C:\wootc\e2e-drive.json` over its own
-Go↔JS bridge, executes the directive against the live form (same DOM,
-same handlers, same validation), and reports to `e2e-drive-state.json`.
+The GUI is the native WinUI shell, driven by **drive mode**: run it with
+`WOOTC_E2E_DRIVE=1` and it polls `C:\wootc\e2e-drive.json`, operates its
+view-models, and reports to `e2e-drive-state.json`.
 `run-e2e.sh --gui-install` (`just remote-e2e-gui`) orchestrates the full
-GUI-driven three-phase run this way.
-
-The CDP recipe below is kept for reference in case wails ever exposes
-browser args as a public option:
-
-```powershell
-# In the guest (via QGA):
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
-Start-Process C:\wootc\wootc.exe
-```
-
-```js
-// On the host, with the port forwarded (compose.yml debug ports —
-// see the configurable mapping added in 3731990):
-const browser = await chromium.connectOverCDP('http://localhost:9222');
-const page = browser.contexts()[0].pages()[0];
-await page.click('.variant-card >> text=Yellowfin');
-await page.fill('#username', 'test');
-// ...
-```
-
-Pipeline logic is already covered headlessly; CDP runs are for the
-frontend wiring (screen transitions, progress events, error rendering).
-Keep them few and cheap.
+GUI-driven three-phase run this way. The earlier CDP recipe for the Wails
+WebView2 app was removed with that app (#346).
 
 ## Usage
 
