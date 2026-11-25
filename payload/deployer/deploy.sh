@@ -759,7 +759,7 @@ scratch_too_small() {  # <need GiB> <free bytes on the Windows drive>
     local need=$1 free_gib=$(( $2 >> 30 ))
     err "  [FAIL] ${IMAGE} needs about ${need} GiB of temporary space on the Windows drive"
     err "         to unpack while it installs (freed again afterwards); the scratch is"
-    err "         $(( $(stat -c %s "$SCRATCH_IMG") >> 30 )) GiB and the drive has only ${free_gib} GiB free to grow it."
+    err "         $(( $(stat -c %s "$SCRATCH_IMG" 2>/dev/null || echo 0) >> 30 )) GiB and the drive has only ${free_gib} GiB free to grow it."
     err "         Free up space on the Windows drive and run the installer again."
     splash_set "Not enough free space on the Windows drive to unpack the system. Restarting into Windows - free up ${need} GB and try again."
     sleep 5 2>/dev/null || true
@@ -857,7 +857,18 @@ mkdir -p /mnt/ntfs/wootc/cache /var/fisherman-tmp /var/lib/containers
 # image, turning the multi-minute pull into a digest check on retries.
 if [[ ! -f "$SCRATCH_IMG" ]] || [[ "$(blkid -o value -s TYPE "$SCRATCH_IMG" 2>/dev/null)" != "ext4" ]]; then
     log "Initializing new scratch filesystem..."
-    truncate -s "${SCRATCH_MIN_GIB}G" "$SCRATCH_IMG"
+    # A small Windows drive (Windows 10 guest, 35 GiB root.disk beside it) can
+    # lack room for even the floor. Say so by name instead of dying in a bare
+    # `truncate: No space left on device` that the serial relay can miss (#753).
+    free=$(df -B1 --output=avail /mnt/ntfs 2>/dev/null | tail -1 | tr -d ' ' || true)
+    [[ "$free" =~ ^[0-9]+$ ]] || free=0
+    if (( free < (SCRATCH_MIN_GIB + 1) << 30 )); then
+        scratch_too_small "$SCRATCH_MIN_GIB" "$free"
+    fi
+    if ! truncate -s "${SCRATCH_MIN_GIB}G" "$SCRATCH_IMG"; then
+        rm -f "$SCRATCH_IMG"
+        scratch_too_small "$SCRATCH_MIN_GIB" "$free"
+    fi
     mkfs.ext4 -q -F "$SCRATCH_IMG"
 else
     log "Reusing existing scratch (cached container storage)"
