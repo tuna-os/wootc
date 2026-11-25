@@ -3,7 +3,7 @@ using Wootc.Shell.Engine;
 namespace Wootc.Shell.Core;
 
 // The confirmation uses the legacy launchpad's own words
-// (app/frontend/src/screens/launchpad.js), with its HTML emphasis removed.
+// (the removed Wails screens, #346), with its HTML emphasis removed.
 public sealed record InstallDisclosure(string Heading, IReadOnlyList<string> Lines, string Action, string Cancel)
 {
     public static string InstallVerb(Branding brand) => string.IsNullOrWhiteSpace(brand.InstallVerb) ? "Install" : brand.InstallVerb;

@@ -175,8 +175,7 @@ public sealed class VMGate : IAsyncDisposable
     }
 }
 
-// The legacy Linux window words (app/frontend/src/screens/vmpreview.js,
-// launchpad.js and control.js). VMTextTests compares them with those files.
+// The legacy Linux window words (from the removed Wails screens, #346).
 public static class VMText
 {
     public static string StartInWindow(Branding brand) => $"Start {brand.Name} in a window";

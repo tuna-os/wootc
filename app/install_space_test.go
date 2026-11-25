@@ -267,26 +267,15 @@ func TestValidateInstallConfigRefusesWhenScratchDoesNotFit(t *testing.T) {
 	}
 }
 
-// The launchpad assumes the smallest image's reserve until GetInstallSpace
-// answers; that constant must stay the engine's.
-func TestLaunchpadMinimumReserveMatchesEngine(t *testing.T) {
-	src, err := os.ReadFile(filepath.Join("frontend", "src", "screens", "launchpad.js"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	m := regexp.MustCompile(`(?m)^const MIN_INSTALL_RESERVE_GB = (\d+);`).FindSubmatch(src)
-	if m == nil {
-		t.Fatal("launchpad.js no longer defines MIN_INSTALL_RESERVE_GB")
-	}
-	if n, _ := strconv.Atoi(string(m[1])); n != minimumInstallReserveGiB {
-		t.Errorf("launchpad.js MIN_INSTALL_RESERVE_GB=%d, engine minimumInstallReserveGiB=%d", n, minimumInstallReserveGiB)
-	}
+// The smallest image's reserve is the engine's minimum until GetInstallSpace
+// answers; the native form pins the same constant (next test).
+func TestSmallestImageReserveIsMinimum(t *testing.T) {
 	if got := newInstallSpace("", 1, "registry", false).ReserveGiB; got != minimumInstallReserveGiB {
 		t.Errorf("smallest image reserve = %d, want minimumInstallReserveGiB %d", got, minimumInstallReserveGiB)
 	}
 }
 
-// The native form uses the same two numbers as the launchpad, and its
+// The native form pins the engine's two numbers, and its
 // decoder checks the reserve as the sum newInstallSpace makes.
 func TestNativeFormSpaceConstantsMatchEngine(t *testing.T) {
 	src, err := os.ReadFile(filepath.Join("..", "shell", "Wootc.Shell.Core", "ConsumerConfiguration.cs"))
@@ -301,10 +290,6 @@ func TestNativeFormSpaceConstantsMatchEngine(t *testing.T) {
 		if n, _ := strconv.Atoi(string(m[1])); n != want {
 			t.Errorf("ConsumerConfiguration.%s=%d, want %d", name, n, want)
 		}
-	}
-	launchpad, err := os.ReadFile(filepath.Join("frontend", "src", "screens", "launchpad.js"))
-	if err != nil || !regexp.MustCompile(`(?m)^const DISK_HEADROOM_GB = 15;`).Match(launchpad) {
-		t.Error("launchpad.js DISK_HEADROOM_GB is no longer 15")
 	}
 	decoder, err := os.ReadFile(filepath.Join("..", "shell", "Wootc.Shell.Native", "NativeProtocol.cs"))
 	if err != nil {

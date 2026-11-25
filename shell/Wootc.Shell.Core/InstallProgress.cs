@@ -6,7 +6,7 @@ public enum InstallStepState { Pending, Active, Done, Error }
 public sealed record InstallStepView(string Id, string Label, InstallStepState State);
 
 // The progress view applies install:progress events the way the legacy
-// frontend does (app/frontend/src/main.js): the newest step is current, and
+// frontend does (the removed Wails frontend, #346): the newest step is current, and
 // every catalogue step before a newly started one is complete. Labels come
 // from the engine's step catalogue; matching uses step IDs only.
 public sealed class InstallProgress
@@ -75,7 +75,7 @@ public sealed class InstallProgress
 }
 
 // The legacy progress and done screens' own words
-// (app/frontend/src/screens/progress.js and done.js), HTML removed.
+// (the removed Wails screens, #346), HTML removed.
 // InstallProgressTextTests compares every line with those files.
 public static class InstallProgressText
 {

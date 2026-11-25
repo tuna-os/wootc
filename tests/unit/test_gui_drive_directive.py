@@ -77,7 +77,7 @@ class GuiDriveDirectiveTests(unittest.TestCase):
 
     def test_runner_writes_the_selected_frontends_directive(self):
         source = RUNNER.read_text()
-        self.assertIn('GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"', source)
+        self.assertIn('GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-native}"', source)
         self.assertIn('python3 "$SCRIPT_DIR/gui-drive-directive.py" "$GUI_FRONTEND" "$RUN_ID" "$drive_directive_id" "$IMAGE_REF"', source)
         self.assertNotIn("<<'PYDRIVE'", source)
 
@@ -89,7 +89,7 @@ class GuiDriveDirectiveTests(unittest.TestCase):
             self.skipTest('a native package is staged in this checkout')
         for value, args, words in (('native', ['--gui-install'], 'no valid native shell package'),
                                    ('native', [], 'needs --gui-install'),
-                                   ('gtk', ['--gui-install'], 'must be wails or native')):
+                                   ('gtk', ['--gui-install'], 'must be native')):
             env = dict(os.environ, WOOTC_E2E_GUI_FRONTEND=value)
             result = subprocess.run(['bash', str(RUNNER), *args], env=env, text=True,
                                     capture_output=True, timeout=60)

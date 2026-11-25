@@ -75,9 +75,10 @@ The [roadmap](../ROADMAP.md#native-shell-sequence-and-evidence-357) puts the
 WinUI default change before 1.0. Phases B and C contain native packaging,
 consumer and VM implementation, but their open trackers still require actual
 acceptance evidence. Phase D's packaging cutover merged on 2026-10-31 and
-prepares native setups plus one `wootc-legacy.exe` fallback. `v0.1.0-alpha.2`
-(2026-11-21) is the first full release with these assets. Phase E follows a clean
-native release and the docs audit; do not remove the fallback before that gate.
+prepared native setups plus one `wootc-legacy.exe` fallback. `v0.1.0-alpha.2`
+(2026-11-21) is the first full release with these assets. Phase E (#346) removed
+the Wails build from source after that clean native release; later releases do not
+ship `wootc-legacy.exe`.
 
 A release cannot use old Wails passes as native UI or setup proof. Carry only
 component evidence whose engine code and contract did not change. Re-run the
@@ -176,14 +177,13 @@ used for that brand: `TunaOS-Installer.exe`, `wootc.exe`, and so on.
 External pages link `releases/latest/download/TunaOS-Installer.exe`, so this
 name must stay on the current setup.
 
-The cut-over release is configured to publish the Wails build once as `wootc-legacy.exe`.
-It is a compatibility fallback, not a branded primary installer. It needs
-WebView2.
+`v0.1.0-alpha.2` published the Wails build once as `wootc-legacy.exe`. The release
+workflow no longer builds it (#346).
 
 The shared boot artifacts are `deployer-vmlinuz`, `deployer-initramfs.img`,
 `shimx64.efi`, `grubx64.efi`, and `mmx64.efi`.
 The set also includes `wubildr.efi` when its build succeeds.
-`SHA256SUMS` lists the boot artifacts and `wootc-legacy.exe`.
+`SHA256SUMS` lists the boot artifacts.
 `native-SHA256SUMS` lists the setup assets that the workflow attaches.
 `skip_e2e` exists for emergencies and documents itself in the release notes.
 
@@ -373,8 +373,7 @@ When `WOOTC_SIGN_STORETYPE` is `TRUSTEDSIGNING` and `AZURE_CLIENT_ID` is set,
 no secret for this login. Immediately before the first signature,
 `packaging/sign-exes.sh` gets an access token for `https://codesigning.azure.net`.
 
-jsign signs the Wails compatibility asset `wootc-legacy.exe` in the release
-assets. The workflow for native setups embeds the public release key in each
+jsign signs the engine executables in the release assets. The workflow for native setups embeds the public release key in each
 protected engine. It publishes the setup hashes as `native-SHA256SUMS`.
 MSIX signatures remain gated on #229/#230. The timestamp server is
 `http://timestamp.acs.microsoft.com`.
@@ -471,12 +470,12 @@ The build uses the brand's `icon.ico` when present. Otherwise, it converts
 icon fallback. A conversion error stops the build. The release job installs
 `rsvg-convert`, so brands with a logo get their own icon.
 
-The helper builds the one-release Wails compatibility asset from a temporary
+The helper builds the branded engine executable from a temporary
 copy of the app. It does not change the resource file in the source tree:
 
 ```sh
 python3 packaging/build-windows.py --brand wootc \
-    --version v1.2.3 --output /tmp/wootc-legacy.exe
+    --version v1.2.3 --output /tmp/wootc.exe
 ```
 
 The resource tool keeps the administrator manifest, Windows compatibility,

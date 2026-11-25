@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Wootc.Shell.Core;
 
 // The native window's drive loop, the counterpart of startE2EDrive in
-// app/frontend/src/lib/e2e.js. Each tick reads the harness directive through
+// the removed Wails drive loop (#346). Each tick reads the harness directive through
 // the engine, performs at most one command through the view, and reports the
 // view's state back through the engine. The engine binds every report to the
 // directive it returned, so a report for another run is never written.

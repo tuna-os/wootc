@@ -31,9 +31,9 @@ on:
         type: boolean
         default: false
       gui_frontend:
-        description: 'Which GUI drives Phase 1: native (the shipped WinUI shell) or wails (the one-release compatibility build).'
+        description: 'Which GUI drives Phase 1: native (the shipped WinUI shell, the only option).'
         type: choice
-        options: [native, wails]
+        options: [native]
         default: native
   schedule:
     # Nightly, offset from the headless canary so they do not contend for

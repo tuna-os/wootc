@@ -20,7 +20,7 @@ setup() {
             *) echo "missing -H windowsgui: $line"; bad=1 ;;
         esac
     done < <(grep -hE 'go build .*-o [^ ]*(wootc|wootc-engine)\.exe' \
-        .github/workflows/*.yml tests/e2e/phase1/run-phase1.sh tests/gui/run-cdp.sh)
+        .github/workflows/*.yml tests/e2e/phase1/run-phase1.sh)
     [ "$bad" -eq 0 ]
 }
 

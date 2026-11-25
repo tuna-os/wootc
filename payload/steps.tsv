@@ -12,7 +12,7 @@
 # generated consumer and behavior tests reject label as well as ID drift.
 #
 # owner: installer  a step in the Phase-1 pipeline (app/install_engine.go), shown on the
-#                   progress screen by app/frontend/src/screens/progress.js
+#                   native shell progress screen
 #        deployer   a phase() call in payload/deployer/deploy.sh, shown on the
 #                   full-screen splash during the Phase-2 deploy
 #        firstboot  publication of installed Linux boot evidence

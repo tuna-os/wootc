@@ -11,8 +11,8 @@ in [milestones.md](milestones.md).
 The latest full release is
 [`v0.1.0-alpha.2`](https://github.com/tuna-os/wootc/releases/tag/v0.1.0-alpha.2),
 published on 2026-11-21. Its primary downloads are the native
-`*-Installer-Setup.exe` setups and `native-SHA256SUMS`. `wootc-legacy.exe` is
-the Wails build for this release only. Its gate run
+`*-Installer-Setup.exe` setups and `native-SHA256SUMS`. `wootc-legacy.exe`, the
+Wails build, is in this release only. Its gate run
 ([44935879205](https://github.com/tuna-os/wootc/actions/runs/44935879205))
 installed the build from its GUI in a Windows 11 VM. The VM then booted Linux
 from `root.disk` and then the graduated native disk. The earlier
@@ -97,7 +97,7 @@ step “Phase 1”; they did not run the installed Linux desktop inside Windows.
   full GUI-driven run passed on the exact tagged commit; nightly green runs cut
   automatic pre-releases from the SHA they proved.
 
-GUI controls have Playwright coverage. Migration bridges and the planner have
+Native shell controls have UI Automation and xUnit tests. Migration bridges and the planner have
 unit coverage. These component checks do not prove the VM desktop or that user
 work survives a change from VM to native boot.
 
