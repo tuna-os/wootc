@@ -287,6 +287,21 @@ credentials. Until that setup and fresh-machine verification pass, signatures
 and SmartScreen acceptance remain unproven; a signing decision is not a signed
 release.
 
+**Decision record** ([#229], maintainer decision in [#597], option B):
+
+| Item | Record |
+|------|--------|
+| Choice | Azure Trusted Signing (Microsoft now calls it Artifact Signing) |
+| Why | No hardware token or HSM to manage, the lowest cost, and the release pipeline already supports it |
+| Cost | About $10 per month for the Azure account. Check the current price before you rely on it |
+| Signer identity | The organization name that Microsoft validates. It becomes the `CN` and `O` of each certificate |
+| Renewal owner | The maintainer who owns the Azure subscription. The service renews its short-lived certificates, but identity validation and the subscription need a person |
+| Not chosen | An EV certificate on a hardware token, which is hard to use in CI, and the SignPath OSS program |
+
+A signature does not remove the SmartScreen warning at once. SmartScreen
+reputation grows with the number of downloads, so a new signed release can
+still show a warning for a while. Do not promise users that it is gone.
+
 The pipeline side ([#230]) supports the selected service through jsign and
 GitHub OIDC. See [the owner setup](#setting-up-azure-trusted-signing).
 The release step `Authenticode-sign the installers` runs
@@ -474,6 +489,7 @@ Use the field verifier and attach screenshots for the published files.
 [#241]: https://github.com/tuna-os/wootc/issues/241
 [#240]: https://github.com/tuna-os/wootc/issues/240
 [#229]: https://github.com/tuna-os/wootc/issues/229
+[#597]: https://github.com/tuna-os/wootc/issues/597
 [#230]: https://github.com/tuna-os/wootc/issues/230
 [jsign]: https://ebourg.github.io/jsign/
 
