@@ -28,7 +28,8 @@ build installed from its GUI in a Windows 11 VM. Hardware, offline and soak acce
 [Verification status](docs/status.md) distinguishes these builds and their limits.
 
 The setup form asks for **a password**. The app suggests your username and
-computer name from your PC. It sizes the disk from available space and selects TPM encryption by default.
+computer name from your PC. It sizes the disk from available space. Encryption defaults to **No encryption**.
+TPM auto-unlock is not available yet; LUKS with a passphrase is an option.
 Advanced lets you change those choices. Supported migration helpers can carry files,
 Wi-Fi networks, wallpaper, and taskbar choices. Results depend on the image and helper.
 

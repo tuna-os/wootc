@@ -29,9 +29,10 @@ Keep a backup before you test alpha boot software.
    you start the install until you plug in ("Plug in the power adapter
    first"); the deploy boot can take 30–60 minutes on a slow connection. A
    desktop with no battery at all is never blocked by this.
-4. **Check free disk**: 35 GB+ free on `C:` (20 GB minimum for Linux plus
-   the 15 GB headroom the app reserves for Windows). The slider won't offer
-   more than fits.
+4. **Check free disk**: 42 GB+ free on `C:` for the smallest image (20 GB
+   minimum for Linux plus a 22 GB reserve for the install scratch space). The
+   reserve is larger for bigger images and is released when the install ends.
+   The slider won't offer more than fits.
 5. **Wired network beats Wi-Fi** for the *generic* `wootc.exe`: the deploy
    boot has no Wi-Fi. On a Wi-Fi-only laptop use a **branded installer**
    (or set `WOOTC_PRELOAD=1` before launching) — it downloads the whole OS
