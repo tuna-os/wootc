@@ -34,7 +34,7 @@ The app checks your PC at startup. Its current requirements include:
 
 - **Windows 10 or 11**, 64-bit, with UEFI firmware.
   The native preview installer needs Windows 10 version 1809 (build 17763) or
-  later; it stops before changing anything on an older build.
+  later. On an older build, it stops before it makes a change.
 - **Enough free space on an admitted storage volume.** The native plan needs a
   Linux disk of at least 20 GB. It also needs image-dependent scratch space,
   space for any offline image copy, and a safety reserve. The app reads the
