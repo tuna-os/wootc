@@ -150,5 +150,5 @@ It must not hide a partial result or lie about what happens to the person's data
 ## Testing a brand
 
 Brand data is read by the native shell (`shell/Wootc.Shell.Core/BrandTheme.cs`).
-The Playwright scenarios that rendered a brand headlessly were removed in #346;
+#346 removed the Playwright scenarios that rendered a brand headlessly;
 use the shell's UiTest gallery to check a brand.

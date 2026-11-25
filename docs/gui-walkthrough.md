@@ -1,6 +1,6 @@
 # GUI walkthrough
 
-These are **old Wails mock images**. They do not prove an installed native
+These are **mock images of the old Wails app**. They do not prove an installed native
 shell, a real migration or the RC screenshot gate. #346 removed the suite that
 made them. See the separate [evidence for the native shell](winui-shell.md).
 
@@ -78,7 +78,7 @@ North Star promise: nothing is ever deleted from Windows.
 
 # Linux-side apps
 
-The screens above are old Windows installer mocks. The apps below are the
+The screens above are mocks of the old Windows installer. The apps below are the
 GTK4/libadwaita tools that run **on the migrated Linux system**. #346 removed
 the capture script, so these images are static and can drift from the code.
 

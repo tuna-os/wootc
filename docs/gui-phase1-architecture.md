@@ -16,8 +16,8 @@ out of scope (owned by the E2E track).
 the Wails v2 app. The shell has the same journey: launchpad, progress, done,
 and a control screen. The engine exposes `GetImages`, `GetSystemInfo`,
 `StartInstall` (9-step pipeline), `CancelInstall`, `Uninstall`, `Reboot`.
-Vault handling (sha512-crypt hash, ACL-restricted `vault.json`, deployer
-shreds after ingest) is designed correctly and matches SPEC §2.3.
+The vault (sha512-crypt hash, ACL-restricted `vault.json`, deployer
+shreds after ingest) is correct and matches SPEC §2.3.
 
 Hard facts to anchor planning:
 
