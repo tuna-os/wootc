@@ -258,26 +258,6 @@ jobs:
           (cd app && go run ./tools/signmanifest generate "$key_dir/seed" "$key_dir/public.hex")
           echo "WOOTC_SIGNING_DIR=$key_dir" >> "$GITHUB_ENV"
 
-      - name: Build brand installers (Wails compatibility asset)
-        env:
-          RELEASE_TAG: ${{ steps.chan.outputs.tag }}
-        # Phase D makes the native setup package the branded release asset.
-        # Keep exactly one Wails build for rollback and one-release migration;
-        # do not publish a second set of branded Wails frontends.
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y -qq librsvg2-bin
-          (cd app/frontend && npm ci && npm run build)
-          [ -n "$RELEASE_TAG" ] || { echo "::error::no release tag to pin the boot artifacts to"; exit 1; }
-          SHIM_AUTHORITIES=$(python3 -c "import json;print(','.join(json.load(open('release-assets/shim-authorities.json'))['shimx64.efi']))")
-          [ -n "$SHIM_AUTHORITIES" ] || { echo "::error::the staged shim carries no Microsoft UEFI CA"; exit 1; }
-          python3 packaging/build-windows.py --brand wootc \
-            --output release-assets/wootc-legacy.exe --version "$RELEASE_TAG" \
-            --tags desktop,production \
-            --manifest-public-key "$WOOTC_SIGNING_DIR/public.hex" \
-            --ldflags="-X main.shimAuthorities=$SHIM_AUTHORITIES"
-          ls -lh release-assets/wootc-legacy.exe
-
       # ORDER IS LOAD-BEARING: sign after every exe is built and BEFORE the
       # checksums. Authenticode rewrites the file, so SHA256SUMS written first
       # would describe bytes nobody downloads and every install would die at
@@ -414,8 +394,6 @@ jobs:
             echo "Native WinUI setup assets are the primary branded downloads:"
             echo "\`<Product>-Installer-Setup.exe\` for every eligible brand."
             echo "The WinUI packaging workflow attaches them with native-SHA256SUMS."
-            echo "The Wails compatibility build remains for this release only as"
-            echo "\`wootc-legacy.exe\`, so a rollback has a named, non-primary path."
             echo
             echo "This native-installation preview does not establish the complete"
             echo "Windows-hosted VM-first journey or same-system native promotion."

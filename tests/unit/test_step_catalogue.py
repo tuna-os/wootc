@@ -50,7 +50,7 @@ class CatalogueTests(unittest.TestCase):
                                 'fisherman\tdeployer\tA different deployer label'))
         result = self.generate(True)
         self.assertNotEqual(result.returncode, 0)
-        for name in ['app/steps_gen.go', 'payload/steps.sh', 'tests/e2e/steps.sh', 'tests/gui/step-catalogue-gen.js']:
+        for name in ['app/steps_gen.go', 'payload/steps.sh', 'tests/e2e/steps.sh']:
             self.assertIn(name, result.stderr)
         self.assertEqual(self.generate().returncode, 0)
         command = '. "$1"; wootc_step_label fisherman; wootc_step_label "Checking your PC"'

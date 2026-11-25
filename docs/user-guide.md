@@ -73,10 +73,9 @@ compatibility report.
 Use an artifact present in the chosen release. The older published executable
 for the generic build is `wootc.exe`. Current source uses native setup packages:
 `wootc-Installer-Setup.exe` (or a distribution-specific setup). These install
-the WinUI shell and protected engine. A native release may retain
-`wootc-legacy.exe` for one release.
-
-The older Wails interface needs WebView2; the native shell does not.
+the WinUI shell and protected engine. `v0.1.0-alpha.2` retained
+`wootc-legacy.exe` for that one release; the Wails interface is removed (#346).
+The native shell does not need WebView2.
 These artifact generations are not interchangeable.
 
 ![Launchpad](screenshots/01-launchpad.png)

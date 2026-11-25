@@ -67,7 +67,7 @@ The same release has `wootc-Installer-Setup.exe` and the branded
 `Aurora-Installer-Setup.exe` on the
 [release page](https://github.com/tuna-os/wootc/releases/latest). Each setup is
 also there under its earlier name, for example `Bluefin-Installer.exe`.
-`wootc-legacy.exe` is the Wails build for this release only; it needs WebView2.
+The Wails build (`wootc-legacy.exe`, shipped once in `v0.1.0-alpha.2`) is removed from source (#346).
 A branded build is not evidence of upstream endorsement; see
 [the approval record](docs/upstream-blessings.md). There is no winget package
 yet ([#221](https://github.com/tuna-os/wootc/issues/221)).
@@ -156,20 +156,20 @@ See the **[ROADMAP](ROADMAP.md)** for the version ladder and evidence gates.
 | [Architecture boundary](docs/architecture-boundary.md) | the generic-migration / bootc seam |
 | [NTFS on Linux](docs/ntfs-on-linux.md) | the known hazards, and why the design survives them |
 | [Borrowed from Libertix](docs/borrowed-from-libertix.md) | six boot-chain and recovery designs, specified against wootc's code, with task lists |
-| [WinUI 3 shell](docs/winui-shell.md) | the native Windows shell that replaces Wails: architecture, engine protocol, cut-over |
+| [WinUI 3 shell](docs/winui-shell.md) | the native Windows shell (replaced the removed Wails app): architecture, engine protocol, cut-over |
 | [Branding & distribution](docs/branding-and-distribution.md) | one engine, five installers |
 | [Manual testing](docs/manual-testing.md) | pre-flight for real-hardware runs |
 
 ## Contributing
 
-The current Windows app uses [Wails](https://wails.io) (Go + web).
+The Windows installer is a native WinUI 3 shell over a Go engine (`app/`).
 The stack also has a dracut deployer initramfs, POSIX-shell migration tools, and a KVM E2E harness.
-That harness drives the real GUI in Windows VMs.
+That harness drives the real native shell in Windows VMs.
 
 ```bash
 just test                              # fast tier: bats + go, no containers
 just build                             # deployer initramfs + custom GRUB
-cd tests/gui && npx playwright test    # GUI suite over the built frontend
+just check                             # shellcheck the harness
 ```
 
 See **[the contribution guide](CONTRIBUTING.md)**.

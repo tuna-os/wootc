@@ -193,7 +193,7 @@ public sealed class MaintenanceGate : IAsyncDisposable
 }
 
 // The legacy Manage and Recovery screens' own words
-// (app/frontend/src/screens/control.js and recovery.js), HTML removed.
+// (the removed Wails screens, #346), HTML removed.
 public static class MaintenanceText
 {
     private static string Round(double value) => Math.Round(value, MidpointRounding.AwayFromZero).ToString(System.Globalization.CultureInfo.InvariantCulture);

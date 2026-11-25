@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Build a branded Windows GUI executable without modifying checkout resources.
+"""Build a branded Windows engine executable without modifying checkout resources.
 
-Requires Go and a built app/frontend/dist. icon.ico is preferred; logo.svg is
+Requires Go. icon.ico is preferred; logo.svg is
 rendered with rsvg-convert when available. Missing artwork falls back explicitly
 to the platform icon. RELEASE_TAG supplies version metadata for release builds.
 """
@@ -131,7 +131,7 @@ def main():
     parser.add_argument("--brand", default="wootc")
     parser.add_argument("--output", required=True)
     parser.add_argument("--version", default=os.environ.get("RELEASE_TAG") or "0.0.0-dev")
-    parser.add_argument("--tags", default="desktop,production,native_webview2loader")
+    parser.add_argument("--tags", default="")
     parser.add_argument("--ldflags", default="")
     parser.add_argument("--artifact-repository", default=os.environ.get("GITHUB_REPOSITORY") or "tuna-os/wootc",
                         help="GitHub owner/repository for matching boot artifacts")

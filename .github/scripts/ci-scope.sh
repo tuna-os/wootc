@@ -12,15 +12,14 @@
 # and every push.
 #
 #   deployer   ci.yml build-deployer (payload/deployer/Containerfile inputs)
-#   app        ci.yml build-app (wootc.exe + Linux dashboard; app/ requires slurp/)
+#   app        ci.yml build-app (wootc.exe engine; app/ requires slurp/)
 #   recipe     ci.yml validate-recipe (fisherman submodule)
-#   gui        ci.yml gui-tests (Playwright walkthrough of app/frontend)
 #   classic    ci.yml classic-offline (the hash-pinned audit sources)
-#   migration  ci.yml integration + gui-shots (payload/migration)
+#   migration  ci.yml integration (payload/migration)
 #   partition  ci.yml partition-policy (Windows PowerShell policy)
 set -euo pipefail
 
-scopes=(deployer app recipe gui classic migration partition)
+scopes=(deployer app recipe classic migration partition)
 declare -A hit=()
 
 select_all() { local s; for s in "${scopes[@]}"; do hit[$s]=1; done; }
@@ -46,14 +45,11 @@ else
             fisherman) hit[recipe]=1 ;;
         esac
         case "$f" in
-            app/frontend/* | app/branding/* | app/data/* | tests/gui/*) hit[gui]=1 ;;
-        esac
-        case "$f" in
             tests/audit-classic-offline.py | tests/unit/test_wootc_package_consumer.py | "$classic_record") hit[classic]=1 ;;
         esac
         if grep -qxF -- "$f" <<<"$classic_pins"; then hit[classic]=1; fi
         case "$f" in
-            payload/migration/* | tests/migration/* | tests/gui/capture-linux-guis.sh) hit[migration]=1 ;;
+            payload/migration/* | tests/migration/*) hit[migration]=1 ;;
         esac
         case "$f" in
             app/partition-policy* | tests/lint-ps1.ps1) hit[partition]=1 ;;

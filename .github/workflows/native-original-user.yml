@@ -61,10 +61,6 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           $ErrorActionPreference = 'Stop'
-          $assets = Join-Path 'app/frontend' 'dist'
-          if (Test-Path -LiteralPath $assets) { throw 'Refusing prebuilt assets' }
-          [IO.Directory]::CreateDirectory($assets) | Out-Null
-          [IO.File]::WriteAllText((Join-Path $assets 'index.html'), '<title>Unit-test embed placeholder</title>')
           Push-Location app
           try {
             & go test -count=1 -v -timeout 120s -run '^TestNative(Install|Maintenance|VM)' .

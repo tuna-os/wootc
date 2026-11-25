@@ -63,7 +63,6 @@ Keep keyboard focus, large text, and screen-reader labels intact.
 ## Build and prove it
 
 ```sh
-(cd app/frontend && npm ci && npm run build)
 python3 packaging/build-windows.py --brand acme \
   --artifact-repository acme/installer --version v1.2.3 --output dist/Acme-Installer.exe
 ```

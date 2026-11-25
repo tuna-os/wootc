@@ -2,12 +2,13 @@
 
 This page has automated screenshot walkthroughs for each brand build
 (`docs/branding-and-distribution.md`). A test makes these images; nobody
-selects them by hand. `tests/gui/branded-walkthrough.spec.js` assembles each
+selects them by hand. `tests/gui/branded-walkthrough.spec.js` (removed in #346; the images below are
+retained history) assembled each
 brand's real embedded assets from `app/branding/<brand>/`. These are the same
 brand.json, logo, typeface and theme that a `-X main.brandID=<brand>` binary
 compiles in.
 
-The test drives the Wails frontend bundle with a mock backend through four
+The test drove the Wails frontend bundle with a mock backend through four
 journey screens. It checks the embedded identity and presentation of each brand,
 not native setup or real installation. New Playwright images are not native/RC evidence.
 Fresh native images need provenance for the matching build and fixture.

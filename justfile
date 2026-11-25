@@ -150,9 +150,8 @@ build-icon:
         -o rsrc_windows_amd64.syso
     ls -lh build/windows/icon.ico rsrc_windows_amd64.syso
 
-# Build the real wootc.exe (frontend + windows/amd64) into wootc-files/, where
+# Build the real wootc.exe engine (windows/amd64) into wootc-files/, where
 # it's shared into the VM as \\host.lan\Data\wootc.exe (see compose.yml).
-# native_webview2loader is required for the CDP endpoint (see tests/gui/run-cdp.sh).
 #
 # brand picks which embedded identity the binary wears (app/branding/<brand>/,
 # docs/branding-and-distribution.md) — the file is still named wootc.exe
@@ -165,7 +164,6 @@ build-wootc-exe brand="wootc":
         echo "unknown brand '{{ brand }}' — pick one of:" >&2
         ls app/branding >&2; exit 1; }
     mkdir -p "{{ FILES }}"
-    (cd app/frontend && npm install --silent && npm run build >/dev/null)
     key=$(bash packaging/e2e-manifest-key.sh --create)
     python3 packaging/build-windows.py --brand "{{ brand }}" --output "{{ FILES }}/wootc.exe" --manifest-public-key "$key.pub"
     echo "brand: {{ brand }} ($(jq -r '.productName // "wootc"' "app/branding/{{ brand }}/brand.json"))"
@@ -176,7 +174,6 @@ build-wootc-exe brand="wootc":
 build-brands out="dist":
     #!/usr/bin/env bash
     set -euo pipefail
-    (cd app/frontend && npm install --silent && npm run build >/dev/null)
     mkdir -p "{{ out }}"
     for dir in app/branding/*/; do
         brand=$(basename "$dir")
@@ -627,21 +624,6 @@ check:
         payload/migration/wootc-apply-look || true
 
 # ── GUI E2E ───────────────────────────────────────────────────────────────────
-
-# Mocked GUI conformance suite (Playwright, runs anywhere; no VM)
-gui-test:
-    cd tests/gui && npx playwright test gui.spec.js
-
-# Rung-3 GUI E2E: drive the REAL wootc.exe over CDP inside a kept E2E VM
-# (needs run-e2e.sh --keep state on the host; see tests/gui/run-cdp.sh)
-gui-cdp host=KANPUR:
-    tests/gui/run-cdp.sh --host {{ host }}
-
-# Dogtail AT-SPI suite: drive the real GTK4 apps in a container (podman only).
-# Guest-portable: run dogtail-suite.py inside a booted image to test the real
-# deployment — exits 77 SKIP on images without dogtail (most; expected).
-gui-dogtail:
-    bash tests/gui/dogtail/run-dogtail.sh
 
 # GUI-driven full E2E: Phase 1 armed by clicking through the REAL wootc.exe
 # GUI over CDP (no preview mode), then deployer → Phase 2 → Phase 3 verified

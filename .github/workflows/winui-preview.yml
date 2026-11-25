@@ -12,12 +12,6 @@ on:
       - 'tests/unit/release-pipeline.bats'
       - 'tests/unit/fixtures/e2e-drive/**'
       - 'app/native_install*'
-      - 'app/frontend/src/screens/launchpad.js'
-      - 'app/frontend/src/screens/progress.js'
-      - 'app/frontend/src/screens/done.js'
-      - 'app/frontend/src/screens/control.js'
-      - 'app/frontend/src/screens/recovery.js'
-      - 'app/frontend/src/screens/vmpreview.js'
       - 'tests/unit/fixtures/install-progress/**'
       - 'app/native_maintenance*'
       - 'tests/unit/fixtures/native-maintenance/**'
@@ -223,8 +217,6 @@ jobs:
         working-directory: app
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force frontend/dist | Out-Null
-          Set-Content frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           go build -ldflags "-H windowsgui -X main.nativeBuildID=${{ github.sha }}" -o ../out/winui-preview/wootc-engine.exe .
       - name: Run the complete Windows core module and native process controls
         working-directory: app
@@ -350,8 +342,6 @@ jobs:
         run: |
           dotnet publish shell/Wootc.Shell/Wootc.Shell.csproj --configuration Release --runtime win-x64 -p:Platform=x64 -p:NativeBuildId=${{ github.sha }} "-p:NativeBrandId=$env:BRAND" --output out/branded-preview
           if ($LASTEXITCODE -ne 0) { throw 'Branded native publish refused' }
-          New-Item -ItemType Directory -Force app/frontend/dist | Out-Null
-          Set-Content app/frontend/dist/index.html '<!doctype html><title>Native engine preview</title>'
           $ldflags = "-X main.nativeBuildID=${{ github.sha }} -X main.brandID=$env:BRAND"
           if ($env:PRODUCTION -eq 'true') {
             if (-not $env:ENGINE_LDFLAGS) { throw 'Production engine needs validated release provenance' }

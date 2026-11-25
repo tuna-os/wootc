@@ -48,10 +48,6 @@ jobs:
             }
             & git rev-parse HEAD
             & go version
-            $assets=Join-Path 'app/frontend' 'dist'
-            if (Test-Path -LiteralPath $assets) { throw 'Refusing unexpected prebuilt assets' }
-            [IO.Directory]::CreateDirectory($assets) | Out-Null
-            [IO.File]::WriteAllText((Join-Path $assets 'index.html'),'<title>Unit-test embed placeholder</title>')
             Push-Location app
             try {
               & go test -count=1 -v -run '^TestAssessmentRPCObservedCancellationAndShutdown$' .

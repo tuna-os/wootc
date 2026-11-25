@@ -97,7 +97,10 @@ FIRMWARE_DB="${WOOTC_E2E_FIRMWARE_DB:-}"
 # wootc-files/native-shell (shell + engine + native-package.json, assembled
 # by e2e-hosted.yml) and drives it; its directive also names the target
 # volume. See gui_native_stage_package.
-GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-wails}"
+# Native is the only GUI (#346). Runs without --gui-install launch no
+# frontend, and the default then resolves to "none" below.
+GUI_FRONTEND="${WOOTC_E2E_GUI_FRONTEND:-native}"
+GUI_FRONTEND_EXPLICIT="${WOOTC_E2E_GUI_FRONTEND:+1}"
 OFFLINE=false
 for arg in "$@"; do
     case "$arg" in
@@ -105,7 +108,7 @@ for arg in "$@"; do
         --keep)         KEEP_CONTAINER=true ;;
         --skip-install) SKIP_INSTALL=true ;;
         --phase3)       RUN_PHASE3=true ;;   # rung-3: graduate to a native disk
-        --gui-install)  GUI_INSTALL=true ;;  # arm via the REAL wootc.exe GUI over CDP
+        --gui-install)  GUI_INSTALL=true ;;  # arm via the REAL native shell
         --uninstall-check) WOOTC_E2E_UNINSTALL=1 ;;  # after Windows returns: prove leaving works
         --fault-inject=*) FAULT_INJECT="${arg#--fault-inject=}" ; RECOVERY_CHECK=true ;;
         --recovery-check) RECOVERY_CHECK=true ;;
@@ -150,8 +153,14 @@ if [ "$RECOVERY_CHECK" = true ]; then RESULT_SCENARIO=recovery; fi
 # proof, the crash checks and the post-mortem all count THAT process, so a
 # native run in which the Wails app answered (or vice versa) cannot pass.
 NATIVE_PACKAGE_DIR="$SCRIPT_DIR/wootc-files/native-shell"
+if [ "$GUI_FRONTEND" = native ] && [ "$GUI_INSTALL" != true ] && [ -z "$GUI_FRONTEND_EXPLICIT" ]; then
+    GUI_FRONTEND=none
+fi
 case "$GUI_FRONTEND" in
-    wails) GUI_PROCESS=wootc GUI_OTHER_PROCESS=Wootc.Shell ;;
+    none) GUI_PROCESS=wootc GUI_OTHER_PROCESS=Wootc.Shell ;;
+    wails)
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND=wails: the Wails installer was removed (#346); the native shell is the only GUI" >&2
+        exit 1 ;;
     native)
         GUI_PROCESS=Wootc.Shell GUI_OTHER_PROCESS=wootc
         if [ "$GUI_INSTALL" != true ]; then
@@ -189,7 +198,7 @@ case "$GUI_FRONTEND" in
         fi
         ;;
     *)
-        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be wails or native, not '$GUI_FRONTEND'" >&2
+        echo "[FAIL] WOOTC_E2E_GUI_FRONTEND must be native, not '$GUI_FRONTEND'" >&2
         exit 1 ;;
 esac
 case "$FIRMWARE_DB" in
@@ -2850,36 +2859,6 @@ gui_install_arm() {
     # The native shell is WinUI, not WebView2: it needs no runtime install.
     # (Not re-indented: the PowerShell here-string below must keep "@ at
     # column 0.)
-    if [ "$GUI_FRONTEND" = wails ]; then
-    info "  ensuring the WebView2 runtime is present (wails cannot render without it)..."
-    local wv2_key='HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-    if qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1; then
-        info "    WebView2 already present"
-    else
-        # A BATCH file, deliberately: it uses %TEMP% rather than $env:TEMP, so
-        # nothing in the payload can be interpolated by the PowerShell
-        # here-string that writes it — the same trick launch-gui.cmd uses below.
-        qga_powershell '
-@"
-curl.exe -L -o %TEMP%\wv2.exe https://go.microsoft.com/fwlink/p/?LinkId=2124703
-%TEMP%\wv2.exe /silent /install
-"@ | Set-Content -Path C:\wootc-wv2.cmd -Encoding ascii
-Start-Process cmd.exe -WindowStyle Hidden -ArgumentList "/c","C:\wootc-wv2.cmd"
-Write-Output "webview2-install-started"' >/dev/null 2>&1 || warn "    (could not start the WebView2 install)"
-
-        local wv2_deadline
-        wv2_deadline=$(deadline_in 420)
-        while ! past_deadline "$wv2_deadline"; do
-            if qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1; then
-                pass "WebView2 runtime installed in the guest"
-                break
-            fi
-            sleep 10
-        done
-        qga_powershell "if (Test-Path '$wv2_key') { exit 0 } else { exit 1 }" >/dev/null 2>&1 \
-            || warn "    WebView2 still absent after 7m — the GUI will stall on its install prompt"
-    fi
-    fi  # wails: WebView2
 
     gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 

@@ -53,7 +53,7 @@ The palette is applied as CSS custom properties at startup, so a single
 accent change re-skins every button, chip, and highlight consistently.
 See the branded screenshot in [gui-walkthrough.md](gui-walkthrough.md).
 
-In the legacy Wails frontend, `applyBranding` derives input/hover surfaces
+In the removed Wails frontend, `applyBranding` derives input/hover surfaces
 from an explicit `brand.card`. It derives muted/dim text from an explicit
 `brand.text` when a complete theme does not supply those tokens.
 This prevents light input backgrounds with light text in a partial palette.
@@ -149,6 +149,6 @@ It must not hide a partial result or lie about what happens to the person's data
 
 ## Testing a brand
 
-Add a scenario to `tests/gui/gui.spec.js` with your `brand` object (see
-the branding test) — it renders your skin headlessly and screenshots it
-in ~1 second, no Windows needed.
+Brand data is read by the native shell (`shell/Wootc.Shell.Core/BrandTheme.cs`).
+The Playwright scenarios that rendered a brand headlessly were removed in #346;
+use the shell's UiTest gallery to check a brand.
