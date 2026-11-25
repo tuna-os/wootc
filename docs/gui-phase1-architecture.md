@@ -5,15 +5,16 @@ compiles, drives the E2E install in drive mode (`WOOTC_E2E_DRIVE=1`), and
 green GUI-driven runs are published in the docs/status.md build/test matrix.
 Companion to `docs/SPEC.md` §3 and the E2E
 learnings accumulated on runner-a. Scope: everything that runs on Windows —
-the install engine (`app/`) and its native WinUI shell (`shell/`), the install pipeline it drives, and the contract
+the install engine (`app/`), its WinUI shell (`shell/`), the install
+pipeline it drives, and the contract
 between the GUI and the deployer across reboots. Phase-2 boot internals are
 out of scope (owned by the E2E track).
 
 ## 1. Current state
 
-`app/` is the Go install engine behind the native WinUI shell. The former
-Wails v2 app (820×620, vanilla-JS, launchpad → progress → done plus a control
-screen) was removed in #346; the shell has the same journey. The engine exposes `GetImages`, `GetSystemInfo`,
+`app/` is the Go install engine behind the native WinUI shell. #346 removed
+the Wails v2 app. The shell has the same journey: launchpad, progress, done,
+and a control screen. The engine exposes `GetImages`, `GetSystemInfo`,
 `StartInstall` (9-step pipeline), `CancelInstall`, `Uninstall`, `Reboot`.
 Vault handling (sha512-crypt hash, ACL-restricted `vault.json`, deployer
 shreds after ingest) is designed correctly and matches SPEC §2.3.

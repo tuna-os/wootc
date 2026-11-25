@@ -110,4 +110,4 @@ this rung: custom-OCI refs guessed systemd-boot (backend-contract
 violation), the Go installer still made a VHDX Phase 2 can no longer
 attach, missing bcd-guid.txt, missing elevation, missing console=ttyS0,
 and the missing BCD one-shot seen at reboot in run 20260723T1144 (the Go
-pipeline was aligned with setup-wootc.ps1 in `6961461`). The GUI is driven by drive mode (a directive file the shell polls), not CDP.
+pipeline was aligned with setup-wootc.ps1 in `6961461`). Drive mode, not CDP, drives the GUI.

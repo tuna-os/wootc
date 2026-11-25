@@ -2856,9 +2856,8 @@ gui_install_arm() {
     # single-connection: a long guest job must be launched detached and observed
     # through short reads, which is the same pattern the rest of this harness
     # already uses for anything slow.
-    # The native shell is WinUI, not WebView2: it needs no runtime install.
-    # (Not re-indented: the PowerShell here-string below must keep "@ at
-    # column 0.)
+    # The native shell is WinUI, not WebView2: it needs no runtime install,
+    # so there is no WebView2 kick-off here (removed with Wails, #346).
 
     gui_settle_pending_servicing || { capture_vm_diagnostics; exit 1; }
 

@@ -1,9 +1,8 @@
 # GUI walkthrough
 
-These are **historical Wails mock illustrations**. The Playwright suite that
-generated them (`tests/gui/`) was removed in #346, so they are not regenerated.
-They do not prove an installed native shell, a real migration or the RC screenshot
-gate. The native screens come from the UiTest gallery in `shell/`. See the separate [evidence for the native shell](winui-shell.md).
+These are **old Wails mock images**. They do not prove an installed native
+shell, a real migration or the RC screenshot gate. #346 removed the suite that
+made them. See the separate [evidence for the native shell](winui-shell.md).
 
 ## 1. Launchpad — choose a variant
 
@@ -79,11 +78,9 @@ North Star promise: nothing is ever deleted from Windows.
 
 # Linux-side apps
 
-The screens above are the historical Windows installer mocks. The apps below are the GTK4/libadwaita tools that run **on the
-migrated Linux system**. The headless capture script and its CI job were
-removed in #346, so these images are static. They were rendered headlessly in a container (Xvfb + GTK4's cairo
-software renderer) against the fixture hooks the unit tests use. They are
-not regenerated, so they can drift from the shipping code.
+The screens above are old Windows installer mocks. The apps below are the
+GTK4/libadwaita tools that run **on the migrated Linux system**. #346 removed
+the capture script, so these images are static and can drift from the code.
 
 ## 8. Choose what to bring over
 
