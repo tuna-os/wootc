@@ -96,7 +96,7 @@ class CoverageGate(unittest.TestCase):
         for name in ('run.sh', 'coverage-report.py'):
             shutil.copy(ROOT / 'tests' / name, fixture / 'tests' / name)
         shutil.copy(ROOT / '.coverage-thresholds.json', fixture)
-        for directory in ('app', 'slurp', 'fisherman/tui', 'fisherman/fisherman'):
+        for directory in ('app', 'slurp', 'installer/fisherman/tui', 'installer/fisherman/fisherman'):
             (fixture / directory).mkdir(parents=True)
         commands = fixture / 'commands'
         commands.mkdir()

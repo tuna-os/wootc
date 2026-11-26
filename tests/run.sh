@@ -110,8 +110,8 @@ run_fast() {
         run_go_module app app || rc=1
         # slurp/: the Windows-migration module app/'s Windows and Linux sides share.
         run_go_module slurp slurp || rc=1
-        run_go_module fisherman/tui fisherman-tui || rc=1
-        run_go_module fisherman/fisherman fisherman-core || rc=1
+        run_go_module installer/fisherman/tui fisherman-tui || rc=1
+        run_go_module installer/fisherman/fisherman fisherman-core || rc=1
         if [ -n "${WOOTC_COVERAGE_DIR:-}" ]; then
             python3 tests/coverage-report.py "$WOOTC_COVERAGE_DIR" || rc=1
         fi

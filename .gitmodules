@@ -1,3 +1,4 @@
-[submodule "fisherman"]
-	path = fisherman
-	url = https://github.com/tuna-os/fisherman.git
+[submodule "installer"]
+	path = installer
+	url = https://github.com/tuna-os/installer.git
+	shallow = true

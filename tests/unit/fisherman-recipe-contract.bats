@@ -17,13 +17,13 @@ setup() {
     DEPLOY="$REPO_ROOT/payload/deployer/deploy.sh"
     GN="$REPO_ROOT/payload/migration/wootc-go-native"
     TMP="$BATS_TEST_TMPDIR"
-    [ -f "$REPO_ROOT/fisherman/fisherman/go.mod" ] \
-        || skip "the fisherman submodule is not checked out (git submodule update --init fisherman)"
+    [ -f "$REPO_ROOT/installer/fisherman/fisherman/go.mod" ] \
+        || skip "the fisherman submodule is not checked out (git submodule update --init installer)"
     command -v go >/dev/null || skip "go is not installed"
     : "${GOTMPDIR:=$HOME/.cache/wootc-gotmp}"; mkdir -p "$GOTMPDIR"; export GOTMPDIR
     # An exec-capable place for the binary (/tmp is noexec on some hosts).
     BIN="$HOME/.cache/wootc-bats-fisherman.$$"; mkdir -p "$BIN"
-    (cd "$REPO_ROOT/fisherman/fisherman" && go build -o "$BIN/fisherman" ./cmd/fisherman/)
+    (cd "$REPO_ROOT/installer/fisherman/fisherman" && go build -o "$BIN/fisherman" ./cmd/fisherman/)
     FISHERMAN="$BIN/fisherman"
 }
 

@@ -163,7 +163,7 @@ jobs:
 
       - name: Build fisherman
         run: |
-          cd fisherman/fisherman
+          cd installer/fisherman/fisherman
           go build -o /tmp/fisherman ./cmd/fisherman/
 
       # fisherman validate checks the target the way the install does: the

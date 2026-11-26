@@ -13,12 +13,12 @@
     },
     {
       "name": "fisherman-tui",
-      "directory": "fisherman/tui",
+      "directory": "installer/fisherman/tui",
       "module": "github.com/tuna-os/fisherman/tui"
     },
     {
       "name": "fisherman-core",
-      "directory": "fisherman/fisherman",
+      "directory": "installer/fisherman/fisherman",
       "module": "github.com/tuna-os/fisherman"
     }
   ],
