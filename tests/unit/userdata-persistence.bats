@@ -140,7 +140,7 @@ setup() {
     # symlink into the deployment's OWN var, masked at runtime by the
     # stateroot var mount (run 20260723T0423). fisherman must relocate the
     # home and write a tmpfiles.d snippet for first-boot relabeling.
-    local ug="$REPO_ROOT/fisherman/fisherman/internal/post/user.go"
+    local ug="$REPO_ROOT/installer/fisherman/fisherman/internal/post/user.go"
     grep -q 'staterootHome' "$ug"
     grep -q 'fisherman-home-' "$ug"
     grep -q '/etc/skel' "$ug"

@@ -36,13 +36,13 @@ else
                 select_all ;;
         esac
         case "$f" in
-            fisherman | payload/* | platform/dracut/*) hit[deployer]=1 ;;
+            installer | payload/* | platform/dracut/*) hit[deployer]=1 ;;
         esac
         case "$f" in
             app/* | slurp/* | packaging/*) hit[app]=1 ;;
         esac
         case "$f" in
-            fisherman) hit[recipe]=1 ;;
+            installer) hit[recipe]=1 ;;
         esac
         case "$f" in
             tests/audit-classic-offline.py | tests/unit/test_wootc_package_consumer.py | "$classic_record") hit[classic]=1 ;;
